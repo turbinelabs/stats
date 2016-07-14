@@ -1,0 +1,47 @@
+package handler
+
+import (
+	"flag"
+	"log"
+
+	"github.com/turbinelabs/client/http"
+	"github.com/turbinelabs/server/handler"
+)
+
+// AuthorizerFromFlags constructs a handler.Authorizer from command
+// line flags.
+type AuthorizerFromFlags interface {
+	// Constructs a handler.Authorizer from command line flags
+	// with the given log.Logger.
+	Make(*log.Logger) (handler.Authorizer, error)
+}
+
+// NewAPIAuthorizerFromFlags constructs a new AuthorizerFromFlags for
+// a handler.Authorizer that uses the Turbine API to authorize
+// requests.
+func NewAPIAuthorizerFromFlags(flagset *flag.FlagSet) AuthorizerFromFlags {
+	ff := &apiAuthFromFlags{}
+
+	ff.clientFromFlags = http.NewFromFlags("API", "api.turbinelabs.io", flagset)
+
+	return ff
+}
+
+type apiAuthFromFlags struct {
+	clientFromFlags http.FromFlags
+}
+
+func (ff *apiAuthFromFlags) Make(log *log.Logger) (handler.Authorizer, error) {
+	client, endpoint, err := ff.clientFromFlags.Make()
+	if err != nil {
+		return nil, err
+	}
+
+	auth := apiAuthorizer{
+		client:   client,
+		endpoint: endpoint,
+		log:      log,
+	}
+
+	return auth.wrap, nil
+}
