@@ -61,14 +61,7 @@ func (a *apiAuthorizerHandler) validate(apiKey string) *httperr.Error {
 	filter := service.UserFilter{APIAuthKey: api.APIAuthKey(apiKey)}
 	users, err := svc.User().Index(filter)
 	if err != nil {
-		switch httpErr := err.(type) {
-		case httperr.Error:
-			return &httpErr
-		case *httperr.Error:
-			return httpErr
-		default:
-			return httperr.New500(err.Error(), httperr.UnknownTransportCode)
-		}
+		return httperr.FromError(err, httperr.UnknownTransportCode)
 	}
 
 	if len(users) == 0 {
