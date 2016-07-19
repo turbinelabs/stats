@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/turbinelabs/cli/flags"
 	"github.com/turbinelabs/server"
 	serverhandler "github.com/turbinelabs/server/handler"
 	"github.com/turbinelabs/server/header"
@@ -30,7 +31,9 @@ func NewFromFlags(flagset *flag.FlagSet) FromFlags {
 
 	flagset.BoolVar(&ff.devMode, "dev", false, "Developer mode: API keys are not checked")
 
-	ff.ServerFromFlags = server.NewFromFlags("listener", flagset)
+	serverFlagSet := flags.NewPrefixedFlagSet(flagset, "listener", "stats listener")
+
+	ff.ServerFromFlags = server.NewFromFlags(serverFlagSet)
 	ff.StatsFromFlags = statsd.NewFromFlags(flagset)
 	ff.AuthorizerFromFlags = handler.NewAPIAuthorizerFromFlags(flagset)
 	ff.MetricsCollectorFromFlags = handler.NewMetricsCollectorFromFlags(flagset)

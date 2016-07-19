@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 
+	"github.com/turbinelabs/cli/flags"
 	"github.com/turbinelabs/logparser/forwarder"
 )
 
@@ -20,14 +21,16 @@ type MetricsCollectorFromFlags interface {
 
 // NewMetricsCollectorFromFlags constructs a new
 // MetricsCollectorFromFlags.
-func NewMetricsCollectorFromFlags(flags *flag.FlagSet) MetricsCollectorFromFlags {
+func NewMetricsCollectorFromFlags(flagset *flag.FlagSet) MetricsCollectorFromFlags {
 	ff := &metricsCollectorFromFlags{}
-	ff.forwarderFromFlags =
-		forwarder.NewFromFlagsWithDefaultForwarderType(
-			flags,
+	ff.forwarderFromFlags = forwarder.NewFromFlagsWithDefaultForwarderType(
+		flags.NewPrefixedFlagSet(
+			flagset,
 			"stats",
-			forwarder.WavefrontForwarderType,
-		)
+			"stats forwarder",
+		),
+		forwarder.WavefrontForwarderType,
+	)
 	return ff
 }
 
