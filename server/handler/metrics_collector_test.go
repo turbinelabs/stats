@@ -19,6 +19,7 @@ import (
 	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats"
 	"github.com/turbinelabs/test/assert"
+	testio "github.com/turbinelabs/test/io"
 )
 
 const (
@@ -30,16 +31,6 @@ var (
 
 	testEpochTime = time.Unix(testEpoch/1000, 0)
 )
-
-type failingReader struct{}
-
-func (r *failingReader) Read(p []byte) (int, error) {
-	return 0, errors.New("failed")
-}
-
-func (r *failingReader) Close() error {
-	return nil
-}
 
 func makePayload(numStats int) *stats.StatsPayload {
 	s := []stats.Stat{}
@@ -133,7 +124,7 @@ func TestMetricsCollectorRequestGetPayloadNoBody(t *testing.T) {
 
 func TestMetricsCollectorRequestGetPayloadBodyError(t *testing.T) {
 	req := &http.Request{}
-	req.Body = &failingReader{}
+	req.Body = testio.NewFailingReader()
 	fReq := metricsCollectorRequest{req}
 	p, err := fReq.getPayload()
 	assert.Nil(t, p)
@@ -216,7 +207,7 @@ func TestAsHandlerBodyError(t *testing.T) {
 	handler := asHandler(c)
 
 	req := &http.Request{}
-	req.Body = &failingReader{}
+	req.Body = testio.NewFailingReader()
 	recorder := httptest.NewRecorder()
 
 	handler(recorder, req)
