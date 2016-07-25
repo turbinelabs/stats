@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
-	"time"
 
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
@@ -15,16 +14,6 @@ import (
 	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats"
 )
-
-const (
-	millisToNanos = int64(time.Millisecond)
-)
-
-// Result is a JSON-encodable struct that encapsulates the result of
-// forwarding metrics.
-type Result struct {
-	NumAccepted int `json:"numAccepted"`
-}
 
 // MetricsCollector abstracts the collection of metrics and their
 // subsequent delivery to an external metrics storage service.
@@ -77,14 +66,12 @@ func (f *metricsCollector) Forward(payload *stats.StatsPayload) (int, error) {
 			continue
 		}
 
-		ts := time.Unix(stat.Timestamp/1000, stat.Timestamp%1000*millisToNanos)
-
 		values = append(
 			values,
 			metric.MetricValue{
 				Metric:    m,
 				Value:     stat.Value,
-				Timestamp: &ts,
+				Timestamp: stats.TimeFromMilliseconds(stat.Timestamp),
 				Tags:      stat.Tags,
 			},
 		)
@@ -106,15 +93,15 @@ func asHandler(f MetricsCollector) http.HandlerFunc {
 
 		fr := metricsCollectorRequest{r}
 
-		stats, err := fr.getPayload()
+		payload, err := fr.getPayload()
 		if err != nil {
 			rrw.WriteEnvelope(err, nil)
 			return
 		}
 
-		num, err := f.Forward(stats)
+		num, err := f.Forward(payload)
 
-		rrw.WriteEnvelope(err, &Result{NumAccepted: num})
+		rrw.WriteEnvelope(err, &stats.Result{NumAccepted: num})
 	}
 }
 

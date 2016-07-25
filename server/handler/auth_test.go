@@ -18,6 +18,7 @@ import (
 	"github.com/turbinelabs/server/header"
 	"github.com/turbinelabs/server/http/envelope"
 	httperr "github.com/turbinelabs/server/http/error"
+	"github.com/turbinelabs/stats"
 	"github.com/turbinelabs/test/assert"
 )
 
@@ -150,7 +151,7 @@ func TestApiAuthorizerHandlerSuccess(t *testing.T) {
 	user := fixtures.User1
 	apiHandler := mockHandler{responsePayload: api.Users{user}}
 
-	payload := &Result{NumAccepted: 0}
+	payload := &stats.Result{NumAccepted: 0}
 	underlyingHandler := mockHandler{responsePayload: payload}
 
 	server := mkServer(&apiHandler)
@@ -173,7 +174,7 @@ func TestApiAuthorizerHandlerSuccess(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Nil(t, response.Error)
 
-	responsePayload := &Result{}
+	responsePayload := &stats.Result{}
 	err = json.Unmarshal(rawResponsePayload, responsePayload)
 
 	assert.DeepEqual(t, responsePayload, payload)

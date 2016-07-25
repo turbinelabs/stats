@@ -29,7 +29,7 @@ const (
 var (
 	metricSource, _ = metric.NewSource("sourcery", "")
 
-	testEpochTime = time.Unix(testEpoch/1000, 0)
+	testEpochTime = time.Unix(testEpoch/1000, 0).In(time.UTC)
 )
 
 func makePayload(numStats int) *stats.StatsPayload {
@@ -164,7 +164,7 @@ func TestAsHandler(t *testing.T) {
 
 	assert.Equal(t, recorder.Code, 200)
 
-	expectedResult := envelope.Response{Payload: &Result{NumAccepted: 1}}
+	expectedResult := envelope.Response{Payload: &stats.Result{NumAccepted: 1}}
 	expectedBody, err := json.Marshal(expectedResult)
 	assert.Nil(t, err)
 
@@ -191,7 +191,7 @@ func TestAsHandlerForwardingError(t *testing.T) {
 
 	assert.Equal(t, recorder.Code, 500)
 
-	expectedResult := envelope.Response{Error: httpErr, Payload: &Result{NumAccepted: 1}}
+	expectedResult := envelope.Response{Error: httpErr, Payload: &stats.Result{NumAccepted: 1}}
 	expectedBody, err := json.Marshal(expectedResult)
 	assert.Nil(t, err)
 
