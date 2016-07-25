@@ -43,7 +43,10 @@ func (r *statsRunner) Run(cmd *command.Cmd, args []string) command.CmdErr {
 	return command.NoError()
 }
 
+func mkCLI() cli.CLI {
+	return cli.New("0.1-dev", Cmd())
+}
+
 func main() {
-	app := cli.New("0.1-dev", Cmd())
-	app.Main()
+	mkCLI().Main()
 }
