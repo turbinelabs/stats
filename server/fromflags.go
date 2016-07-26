@@ -32,9 +32,9 @@ func NewFromFlags(flagset *flag.FlagSet) FromFlags {
 	flagset.BoolVar(&ff.devMode, "dev", false, "Developer mode: API keys are not checked")
 
 	serverFlagSet := flags.NewPrefixedFlagSet(flagset, "listener", "stats listener")
-
 	ff.ServerFromFlags = server.NewFromFlags(serverFlagSet)
-	ff.StatsFromFlags = statsd.NewFromFlags(flagset)
+
+	ff.StatsFromFlags = statsd.NewFromFlags(serverFlagSet.Scope("stats", "internal server"))
 	ff.AuthorizerFromFlags = handler.NewAPIAuthorizerFromFlags(flagset)
 	ff.MetricsCollectorFromFlags = handler.NewMetricsCollectorFromFlags(flagset)
 

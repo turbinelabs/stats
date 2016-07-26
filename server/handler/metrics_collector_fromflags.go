@@ -23,14 +23,19 @@ type MetricsCollectorFromFlags interface {
 // MetricsCollectorFromFlags.
 func NewMetricsCollectorFromFlags(flagset *flag.FlagSet) MetricsCollectorFromFlags {
 	ff := &metricsCollectorFromFlags{}
-	ff.forwarderFromFlags = forwarder.NewFromFlagsWithDefaultForwarderType(
-		flags.NewPrefixedFlagSet(
-			flagset,
-			"stats",
-			"stats forwarder",
-		),
-		forwarder.WavefrontForwarderType,
+
+	pfs := flags.NewPrefixedFlagSet(
+		flagset,
+		"stats",
+		"stats forwarder",
 	)
+
+	ff.forwarderFromFlags = forwarder.NewFromFlags(
+		pfs,
+		forwarder.SetDefaultForwarderType(forwarder.WavefrontForwarderType),
+		forwarder.DisableTurbineApiForwarding(),
+	)
+
 	return ff
 }
 
