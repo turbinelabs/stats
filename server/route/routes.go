@@ -12,8 +12,8 @@ func MkRoutes(
 	stats statsd.Stats,
 	authorizer serverhandler.Authorizer,
 	metricsCollector handler.MetricsCollector,
-) *serverroute.RouteSet {
-	return &serverroute.RouteSet{
+) serverroute.RouteSet {
+	return serverroute.RouteSet{
 		serverroute.NewAuthorized(
 			stats,
 			stats.Scope("forward"),
