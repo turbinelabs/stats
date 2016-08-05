@@ -9,10 +9,12 @@ import (
 
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
+	"github.com/turbinelabs/ptr"
 	"github.com/turbinelabs/server"
 	"github.com/turbinelabs/server/handler"
 	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats"
+	"github.com/turbinelabs/time"
 )
 
 // MetricsCollector abstracts the collection of metrics and their
@@ -71,7 +73,7 @@ func (f *metricsCollector) Forward(payload *stats.StatsPayload) (int, error) {
 			metric.MetricValue{
 				Metric:    m,
 				Value:     stat.Value,
-				Timestamp: stats.TimeFromMilliseconds(stat.Timestamp),
+				Timestamp: ptr.Time(time.FromUnixMilli(stat.Timestamp)),
 				Tags:      stat.Tags,
 			},
 		)
