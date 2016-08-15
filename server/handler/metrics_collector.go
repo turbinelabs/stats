@@ -73,7 +73,7 @@ func (f *metricsCollector) Forward(payload *stats.StatsPayload) (int, error) {
 			metric.MetricValue{
 				Metric:    m,
 				Value:     stat.Value,
-				Timestamp: ptr.Time(time.FromUnixMilli(stat.Timestamp)),
+				Timestamp: ptr.Time(time.FromUnixMicro(stat.Timestamp)),
 				Tags:      stat.Tags,
 			},
 		)

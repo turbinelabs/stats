@@ -9,7 +9,7 @@ type StatsPayload struct {
 type Stat struct {
 	Name      string            `json:"name"`
 	Value     float64           `json:"value"`
-	Timestamp int64             `json:"timestamp"` // milliseconds since the Unix epoch, UTC
+	Timestamp int64             `json:"timestamp"` // microseconds since the Unix epoch, UTC
 	Tags      map[string]string `json:"tags"`
 }
 

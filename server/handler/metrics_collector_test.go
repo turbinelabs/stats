@@ -20,16 +20,17 @@ import (
 	"github.com/turbinelabs/stats"
 	"github.com/turbinelabs/test/assert"
 	testio "github.com/turbinelabs/test/io"
+	tbntime "github.com/turbinelabs/time"
 )
 
 const (
-	testEpoch = int64(1468259800000)
+	testEpoch = int64(1468259800000000)
 )
 
 var (
 	metricSource, _ = metric.NewSource("sourcery", "")
 
-	testEpochTime = time.Unix(testEpoch/1000, 0).In(time.UTC)
+	testEpochTime = tbntime.FromUnixMicro(testEpoch)
 )
 
 func makePayload(numStats int) *stats.StatsPayload {
@@ -64,7 +65,7 @@ func makeExpectedMetricValues(numStats int) []metric.MetricValue {
 
 		m, _ := metricSource.NewMetric(fmt.Sprintf("s%d", i))
 
-		ts := testEpochTime.Add(time.Duration(i) * time.Millisecond)
+		ts := testEpochTime.Add(time.Duration(i) * time.Microsecond)
 
 		value := metric.MetricValue{
 			Metric:    m,
@@ -282,6 +283,7 @@ func (tc *forwardTestCase) run(t *testing.T) {
 	sent, err := collector.Forward(tc.payload)
 	assert.Equal(t, sent, tc.numSent)
 	tc.checkForwardErr(t, err)
+
 	assert.DeepEqual(t, recordedValues, tc.expectedMetricValues)
 }
 
