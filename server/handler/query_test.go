@@ -8,8 +8,10 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/turbinelabs/test/assert"
+	tbntime "github.com/turbinelabs/time"
 )
 
 // Nested map structure for testing unmarshaling into API objects. Can
@@ -182,4 +184,80 @@ func TestRunQueryQueryTypeValidation(t *testing.T) {
 
 	testQueryTypeInvalid(t, true)
 	testQueryTypeInvalid(t, false)
+}
+
+func TestNormalizeTimeRangeDefault(t *testing.T) {
+	before := tbntime.ToUnixMicro(time.Now().Truncate(time.Second))
+	start, end, err := normalizeTimeRange(StatsTimeRange{})
+	after := tbntime.ToUnixMicro(time.Now())
+
+	assert.True(t, before <= end && end <= after)
+	assert.Equal(t, start, end-3600000000)
+	assert.Nil(t, err)
+}
+
+func TestNormalizeTimeRangeErrors(t *testing.T) {
+	when := tbntime.ToUnixMicro(time.Now())
+	start, end, err := normalizeTimeRange(StatsTimeRange{End: &when})
+	assert.Equal(t, start, int64(0))
+	assert.Equal(t, end, int64(0))
+	assert.ErrorContains(t, err, "time range start is not set")
+
+	duration := int64(3600000000)
+	start, end, err = normalizeTimeRange(StatsTimeRange{Duration: &duration})
+	assert.Equal(t, start, int64(0))
+	assert.Equal(t, end, int64(0))
+	assert.ErrorContains(t, err, "time range start is not set")
+
+	start, end, err = normalizeTimeRange(StatsTimeRange{Start: &when, End: &when})
+	assert.Equal(t, start, int64(0))
+	assert.Equal(t, end, int64(0))
+	assert.ErrorContains(t, err, "empty time range: start equals end")
+
+	zeroDuration := int64(0)
+	start, end, err = normalizeTimeRange(StatsTimeRange{Start: &when, Duration: &zeroDuration})
+	assert.Equal(t, start, int64(0))
+	assert.Equal(t, end, int64(0))
+	assert.ErrorContains(t, err, "empty time range: duration is zero")
+
+	start, end, err = normalizeTimeRange(StatsTimeRange{Start: &when})
+	assert.Equal(t, start, int64(0))
+	assert.Equal(t, end, int64(0))
+	assert.ErrorContains(t, err, "time range start is set, but not end or duration")
+}
+
+func TestNormalizeTimeRangeStartEnd(t *testing.T) {
+	end := tbntime.ToUnixMicro(time.Now())
+	start := end - 180000000
+
+	normalizedStart, normalizedEnd, err := normalizeTimeRange(
+		StatsTimeRange{Start: &start, End: &end},
+	)
+
+	assert.Equal(t, normalizedStart, start)
+	assert.Equal(t, normalizedEnd, end)
+	assert.Nil(t, err)
+
+	// reversed start/end
+	normalizedStart, normalizedEnd, err = normalizeTimeRange(
+		StatsTimeRange{Start: &end, End: &start},
+	)
+
+	assert.Equal(t, normalizedStart, start)
+	assert.Equal(t, normalizedEnd, end)
+	assert.Nil(t, err)
+}
+
+func TestNormalizeTimeRangeStartDuration(t *testing.T) {
+	duration := int64(180000000)
+	end := tbntime.ToUnixMicro(time.Now())
+	start := end - duration
+
+	normalizedStart, normalizedEnd, err := normalizeTimeRange(
+		StatsTimeRange{Start: &start, Duration: &duration},
+	)
+
+	assert.Equal(t, normalizedStart, start)
+	assert.Equal(t, normalizedEnd, end)
+	assert.Nil(t, err)
 }

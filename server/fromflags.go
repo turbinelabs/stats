@@ -4,7 +4,9 @@ import (
 	"flag"
 	"log"
 	"os"
+	"strings"
 
+	"github.com/turbinelabs/arrays/indexof"
 	"github.com/turbinelabs/cli/flags"
 	"github.com/turbinelabs/server"
 	serverhandler "github.com/turbinelabs/server/handler"
@@ -12,6 +14,11 @@ import (
 	"github.com/turbinelabs/stats/server/handler"
 	"github.com/turbinelabs/stats/server/route"
 	"github.com/turbinelabs/statsd"
+)
+
+const (
+	noAuthMode = "noauth"
+	mockMode   = "mock"
 )
 
 // FromFlags validates and constructs a stats Server from command line
@@ -27,9 +34,18 @@ type FromFlags interface {
 // NewFromFlags produces a new FromFlags for the given FlagSet,
 // initializing its flags as appropriate.
 func NewFromFlags(flagset *flag.FlagSet) FromFlags {
-	ff := &fromFlags{}
+	ff := &fromFlags{
+		devMode: flags.NewStringsWithConstraint([]string{noAuthMode, mockMode}),
+	}
 
-	flagset.BoolVar(&ff.devMode, "dev", false, "Developer mode: API keys are not checked")
+	flagset.Var(
+		&ff.devMode,
+		"dev",
+		"Developer `modes`. Accepts a comma-separated list of modes. "+
+			"Possible modes are "+noAuthMode+" and "+mockMode+". "+
+			"The "+noAuthMode+" mode disables API key checking. "+
+			"The "+mockMode+" mode returns mock data only.",
+	)
 
 	serverFlagSet := flags.NewPrefixedFlagSet(flagset, "listener", "stats listener")
 	ff.ServerFromFlags = server.NewFromFlags(serverFlagSet)
@@ -42,7 +58,7 @@ func NewFromFlags(flagset *flag.FlagSet) FromFlags {
 }
 
 type fromFlags struct {
-	devMode                   bool
+	devMode                   flags.Strings
 	ServerFromFlags           server.FromFlags
 	StatsFromFlags            statsd.FromFlags
 	AuthorizerFromFlags       handler.AuthorizerFromFlags
@@ -69,8 +85,11 @@ func (ff *fromFlags) Make() (server.Server, error) {
 		return nil, err
 	}
 
+	noAuth := indexof.String(ff.devMode.Strings, noAuthMode) != indexof.NotFound
+	mockData := indexof.String(ff.devMode.Strings, mockMode) != indexof.NotFound
+
 	var authorizer serverhandler.Authorizer
-	if ff.devMode {
+	if noAuth {
 		authorizer = serverhandler.SimpleHeaderAuth(header.APIKey)
 	} else {
 		authorizer, err = ff.AuthorizerFromFlags.Make(logger)
@@ -84,7 +103,14 @@ func (ff *fromFlags) Make() (server.Server, error) {
 		return nil, err
 	}
 
-	routes := route.MkRoutes(stats, authorizer, collector)
+	var queryHandler handler.QueryHandler
+	if mockData {
+		queryHandler = handler.NewMockQueryHandler()
+	} else {
+		queryHandler = handler.NewQueryHandler()
+	}
+
+	routes := route.MkRoutes(stats, authorizer, collector, queryHandler)
 
 	server, err := ff.ServerFromFlags.Make(logger, logger, stats, routes)
 	if err != nil {
@@ -93,8 +119,15 @@ func (ff *fromFlags) Make() (server.Server, error) {
 
 	server.DeferClose(collector)
 
-	if ff.devMode {
-		logger.Println("stats-server: dev-mode")
+	if noAuth || mockData {
+		devModes := []string{}
+		if noAuth {
+			devModes = append(devModes, "no-auth")
+		}
+		if mockData {
+			devModes = append(devModes, "mock-data")
+		}
+		logger.Printf("stats-server: dev-mode: %s", strings.Join(devModes, " "))
 	} else {
 		logger.Println("stats-server")
 	}

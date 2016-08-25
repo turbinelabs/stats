@@ -3,11 +3,15 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/turbinelabs/api"
 	"github.com/turbinelabs/server/handler"
 	httperr "github.com/turbinelabs/server/http/error"
+	tbntime "github.com/turbinelabs/time"
 )
+
+const oneHourInMicroseconds = int64(3600*time.Second) / int64(time.Microsecond)
 
 type StatsTimeRange struct {
 	// Start and End represent the start and end of a time range,
@@ -102,11 +106,15 @@ type QueryHandler interface {
 	AsHandler() http.HandlerFunc
 }
 
+func NewQueryHandler() QueryHandler {
+	return &queryHandler{}
+}
+
 type queryHandler struct{}
 
-func (qh *queryHandler) RunQuery(q StatsQuery) (*StatsQueryResult, *httperr.Error) {
+func validateQuery(q *StatsQuery) *httperr.Error {
 	if q.ZoneKey == "" {
-		return nil, httperr.New400(
+		return httperr.New400(
 			"query requires zone_key",
 			httperr.InvalidObjectErrorCode,
 		)
@@ -114,17 +122,17 @@ func (qh *queryHandler) RunQuery(q StatsQuery) (*StatsQueryResult, *httperr.Erro
 
 	for _, tsq := range q.TimeSeries {
 		if !IsValidQueryType(tsq.QueryType) {
-			return nil, httperr.New400(
+			return httperr.New400(
 				fmt.Sprintf("query contains invalid query type %s", tsq.QueryType),
 				httperr.InvalidObjectErrorCode,
 			)
 		}
 	}
 
-	return nil, httperr.New500("boom", httperr.UnknownUnclassifiedCode)
+	return nil
 }
 
-func (qh *queryHandler) AsHandler() http.HandlerFunc {
+func mkHandlerFunc(qh QueryHandler) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		rrw := handler.RichResponseWriter{rw}
 		rr := handler.NewRichRequest(r)
@@ -139,4 +147,67 @@ func (qh *queryHandler) AsHandler() http.HandlerFunc {
 
 		rrw.WriteEnvelope(err, result)
 	}
+}
+
+func normalizeTimeRange(tr StatsTimeRange) (int64, int64, *httperr.Error) {
+	if tr.End != nil {
+		if tr.Start != nil {
+			start, end := *tr.Start, *tr.End
+			if start > end {
+				start, end = end, start
+			} else if start == end {
+				return 0, 0, httperr.New400(
+					"empty time range: start equals end",
+					httperr.MiscErrorCode,
+				)
+			}
+
+			return start, end, nil
+		} else {
+			return 0, 0, httperr.New400(
+				"time range start is not set",
+				httperr.MiscErrorCode,
+			)
+		}
+	} else if tr.Duration != nil {
+		if tr.Start != nil {
+			start := *tr.Start
+			duration := *tr.Duration
+			if duration > 0 {
+				return start, start + duration, nil
+			} else {
+				return 0, 0, httperr.New400(
+					"empty time range: duration is zero or negative",
+					httperr.MiscErrorCode,
+				)
+			}
+		} else {
+			return 0, 0, httperr.New400(
+				"time range start is not set",
+				httperr.MiscErrorCode,
+			)
+		}
+	} else if tr.Start != nil {
+		return 0, 0, httperr.New400(
+			"time range start is set, but not end or duration",
+			httperr.MiscErrorCode,
+		)
+	} else {
+		end := tbntime.ToUnixMicro(time.Now().Truncate(time.Second))
+		start := end - oneHourInMicroseconds
+		return start, end, nil
+	}
+}
+
+func (qh *queryHandler) RunQuery(q StatsQuery) (*StatsQueryResult, *httperr.Error) {
+	err := validateQuery(&q)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, httperr.New500("boom", httperr.UnknownUnclassifiedCode)
+}
+
+func (qh *queryHandler) AsHandler() http.HandlerFunc {
+	return mkHandlerFunc(qh)
 }

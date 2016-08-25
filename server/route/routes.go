@@ -12,6 +12,7 @@ func MkRoutes(
 	stats statsd.Stats,
 	authorizer serverhandler.Authorizer,
 	metricsCollector handler.MetricsCollector,
+	queryHandler handler.QueryHandler,
 ) serverroute.RouteSet {
 	return serverroute.RouteSet{
 		serverroute.NewAuthorized(
@@ -21,6 +22,14 @@ func MkRoutes(
 			"/v1.0/metrics",
 			authorizer,
 			metricsCollector.AsHandler(),
+		),
+		serverroute.NewAuthorized(
+			stats,
+			stats.Scope("query"),
+			serverroute.MethodGet,
+			"/v1.0/query",
+			authorizer,
+			queryHandler.AsHandler(),
 		),
 	}
 }
