@@ -6,12 +6,18 @@ import (
 	"time"
 
 	"github.com/turbinelabs/api"
+	clienthttp "github.com/turbinelabs/client/http"
 	"github.com/turbinelabs/server/handler"
 	httperr "github.com/turbinelabs/server/http/error"
+	"github.com/turbinelabs/stats/server/handler/requestcontext"
 	tbntime "github.com/turbinelabs/time"
 )
 
-const oneHourInMicroseconds = int64(3600*time.Second) / int64(time.Microsecond)
+const (
+	oneHourInMicroseconds = int64(3600*time.Second) / int64(time.Microsecond)
+
+	wavefrontAuthTokenHeader = "X-Auth-Token"
+)
 
 type StatsTimeRange struct {
 	// Start and End represent the start and end of a time range,
@@ -101,16 +107,22 @@ type StatsQueryResult struct {
 }
 
 type QueryHandler interface {
-	RunQuery(StatsQuery) (*StatsQueryResult, *httperr.Error)
+	RunQuery(api.OrgKey, StatsQuery) (*StatsQueryResult, *httperr.Error)
 
 	AsHandler() http.HandlerFunc
 }
 
-func NewQueryHandler() QueryHandler {
-	return &queryHandler{}
+func NewQueryHandler(wavefrontApiToken string) QueryHandler {
+	return &queryHandler{
+		wavefrontApiToken: wavefrontApiToken,
+		client:            clienthttp.HeaderPreserving(),
+	}
 }
 
-type queryHandler struct{}
+type queryHandler struct {
+	wavefrontApiToken string
+	client            *http.Client
+}
 
 func validateQuery(q *StatsQuery) *httperr.Error {
 	if q.ZoneKey == "" {
@@ -138,11 +150,17 @@ func mkHandlerFunc(qh QueryHandler) http.HandlerFunc {
 		rr := handler.NewRichRequest(r)
 
 		var result *StatsQueryResult
+		var err *httperr.Error
 
-		statsQuery := StatsQuery{}
-		err := handler.DecodeStruct("query", "query", rr, &statsQuery)
-		if err == nil {
-			result, err = qh.RunQuery(statsQuery)
+		requestContext := requestcontext.New(r)
+		if orgKey, ok := requestContext.GetOrgKey(); ok {
+			statsQuery := StatsQuery{}
+			err = handler.DecodeStruct("query", "query", rr, &statsQuery)
+			if err == nil {
+				result, err = qh.RunQuery(orgKey, statsQuery)
+			}
+		} else {
+			err = httperr.New500("authorization config error", httperr.MiscErrorCode)
 		}
 
 		rrw.WriteEnvelope(err, result)
@@ -199,13 +217,69 @@ func normalizeTimeRange(tr StatsTimeRange) (int64, int64, *httperr.Error) {
 	}
 }
 
-func (qh *queryHandler) RunQuery(q StatsQuery) (*StatsQueryResult, *httperr.Error) {
-	err := validateQuery(&q)
+func (qh *queryHandler) runQueries(urls []string) ([]StatsTimeSeries, *httperr.Error) {
+	requestFuncs := make([]httpRequestFn, len(urls))
+	for i, url := range urls {
+		request, err := http.NewRequest(http.MethodGet, url, nil)
+		if err != nil {
+			return nil, httperr.New500(err.Error(), httperr.MiscErrorCode)
+		}
+
+		request.Header.Add(wavefrontAuthTokenHeader, qh.wavefrontApiToken)
+
+		requestFuncs[i] = func() (*http.Response, error) {
+			return qh.client.Do(request)
+		}
+	}
+
+	responses := scatterGatherHttpRequests(requestFuncs, 30*time.Second)
+	results := make([]StatsTimeSeries, len(responses))
+	for idx, r := range responses {
+		if r.err != nil {
+			return nil, httperr.New500(r.err.Error(), httperr.MiscErrorCode)
+		}
+
+		if r.response.StatusCode >= http.StatusBadRequest {
+			return nil, httperr.New500(
+				fmt.Sprintf("Error %d querying wavefront", r.response.StatusCode),
+				httperr.MiscErrorCode,
+			)
+		}
+
+		ts, err := decodeWavefrontResponse(r.response)
+		if err != nil {
+			return nil, err
+		}
+		results[idx] = ts
+	}
+
+	return results, nil
+}
+
+func (qh *queryHandler) RunQuery(
+	orgKey api.OrgKey,
+	q StatsQuery,
+) (*StatsQueryResult, *httperr.Error) {
+	if err := validateQuery(&q); err != nil {
+		return nil, err
+	}
+
+	start, end, herr := normalizeTimeRange(q.TimeRange)
+	if herr != nil {
+		return nil, herr
+	}
+
+	queryUrls := make([]string, len(q.TimeSeries))
+	for idx, qts := range q.TimeSeries {
+		queryUrls[idx] = formatWavefrontQueryUrl(start, end, orgKey, q.ZoneKey, &qts)
+	}
+
+	ts, err := qh.runQueries(queryUrls)
 	if err != nil {
 		return nil, err
 	}
 
-	return nil, httperr.New500("boom", httperr.UnknownUnclassifiedCode)
+	return &StatsQueryResult{TimeSeries: ts}, nil
 }
 
 func (qh *queryHandler) AsHandler() http.HandlerFunc {

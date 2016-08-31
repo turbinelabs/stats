@@ -19,6 +19,7 @@ import (
 	"github.com/turbinelabs/server/http/envelope"
 	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats"
+	"github.com/turbinelabs/stats/server/handler/requestcontext"
 	"github.com/turbinelabs/test/assert"
 )
 
@@ -100,12 +101,15 @@ func (m *mockHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 func TestAPIAuthorizerHandlerValidateSuccess(t *testing.T) {
 	user := fixtures.User1
+	assert.NotEqual(t, user.OrgKey, api.OrgKey(""))
+
 	apiHandler := mockHandler{responsePayload: api.Users{user}}
 
 	server := mkServer(&apiHandler)
 	auth := mkAuthorizerHandler(t, server, nil)
 
-	err := auth.validate(string(user.APIAuthKey))
+	apiKey, err := auth.validate(string(user.APIAuthKey))
+	assert.Equal(t, apiKey, user.OrgKey)
 	assert.Nil(t, err)
 }
 
@@ -117,7 +121,8 @@ func TestAPIAuthorizerHandlerValidateUserIndexError(t *testing.T) {
 	server := mkServer(&apiHandler)
 	auth := mkAuthorizerHandler(t, server, nil)
 
-	err := auth.validate("123")
+	orgKey, err := auth.validate("123")
+	assert.Equal(t, orgKey, api.OrgKey(""))
 	assert.NonNil(t, err)
 	assert.Equal(t, err.Status, 500)
 	assert.Equal(t, err.Code, httperr.UnknownUnclassifiedCode)
@@ -127,7 +132,8 @@ func TestAPIAuthorizerHandlerValidateUserIndexError(t *testing.T) {
 func TestAPIAuthorizerHandlerValidateTransportError(t *testing.T) {
 	auth := mkAuthorizerHandlerFromHostPort(t, "localhost", 1, nil)
 
-	err := auth.validate("123")
+	orgKey, err := auth.validate("123")
+	assert.Equal(t, orgKey, api.OrgKey(""))
 	assert.NonNil(t, err)
 	assert.Equal(t, err.Status, 400) // you'd expect a 500: see api/server/http.requestHandler
 	assert.Equal(t, err.Code, httperr.UnknownTransportCode)
@@ -140,7 +146,8 @@ func TestAPIAuthorizerHandlerValidateSuccessWithNoUsers(t *testing.T) {
 	server := mkServer(&apiHandler)
 	auth := mkAuthorizerHandler(t, server, nil)
 
-	err := auth.validate("123")
+	orgKey, err := auth.validate("123")
+	assert.Equal(t, orgKey, api.OrgKey(""))
 	assert.NonNil(t, err)
 	assert.Equal(t, err.Status, 403)
 	assert.Equal(t, err.Code, httperr.UnknownUnauthorizedCode)
@@ -178,6 +185,11 @@ func TestApiAuthorizerHandlerSuccess(t *testing.T) {
 	err = json.Unmarshal(rawResponsePayload, responsePayload)
 
 	assert.DeepEqual(t, responsePayload, payload)
+
+	requestContext := requestcontext.New(request)
+	rcOrgKey, ok := requestContext.GetOrgKey()
+	assert.Equal(t, rcOrgKey, user.OrgKey)
+	assert.True(t, ok)
 }
 
 func TestApiAuthorizerHandlerNoHeader(t *testing.T) {
@@ -205,4 +217,9 @@ func TestApiAuthorizerHandlerNoHeader(t *testing.T) {
 
 	assert.NonNil(t, response.Error)
 	assert.Nil(t, response.Payload)
+
+	requestContext := requestcontext.New(request)
+	rcOrgKey, ok := requestContext.GetOrgKey()
+	assert.Equal(t, rcOrgKey, api.OrgKey(""))
+	assert.False(t, ok)
 }

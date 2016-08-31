@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/turbinelabs/api"
+	"github.com/turbinelabs/stats/server/handler/requestcontext"
 	"github.com/turbinelabs/test/assert"
 	tbntime "github.com/turbinelabs/time"
 )
@@ -93,7 +95,10 @@ func mkRequest(
 		t.Fatalf("Failure to construct test object: %v", err)
 	}
 
-	return &http.Request{URL: u}
+	req := &http.Request{URL: u}
+	reqCtxt := requestcontext.New(req)
+	reqCtxt.SetOrgKey(api.OrgKey("1234"))
+	return req
 }
 
 func testHandlerDecodingError(t *testing.T, useHumaneEncoding bool) {
@@ -109,6 +114,8 @@ func testHandlerDecodingError(t *testing.T, useHumaneEncoding bool) {
 	}
 
 	req := &http.Request{URL: u}
+	reqCtxt := requestcontext.New(req)
+	reqCtxt.SetOrgKey(api.OrgKey("1234"))
 
 	rw := httptest.NewRecorder()
 	handler := (&queryHandler{}).AsHandler()
@@ -122,6 +129,24 @@ func testHandlerDecodingError(t *testing.T, useHumaneEncoding bool) {
 func TestHandlerDecodingError(t *testing.T) {
 	testHandlerDecodingError(t, true)
 	testHandlerDecodingError(t, false)
+}
+
+func TestHandlerMissingOrgKey(t *testing.T) {
+	u, err := url.Parse("http://foo.com")
+	if err != nil {
+		t.Fatalf("Failure to construct test object: %v", err)
+	}
+
+	req := &http.Request{URL: u}
+
+	rw := httptest.NewRecorder()
+	handler := (&queryHandler{}).AsHandler()
+
+	handler(rw, req)
+
+	assert.Equal(t, rw.Code, 500)
+	assert.MatchesRegex(t, rw.Body.String(), "authorization config error")
+
 }
 
 func testZoneKeyValidation(t *testing.T, useHumaneEncoding bool) {
@@ -260,4 +285,130 @@ func TestNormalizeTimeRangeStartDuration(t *testing.T) {
 	assert.Equal(t, normalizedStart, start)
 	assert.Equal(t, normalizedEnd, end)
 	assert.Nil(t, err)
+}
+
+func TestRunQueries(t *testing.T) {
+	apiToken := "the-api-token"
+
+	queryHandler := &queryHandler{
+		wavefrontApiToken: apiToken,
+		client:            http.DefaultClient,
+	}
+
+	mockWavefrontHandler := http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, r.Header.Get("X-Auth-Token"), apiToken)
+
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(wavefrontResponse))
+		},
+	)
+	server := httptest.NewServer(mockWavefrontHandler)
+	defer server.Close()
+
+	urls := []string{
+		server.URL + "?q=1",
+		server.URL + "?q=2",
+	}
+
+	result, err := queryHandler.runQueries(urls)
+	assert.Nil(t, err)
+	assert.Equal(t, len(result), len(urls))
+	for _, ts := range result {
+		assert.Equal(t, len(ts.Points), 25)
+	}
+}
+
+func TestRunQueriesWith500s(t *testing.T) {
+	apiToken := "the-api-token"
+
+	queryHandler := &queryHandler{
+		wavefrontApiToken: apiToken,
+		client:            http.DefaultClient,
+	}
+
+	mockWavefrontHandler := http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, r.Header.Get("X-Auth-Token"), apiToken)
+
+			if r.URL.Query().Get("q") == "2" {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(wavefrontResponse))
+		},
+	)
+	server := httptest.NewServer(mockWavefrontHandler)
+	defer server.Close()
+
+	urls := []string{
+		server.URL + "?q=1",
+		server.URL + "?q=2",
+	}
+
+	result, err := queryHandler.runQueries(urls)
+	assert.ErrorContains(t, err, "Error 500 querying wavefront")
+	assert.Equal(t, len(result), 0)
+}
+
+func TestRunQueriesWithInvalidJson(t *testing.T) {
+	apiToken := "the-api-token"
+
+	queryHandler := &queryHandler{
+		wavefrontApiToken: apiToken,
+		client:            http.DefaultClient,
+	}
+
+	mockWavefrontHandler := http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, r.Header.Get("X-Auth-Token"), apiToken)
+
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(wavefrontResponse))
+			if r.URL.Query().Get("q") == "2" {
+				w.Write([]byte("garbage"))
+			}
+
+		},
+	)
+	server := httptest.NewServer(mockWavefrontHandler)
+	defer server.Close()
+
+	urls := []string{
+		server.URL + "?q=1",
+		server.URL + "?q=2",
+	}
+
+	result, err := queryHandler.runQueries(urls)
+	assert.ErrorContains(t, err, "unexpected data beyond query response")
+	assert.Equal(t, len(result), 0)
+}
+
+func TestRunQueriesWithRequestError(t *testing.T) {
+	apiToken := "the-api-token"
+
+	queryHandler := &queryHandler{
+		wavefrontApiToken: apiToken,
+		client:            http.DefaultClient,
+	}
+
+	mockWavefrontHandler := http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(wavefrontResponse))
+		},
+	)
+	server := httptest.NewServer(mockWavefrontHandler)
+	defer server.Close()
+
+	urls := []string{
+		server.URL + "?q=1",
+		server.URL + "99999?q=2",
+	}
+
+	result, err := queryHandler.runQueries(urls)
+	assert.ErrorContains(t, err, "invalid port")
+	assert.Equal(t, len(result), 0)
 }

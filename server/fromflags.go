@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"flag"
 	"log"
 	"os"
@@ -47,6 +48,13 @@ func NewFromFlags(flagset *flag.FlagSet) FromFlags {
 			"The "+mockMode+" mode returns mock data only.",
 	)
 
+	flagset.StringVar(
+		&ff.wavefrontApiToken,
+		"wavefront-api.token",
+		"",
+		"Authentication token for the wavefront API. Required unless developer mode is used to generate mock data.",
+	)
+
 	serverFlagSet := flags.NewPrefixedFlagSet(flagset, "listener", "stats listener")
 	ff.ServerFromFlags = server.NewFromFlags(serverFlagSet)
 
@@ -59,19 +67,32 @@ func NewFromFlags(flagset *flag.FlagSet) FromFlags {
 
 type fromFlags struct {
 	devMode                   flags.Strings
+	wavefrontApiToken         string
 	ServerFromFlags           server.FromFlags
 	StatsFromFlags            statsd.FromFlags
 	AuthorizerFromFlags       handler.AuthorizerFromFlags
 	MetricsCollectorFromFlags handler.MetricsCollectorFromFlags
 }
 
-func (cfg *fromFlags) Validate() error {
-	if err := cfg.ServerFromFlags.Validate(); err != nil {
+func (ff *fromFlags) devModeNoAuth() bool {
+	return indexof.String(ff.devMode.Strings, noAuthMode) != indexof.NotFound
+}
+
+func (ff *fromFlags) devModeMockData() bool {
+	return indexof.String(ff.devMode.Strings, mockMode) != indexof.NotFound
+}
+
+func (ff *fromFlags) Validate() error {
+	if err := ff.ServerFromFlags.Validate(); err != nil {
 		return err
 	}
 
-	if err := cfg.MetricsCollectorFromFlags.Validate(); err != nil {
+	if err := ff.MetricsCollectorFromFlags.Validate(); err != nil {
 		return err
+	}
+
+	if !ff.devModeMockData() && ff.wavefrontApiToken == "" {
+		return errors.New("--wavefront-api.token is a required flag")
 	}
 
 	return nil
@@ -85,8 +106,8 @@ func (ff *fromFlags) Make() (server.Server, error) {
 		return nil, err
 	}
 
-	noAuth := indexof.String(ff.devMode.Strings, noAuthMode) != indexof.NotFound
-	mockData := indexof.String(ff.devMode.Strings, mockMode) != indexof.NotFound
+	noAuth := ff.devModeNoAuth()
+	mockData := ff.devModeMockData()
 
 	var authorizer serverhandler.Authorizer
 	if noAuth {
@@ -107,7 +128,7 @@ func (ff *fromFlags) Make() (server.Server, error) {
 	if mockData {
 		queryHandler = handler.NewMockQueryHandler()
 	} else {
-		queryHandler = handler.NewQueryHandler()
+		queryHandler = handler.NewQueryHandler(ff.wavefrontApiToken)
 	}
 
 	routes := route.MkRoutes(stats, authorizer, collector, queryHandler)

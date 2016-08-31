@@ -11,6 +11,7 @@ import (
 	"github.com/turbinelabs/server/handler"
 	"github.com/turbinelabs/server/header"
 	httperr "github.com/turbinelabs/server/http/error"
+	"github.com/turbinelabs/stats/server/handler/requestcontext"
 )
 
 type apiAuthorizer struct {
@@ -36,14 +37,18 @@ func (a *apiAuthorizer) wrap(underlying http.HandlerFunc) http.HandlerFunc {
 // Otherwise, the underlying handler is invoked.
 func (a *apiAuthorizerHandler) handler(rw http.ResponseWriter, r *http.Request) {
 	var err *httperr.Error
+	var orgKey api.OrgKey
 	if apiKey := r.Header[header.APIKey]; apiKey != nil && len(apiKey) == 1 {
-		err = a.validate(apiKey[0])
+		orgKey, err = a.validate(apiKey[0])
 	} else {
 		log.Println("Missing API key")
 		err = httperr.AuthorizationError()
 	}
 
 	if err == nil {
+		requestContext := requestcontext.New(r)
+		requestContext.SetOrgKey(orgKey)
+
 		a.underlying.ServeHTTP(rw, r)
 	} else {
 		handler.RichResponseWriter{rw}.WriteEnvelope(err, nil)
@@ -52,22 +57,22 @@ func (a *apiAuthorizerHandler) handler(rw http.ResponseWriter, r *http.Request) 
 
 // Validates the given API key again the API. Returns nil if the API
 // key is valid.
-func (a *apiAuthorizerHandler) validate(apiKey string) *httperr.Error {
+func (a *apiAuthorizerHandler) validate(apiKey string) (api.OrgKey, *httperr.Error) {
 	svc, err := svchttp.NewAdmin(a.endpoint, apiKey, a.client)
 	if err != nil {
-		return httperr.New500(err.Error(), httperr.UnknownTransportCode)
+		return "", httperr.New500(err.Error(), httperr.UnknownTransportCode)
 	}
 
 	filter := service.UserFilter{APIAuthKey: api.APIAuthKey(apiKey)}
 	users, err := svc.User().Index(filter)
 	if err != nil {
-		return httperr.FromError(err, httperr.UnknownTransportCode)
+		return "", httperr.FromError(err, httperr.UnknownTransportCode)
 	}
 
 	if len(users) == 0 {
 		log.Println("No users for API key")
-		return httperr.AuthorizationError()
+		return "", httperr.AuthorizationError()
 	}
 
-	return nil
+	return users[0].OrgKey, nil
 }

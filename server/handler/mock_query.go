@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/turbinelabs/api"
 	httperr "github.com/turbinelabs/server/http/error"
 )
 
@@ -223,7 +224,10 @@ func mockLatencyTimeSeries(start, end int64, qt QueryType) StatsTimeSeries {
 	return StatsTimeSeries{Points: points}
 }
 
-func (mqh *mockQueryHandler) RunQuery(q StatsQuery) (*StatsQueryResult, *httperr.Error) {
+func (mqh *mockQueryHandler) RunQuery(
+	orgKey api.OrgKey,
+	q StatsQuery,
+) (*StatsQueryResult, *httperr.Error) {
 	if err := validateQuery(&q); err != nil {
 		return nil, err
 	}
