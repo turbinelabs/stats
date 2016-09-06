@@ -14,6 +14,8 @@ import (
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
 )
 
+const noAuthOrgKey = "no-auth-org-key"
+
 type apiAuthorizer struct {
 	client   *http.Client
 	endpoint clienthttp.Endpoint
@@ -76,3 +78,13 @@ func (a *apiAuthorizerHandler) validate(apiKey string) (api.OrgKey, *httperr.Err
 
 	return users[0].OrgKey, nil
 }
+
+var MockAuthorizer handler.Authorizer = handler.Authorizer(
+	func(wrapped http.HandlerFunc) http.HandlerFunc {
+		return func(rw http.ResponseWriter, r *http.Request) {
+			requestContext := requestcontext.New(r)
+			requestContext.SetOrgKey(noAuthOrgKey)
+			wrapped.ServeHTTP(rw, r)
+		}
+	},
+)

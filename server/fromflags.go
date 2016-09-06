@@ -111,7 +111,9 @@ func (ff *fromFlags) Make() (server.Server, error) {
 
 	var authorizer serverhandler.Authorizer
 	if noAuth {
-		authorizer = serverhandler.SimpleHeaderAuth(header.APIKey)
+		authorizer = serverhandler.SimpleHeaderAuth(header.APIKey).AndThen(
+			handler.MockAuthorizer,
+		)
 	} else {
 		authorizer, err = ff.AuthorizerFromFlags.Make(logger)
 		if err != nil {

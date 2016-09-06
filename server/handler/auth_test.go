@@ -223,3 +223,25 @@ func TestApiAuthorizerHandlerNoHeader(t *testing.T) {
 	assert.Equal(t, rcOrgKey, api.OrgKey(""))
 	assert.False(t, ok)
 }
+
+func TestMockAuthorizer(t *testing.T) {
+	handler := func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(200)
+		rw.Write([]byte("OK"))
+	}
+
+	request, err := http.NewRequest("GET", "/whatever", nil)
+	assert.Nil(t, err)
+
+	responseRecorder := httptest.NewRecorder()
+
+	wrappedHandler := MockAuthorizer(handler)
+	wrappedHandler(responseRecorder, request)
+
+	assert.Equal(t, responseRecorder.Code, 200)
+	assert.Equal(t, responseRecorder.Body.String(), "OK")
+
+	requestContext := requestcontext.New(request)
+	rcOrgKey, _ := requestContext.GetOrgKey()
+	assert.Equal(t, rcOrgKey, api.OrgKey(noAuthOrgKey))
+}
