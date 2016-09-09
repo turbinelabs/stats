@@ -1,6 +1,7 @@
 package route
 
 import (
+	"github.com/turbinelabs/server/cors"
 	serverhandler "github.com/turbinelabs/server/handler"
 	serverroute "github.com/turbinelabs/server/route"
 	"github.com/turbinelabs/stats/server/handler"
@@ -13,8 +14,9 @@ func MkRoutes(
 	authorizer serverhandler.Authorizer,
 	metricsCollector handler.MetricsCollector,
 	queryHandler handler.QueryHandler,
+	allowedOrigins []string,
 ) serverroute.RouteSet {
-	return serverroute.RouteSet{
+	routes := serverroute.RouteSet{
 		serverroute.NewAuthorized(
 			stats,
 			stats.Scope("forward"),
@@ -32,4 +34,17 @@ func MkRoutes(
 			queryHandler.AsHandler(),
 		),
 	}
+
+	addCORSOrigin := serverhandler.CORSOriginAnnotator(allowedOrigins)
+
+	for _, r := range routes {
+		r.SetCORSFilter(addCORSOrigin)
+	}
+
+	routes = append(
+		routes,
+		cors.Route(stats, allowedOrigins).SetName("CorsHandler"),
+	)
+
+	return routes
 }

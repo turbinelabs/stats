@@ -10,6 +10,7 @@ import (
 	"github.com/turbinelabs/arrays/indexof"
 	"github.com/turbinelabs/cli/flags"
 	"github.com/turbinelabs/server"
+	"github.com/turbinelabs/server/cors"
 	serverhandler "github.com/turbinelabs/server/handler"
 	"github.com/turbinelabs/server/header"
 	"github.com/turbinelabs/stats/server/handler"
@@ -61,6 +62,7 @@ func NewFromFlags(flagset *flag.FlagSet) FromFlags {
 	ff.StatsFromFlags = statsd.NewFromFlags(serverFlagSet.Scope("stats", "internal server"))
 	ff.AuthorizerFromFlags = handler.NewAPIAuthorizerFromFlags(flagset)
 	ff.MetricsCollectorFromFlags = handler.NewMetricsCollectorFromFlags(flagset)
+	ff.CORSFromFlags = cors.NewFromFlags(flags.NewPrefixedFlagSet(flagset, "cors", "stats API server"))
 
 	return ff
 }
@@ -70,6 +72,7 @@ type fromFlags struct {
 	wavefrontApiToken         string
 	ServerFromFlags           server.FromFlags
 	StatsFromFlags            statsd.FromFlags
+	CORSFromFlags             cors.FromFlags
 	AuthorizerFromFlags       handler.AuthorizerFromFlags
 	MetricsCollectorFromFlags handler.MetricsCollectorFromFlags
 }
@@ -133,7 +136,9 @@ func (ff *fromFlags) Make() (server.Server, error) {
 		queryHandler = handler.NewQueryHandler(ff.wavefrontApiToken)
 	}
 
-	routes := route.MkRoutes(stats, authorizer, collector, queryHandler)
+	allowedOrigins := ff.CORSFromFlags.AllowedOrigins()
+
+	routes := route.MkRoutes(stats, authorizer, collector, queryHandler, allowedOrigins)
 
 	server, err := ff.ServerFromFlags.Make(logger, logger, stats, routes)
 	if err != nil {

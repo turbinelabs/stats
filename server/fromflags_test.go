@@ -10,6 +10,7 @@ import (
 
 	"github.com/turbinelabs/cli/flags"
 	"github.com/turbinelabs/server"
+	"github.com/turbinelabs/server/cors"
 	serverhandler "github.com/turbinelabs/server/handler"
 	"github.com/turbinelabs/stats/server/handler"
 	"github.com/turbinelabs/statsd"
@@ -29,6 +30,7 @@ func TestNewFromFlags(t *testing.T) {
 	assert.NonNil(t, ffImpl.StatsFromFlags)
 	assert.NonNil(t, ffImpl.AuthorizerFromFlags)
 	assert.NonNil(t, ffImpl.MetricsCollectorFromFlags)
+	assert.NonNil(t, ffImpl.CORSFromFlags)
 }
 
 func TestValidateServer(t *testing.T) {
@@ -117,6 +119,7 @@ func (tc makeTestCase) run(t *testing.T) {
 	statsFromFlags := statsd.NewMockFromFlags(ctrl)
 	authFromFlags := handler.NewMockAuthorizerFromFlags(ctrl)
 	metricsCollectorFromFlags := handler.NewMockMetricsCollectorFromFlags(ctrl)
+	corsFromFlags := cors.NewMockFromFlags(ctrl)
 
 	ffImpl := &fromFlags{
 		devMode:                   flags.NewStringsWithConstraint([]string{}),
@@ -124,6 +127,7 @@ func (tc makeTestCase) run(t *testing.T) {
 		StatsFromFlags:            statsFromFlags,
 		AuthorizerFromFlags:       authFromFlags,
 		MetricsCollectorFromFlags: metricsCollectorFromFlags,
+		CORSFromFlags:             corsFromFlags,
 	}
 
 	shouldFail := (tc.makeStatsError != nil ||
@@ -174,8 +178,10 @@ func (tc makeTestCase) run(t *testing.T) {
 
 	stats.EXPECT().Scope("forward").Return(stats)
 	stats.EXPECT().Scope("query").Return(stats)
+	stats.EXPECT().Scope("cors").Return(stats)
 
 	metricsCollector.EXPECT().AsHandler().Return(serverhandler.NotImplementedHandler)
+	corsFromFlags.EXPECT().AllowedOrigins().Return([]string{"*"})
 	if tc.makeServerError != nil {
 		serverFromFlags.EXPECT().
 			Make(gomock.Any(), gomock.Any(), stats, gomock.Any()).
