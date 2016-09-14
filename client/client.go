@@ -41,7 +41,7 @@ func NewStats(
 
 func (hs *httpStatsV1) post(encodedBody string) (*http.Request, error) {
 	rdr := strings.NewReader(encodedBody)
-	return http.NewRequest("POST", hs.dest.Url("/v1.0/metrics", tbnhttp.Params{}), rdr)
+	return http.NewRequest("POST", hs.dest.Url("/v1.0/stats/forward", tbnhttp.Params{}), rdr)
 }
 
 func (hs *httpStatsV1) Forward(payload stats.StatsPayload) (stats.Result, error) {
