@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/turbinelabs/api"
-	"github.com/turbinelabs/api/server/fixture"
+	"github.com/turbinelabs/api/fixture"
 	tbnhttp "github.com/turbinelabs/client/http"
 	"github.com/turbinelabs/server/handler"
 	"github.com/turbinelabs/server/header"
