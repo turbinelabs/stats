@@ -122,7 +122,7 @@ func (tc makeTestCase) run(t *testing.T) {
 	corsFromFlags := cors.NewMockFromFlags(ctrl)
 
 	ffImpl := &fromFlags{
-		devMode:                   flags.NewStringsWithConstraint([]string{}),
+		devMode:                   flags.NewStringsWithConstraint(),
 		ServerFromFlags:           serverFromFlags,
 		StatsFromFlags:            statsFromFlags,
 		AuthorizerFromFlags:       authFromFlags,

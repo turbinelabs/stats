@@ -37,7 +37,7 @@ type FromFlags interface {
 // initializing its flags as appropriate.
 func NewFromFlags(flagset *flag.FlagSet) FromFlags {
 	ff := &fromFlags{
-		devMode: flags.NewStringsWithConstraint([]string{noAuthMode, mockMode}),
+		devMode: flags.NewStringsWithConstraint(noAuthMode, mockMode),
 	}
 
 	flagset.Var(
