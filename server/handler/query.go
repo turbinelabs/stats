@@ -37,6 +37,11 @@ type StatsTimeRange struct {
 }
 
 type StatsQueryTimeSeries struct {
+	// Specifies a name for this timeseries query. It may be used
+	// to assist in identifying the corresponding data in the
+	// response object.
+	Name string `json:"name"`
+
 	// Specifies the type of data returned. Required.
 	QueryType QueryType `json:"query_type"`
 
@@ -95,11 +100,20 @@ type StatsPoint struct {
 }
 
 type StatsTimeSeries struct {
+	// The StatsQueryTimeSeries object corresponding to the data
+	// points.
+	Query StatsQueryTimeSeries `json:"query"`
+
 	// The data points that represent the time series.
 	Points []StatsPoint `json:"points"`
 }
 
 type StatsQueryResult struct {
+	// The StatsTimeRange used to issue this query. The object is
+	// normalized such that all of its fields are set and
+	// consistent.
+	TimeRange StatsTimeRange `json:"time_range"`
+
 	// Represents the timeseries returned by the query. The order
 	// of returned TimeSeries values matches the order of the
 	// original StatsQueryTimeSeries values in the request.
@@ -256,6 +270,32 @@ func (qh *queryHandler) runQueries(urls []string) ([]StatsTimeSeries, *httperr.E
 	return results, nil
 }
 
+func makeQueryResult(
+	start, end int64,
+	queryTimeSeries []StatsQueryTimeSeries,
+	resultTimeSeries []StatsTimeSeries,
+) (*StatsQueryResult, *httperr.Error) {
+	if len(queryTimeSeries) != len(resultTimeSeries) {
+		return nil, httperr.New500(
+			"Mismatched query and response",
+			httperr.MiscErrorCode,
+		)
+	}
+
+	for idx := range resultTimeSeries {
+		resultTimeSeries[idx].Query = queryTimeSeries[idx]
+	}
+
+	duration := end - start
+	responseTimeRange := StatsTimeRange{
+		Start:    &start,
+		End:      &end,
+		Duration: &duration,
+	}
+
+	return &StatsQueryResult{TimeRange: responseTimeRange, TimeSeries: resultTimeSeries}, nil
+}
+
 func (qh *queryHandler) RunQuery(
 	orgKey api.OrgKey,
 	q StatsQuery,
@@ -274,12 +314,12 @@ func (qh *queryHandler) RunQuery(
 		queryUrls[idx] = formatWavefrontQueryUrl(start, end, orgKey, q.ZoneKey, &qts)
 	}
 
-	ts, err := qh.runQueries(queryUrls)
+	tsResponse, err := qh.runQueries(queryUrls)
 	if err != nil {
 		return nil, err
 	}
 
-	return &StatsQueryResult{TimeSeries: ts}, nil
+	return makeQueryResult(start, end, q.TimeSeries, tsResponse)
 }
 
 func (qh *queryHandler) AsHandler() http.HandlerFunc {

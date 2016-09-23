@@ -412,3 +412,44 @@ func TestRunQueriesWithRequestError(t *testing.T) {
 	assert.ErrorContains(t, err, "invalid port")
 	assert.Equal(t, len(result), 0)
 }
+
+func TestMakeQueryResult(t *testing.T) {
+	duration := int64(3600 * 1e6)
+	end := tbntime.ToUnixMicro(time.Now().Truncate(time.Second))
+	start := end - duration
+
+	queries := []StatsQueryTimeSeries{
+		{Name: "this one", QueryType: Responses},
+		{Name: "that one", QueryType: Requests},
+	}
+
+	results := []StatsTimeSeries{
+		{Points: []StatsPoint{{Value: 1.0, Timestamp: start}}},
+		{Points: []StatsPoint{{Value: 2.0, Timestamp: start}}},
+	}
+
+	r, err := makeQueryResult(start, end, queries, results)
+
+	assert.Nil(t, err)
+
+	assert.Equal(t, *r.TimeRange.Start, start)
+	assert.Equal(t, *r.TimeRange.End, end)
+	assert.Equal(t, *r.TimeRange.Duration, duration)
+
+	assert.Equal(t, len(r.TimeSeries), len(queries))
+	assert.DeepEqual(t, r.TimeSeries[0].Query, queries[0])
+	assert.DeepEqual(t, r.TimeSeries[1].Query, queries[1])
+
+}
+
+func TestMakeQueryResultMismatchedInput(t *testing.T) {
+	r, err := makeQueryResult(
+		0,
+		0,
+		[]StatsQueryTimeSeries{{Name: "name"}},
+		[]StatsTimeSeries{},
+	)
+
+	assert.Nil(t, r)
+	assert.NonNil(t, err)
+}

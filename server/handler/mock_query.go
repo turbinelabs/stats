@@ -155,7 +155,7 @@ func numErrors(ts int64) float64 {
 	return math.Floor(mockErrorRates[idx]*r + 0.5)
 }
 
-func mockCountTimeSeries(start, end int64, qt QueryType) StatsTimeSeries {
+func mockCountTimeSeries(start, end int64, qts StatsQueryTimeSeries) StatsTimeSeries {
 	numPoints := (end - start) / microsPerSecond
 	points := make([]StatsPoint, numPoints)
 	for idx := int64(0); idx < numPoints; idx++ {
@@ -164,7 +164,7 @@ func mockCountTimeSeries(start, end int64, qt QueryType) StatsTimeSeries {
 		points[idx].Timestamp = ts
 
 		var value float64
-		switch qt {
+		switch qts.QueryType {
 		case Requests:
 			value = numRequests(ts)
 
@@ -187,7 +187,7 @@ func mockCountTimeSeries(start, end int64, qt QueryType) StatsTimeSeries {
 		points[idx].Value = value
 	}
 
-	return StatsTimeSeries{Points: points}
+	return StatsTimeSeries{Query: qts, Points: points}
 }
 
 func pickLatency(ts int64, percentile float64) float64 {
@@ -197,7 +197,7 @@ func pickLatency(ts int64, percentile float64) float64 {
 	return math.Floor(maxLatency*d + 0.5)
 }
 
-func mockLatencyTimeSeries(start, end int64, qt QueryType) StatsTimeSeries {
+func mockLatencyTimeSeries(start, end int64, qts StatsQueryTimeSeries) StatsTimeSeries {
 	numPoints := (end - start) / microsPerSecond
 	points := make([]StatsPoint, numPoints)
 
@@ -207,7 +207,7 @@ func mockLatencyTimeSeries(start, end int64, qt QueryType) StatsTimeSeries {
 		points[idx].Timestamp = ts
 
 		var value float64
-		switch qt {
+		switch qts.QueryType {
 		case LatencyP50:
 			value = pickLatency(ts, .5)
 
@@ -221,7 +221,7 @@ func mockLatencyTimeSeries(start, end int64, qt QueryType) StatsTimeSeries {
 		points[idx].Value = value
 	}
 
-	return StatsTimeSeries{Points: points}
+	return StatsTimeSeries{Query: qts, Points: points}
 }
 
 func (mqh *mockQueryHandler) RunQuery(
@@ -237,16 +237,22 @@ func (mqh *mockQueryHandler) RunQuery(
 		return nil, err
 	}
 
+	duration := end - start
 	result := StatsQueryResult{
+		TimeRange: StatsTimeRange{
+			Start:    &start,
+			End:      &end,
+			Duration: &duration,
+		},
 		TimeSeries: make([]StatsTimeSeries, len(q.TimeSeries)),
 	}
 
 	for idx, qts := range q.TimeSeries {
 		switch qts.QueryType {
 		case Requests, Responses, SuccessfulResponses, ErrorResponses, FailureResponses:
-			result.TimeSeries[idx] = mockCountTimeSeries(start, end, qts.QueryType)
+			result.TimeSeries[idx] = mockCountTimeSeries(start, end, qts)
 		case LatencyP50, LatencyP99:
-			result.TimeSeries[idx] = mockLatencyTimeSeries(start, end, qts.QueryType)
+			result.TimeSeries[idx] = mockLatencyTimeSeries(start, end, qts)
 
 		default:
 			err = httperr.New500(
