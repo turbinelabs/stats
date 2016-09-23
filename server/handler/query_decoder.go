@@ -11,7 +11,7 @@ var noQueryTypeDecodeError = errors.New("Could not decode query_type, no value s
 var QueryDecoder handler.QueryDecoder
 
 func init() {
-	QueryDecoder = handler.NewJsonQueryDecoder("query", "query")
+	QueryDecoder = handler.NewQueryDecoder("form", "query", "query")
 	QueryDecoder.RegisterCustomTypeFunc(unmarshalQueryTypeFromForm, UnknownQueryType)
 }
 

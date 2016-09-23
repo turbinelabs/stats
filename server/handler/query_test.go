@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -99,6 +100,16 @@ func mkRequest(
 	reqCtxt := requestcontext.New(req)
 	reqCtxt.SetOrgKey(api.OrgKey("1234"))
 	return req
+}
+
+func TestNewQueryHandler(t *testing.T) {
+	wavefrontApiToken := "api-token"
+	qh := NewQueryHandler(wavefrontApiToken)
+
+	qhImpl := qh.(*queryHandler)
+	assert.Equal(t, qhImpl.wavefrontApiToken, wavefrontApiToken)
+	assert.NonNil(t, qhImpl.client)
+	assert.SameInstance(t, qhImpl.formatQueryUrl, formatWavefrontQueryUrl)
 }
 
 func testHandlerDecodingError(t *testing.T, useHumaneEncoding bool) {
@@ -209,6 +220,61 @@ func TestRunQueryQueryTypeValidation(t *testing.T) {
 
 	testQueryTypeInvalid(t, true)
 	testQueryTypeInvalid(t, false)
+}
+
+func testRunQuery(t *testing.T, useHumaneEncoding bool) {
+	apiToken := "the-api-token"
+
+	mockWavefrontHandler := http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, r.Header.Get("X-Auth-Token"), apiToken)
+
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(wavefrontResponse))
+		},
+	)
+	server := httptest.NewServer(mockWavefrontHandler)
+	defer server.Close()
+
+	formatTestQueryUrl :=
+		func(
+			start, end int64,
+			orgKey api.OrgKey,
+			zoneKey api.ZoneKey,
+			qts *StatsQueryTimeSeries,
+		) string {
+			return server.URL
+		}
+
+	queryHandler := &queryHandler{
+		wavefrontApiToken: apiToken,
+		client:            http.DefaultClient,
+		formatQueryUrl:    formatTestQueryUrl,
+	}
+
+	params := queryMap{
+		"zone_key": "zk",
+		"timeseries": []queryMap{
+			{"query_type": "requests"},
+		},
+	}
+
+	req := mkRequest(t, params, useHumaneEncoding)
+
+	rw := httptest.NewRecorder()
+	handler := queryHandler.AsHandler()
+
+	handler(rw, req)
+
+	assert.Equal(t, rw.Code, 200)
+
+	err := json.Unmarshal(rw.Body.Bytes(), &StatsQueryResult{})
+	assert.Nil(t, err)
+}
+
+func TestRunQuery(t *testing.T) {
+	testRunQuery(t, true)
+	testRunQuery(t, false)
 }
 
 func TestNormalizeTimeRangeDefault(t *testing.T) {
@@ -452,4 +518,38 @@ func TestMakeQueryResultMismatchedInput(t *testing.T) {
 
 	assert.Nil(t, r)
 	assert.NonNil(t, err)
+}
+
+func testJsonAndFormTagsMatch(t testing.TB, typeRef reflect.Type) {
+	assert.Group(typeRef.Name(), t, func(g *assert.G) {
+		if !assert.True(g, typeRef.Kind() == reflect.Struct) {
+			return
+		}
+
+		for i := 0; i < typeRef.NumField(); i++ {
+			f := typeRef.Field(i)
+
+			jsonTag := f.Tag.Get("json")
+			jsonTagParts := strings.SplitN(jsonTag, ",", 2)
+			jsonTag = jsonTagParts[0]
+
+			formTag := f.Tag.Get("form")
+
+			assert.Equal(g, formTag, jsonTag)
+
+			switch f.Type.Kind() {
+			case reflect.Struct:
+				testJsonAndFormTagsMatch(g, f.Type)
+
+			case reflect.Ptr, reflect.Array, reflect.Slice, reflect.Map:
+				if f.Type.Elem().Kind() == reflect.Struct {
+					testJsonAndFormTagsMatch(g, f.Type.Elem())
+				}
+			}
+		}
+	})
+}
+
+func TestJsonAndFormTagsMatch(t *testing.T) {
+	testJsonAndFormTagsMatch(t, reflect.TypeOf(StatsQuery{}))
 }

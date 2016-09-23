@@ -23,8 +23,8 @@ type StatsTimeRange struct {
 	// Start and End represent the start and end of a time range,
 	// specified in microseconds since the Unix epoch, UTC. End
 	// takes precedence over Duration.
-	Start *int64 `json:"start"`
-	End   *int64 `json:"end"`
+	Start *int64 `json:"start,omitempty" form:"start"`
+	End   *int64 `json:"end,omitempty" form:"end"`
 
 	// Duration specifies how long a time span of stats data to
 	// return in microseconds. End takes precedence over
@@ -33,53 +33,53 @@ type StatsTimeRange struct {
 	// microseconds). If Start is not specified, Duration sets the
 	// start of the time span that many microseconds into the past
 	// (e.g., Duration microseconds ago, until now).
-	Duration *int64 `json:"duration"`
+	Duration *int64 `json:"duration,omitempty" form:"duration"`
 }
 
 type StatsQueryTimeSeries struct {
 	// Specifies a name for this timeseries query. It may be used
 	// to assist in identifying the corresponding data in the
 	// response object.
-	Name string `json:"name"`
+	Name string `json:"name,omitempty" form:"name"`
 
 	// Specifies the type of data returned. Required.
-	QueryType QueryType `json:"query_type"`
+	QueryType QueryType `json:"query_type" form:"query_type"`
 
 	// Specifies the DomainKey for which stats are returned. If
 	// not specified, stats are aggregated across domains.
-	DomainKey *api.DomainKey `json:"domain_key"`
+	DomainKey *api.DomainKey `json:"domain_key,omitempty" form:"domain_key"`
 
 	// Specifies the RouteKey for which stats are returned. If
 	// not specified, stats are aggregated across routes.
-	RouteKey *api.RouteKey `json:"route_key"`
+	RouteKey *api.RouteKey `json:"route_key,omitempty" form:"route_key"`
 
 	// Specifies the HTTP method for which stats are returned. If
 	// not specified, stats are aggregated across methods.
-	Method *string `json:"method"`
+	Method *string `json:"method,omitempty" form:"method"`
 
 	// Specifies the ClusterKey for which stats are returned. If
 	// not specified, stats are aggregated across clusters.
-	ClusterKey *api.ClusterKey `json:"cluster_key"`
+	ClusterKey *api.ClusterKey `json:"cluster_key,omitempty" form:"cluster_key"`
 
 	// Specifies the Instance keys (host:port) for which stats are
 	// returned. If empty, stats are aggregated across all
 	// instances. If one ore more instances are given, stats are
 	// aggregated across only those instances.
-	InstanceKeys []string `json:"instance_keys"`
+	InstanceKeys []string `json:"instance_keys,omitempty" form:"instance_keys"`
 }
 
 type StatsQuery struct {
 	// Specifies the ZoneKey for which stats are
 	// queried. Required.
-	ZoneKey api.ZoneKey `json:"zone_key"`
+	ZoneKey api.ZoneKey `json:"zone_key" form:"zone_key"`
 
 	// Specifies the time range of the query. Defaults to the last
 	// hour.
-	TimeRange StatsTimeRange `json:"time_range"`
+	TimeRange StatsTimeRange `json:"time_range" form:"time_range"`
 
 	// Specifies one or more queries to execute against the given
 	// zone and time range.
-	TimeSeries []StatsQueryTimeSeries `json:"timeseries"`
+	TimeSeries []StatsQueryTimeSeries `json:"timeseries" form:"timeseries"`
 }
 
 type StatsPoint struct {
@@ -130,12 +130,14 @@ func NewQueryHandler(wavefrontApiToken string) QueryHandler {
 	return &queryHandler{
 		wavefrontApiToken: wavefrontApiToken,
 		client:            clienthttp.HeaderPreserving(),
+		formatQueryUrl:    formatWavefrontQueryUrl,
 	}
 }
 
 type queryHandler struct {
 	wavefrontApiToken string
 	client            *http.Client
+	formatQueryUrl    func(int64, int64, api.OrgKey, api.ZoneKey, *StatsQueryTimeSeries) string
 }
 
 func validateQuery(q *StatsQuery) *httperr.Error {
@@ -311,7 +313,7 @@ func (qh *queryHandler) RunQuery(
 
 	queryUrls := make([]string, len(q.TimeSeries))
 	for idx, qts := range q.TimeSeries {
-		queryUrls[idx] = formatWavefrontQueryUrl(start, end, orgKey, q.ZoneKey, &qts)
+		queryUrls[idx] = qh.formatQueryUrl(start, end, orgKey, q.ZoneKey, &qts)
 	}
 
 	tsResponse, err := qh.runQueries(queryUrls)
