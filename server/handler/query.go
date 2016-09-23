@@ -169,7 +169,7 @@ func mkHandlerFunc(qh QueryHandler) http.HandlerFunc {
 		requestContext := requestcontext.New(r)
 		if orgKey, ok := requestContext.GetOrgKey(); ok {
 			statsQuery := StatsQuery{}
-			err = handler.DecodeStruct("query", "query", rr, &statsQuery)
+			err = QueryDecoder.DecodeQuery(rr, &statsQuery)
 			if err == nil {
 				result, err = qh.RunQuery(orgKey, statsQuery)
 			}

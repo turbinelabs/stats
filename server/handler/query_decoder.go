@@ -8,8 +8,11 @@ import (
 
 var noQueryTypeDecodeError = errors.New("Could not decode query_type, no value specified.")
 
+var QueryDecoder handler.QueryDecoder
+
 func init() {
-	handler.StructDecoder.RegisterCustomTypeFunc(unmarshalQueryTypeFromForm, UnknownQueryType)
+	QueryDecoder = handler.NewJsonQueryDecoder("query", "query")
+	QueryDecoder.RegisterCustomTypeFunc(unmarshalQueryTypeFromForm, UnknownQueryType)
 }
 
 func unmarshalQueryTypeFromForm(vals []string) (interface{}, error) {
