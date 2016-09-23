@@ -31,7 +31,8 @@ func TestAPIAuthFromFlagsMake(t *testing.T) {
 	endpoint := clienthttp.Endpoint{}
 
 	clientFromFlags := clienthttp.NewMockFromFlags(ctrl)
-	clientFromFlags.EXPECT().Make().Return(httpClient, endpoint, nil)
+	clientFromFlags.EXPECT().MakeClient().Return(httpClient)
+	clientFromFlags.EXPECT().MakeEndpoint().Return(endpoint, nil)
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
 
@@ -45,11 +46,13 @@ func TestAPIAuthFromFlagsMakeError(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
+	httpClient := &http.Client{}
 	endpoint := clienthttp.Endpoint{}
 	makeErr := errors.New("")
 
 	clientFromFlags := clienthttp.NewMockFromFlags(ctrl)
-	clientFromFlags.EXPECT().Make().Return(nil, endpoint, makeErr)
+	clientFromFlags.EXPECT().MakeClient().Return(httpClient)
+	clientFromFlags.EXPECT().MakeEndpoint().Return(endpoint, makeErr)
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
 

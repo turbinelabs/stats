@@ -41,7 +41,9 @@ type apiAuthFromFlags struct {
 }
 
 func (ff *apiAuthFromFlags) Make(log *log.Logger) (handler.Authorizer, error) {
-	client, endpoint, err := ff.clientFromFlags.Make()
+	client := ff.clientFromFlags.MakeClient()
+
+	endpoint, err := ff.clientFromFlags.MakeEndpoint()
 	if err != nil {
 		return nil, err
 	}
