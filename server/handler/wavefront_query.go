@@ -60,10 +60,10 @@ func (r *suffixedQueryExpr) Format(
 	zoneKey api.ZoneKey,
 	q *StatsQueryTimeSeries,
 ) string {
-	metric :=
-		formatMetric(orgKey, zoneKey, q.DomainKey, q.RouteKey, q.Method, r.queryType) +
-			"." +
-			r.suffix
+	metric := formatMetric(orgKey, zoneKey, q.DomainKey, q.RouteKey, q.Method, r.queryType)
+	if r.suffix != "" {
+		metric = metric + "." + r.suffix
+	}
 	return formatQuery(metric, q)
 }
 
@@ -104,6 +104,14 @@ var queryExprMap = map[QueryType]queryExpr{
 	FailureResponses: &suffixedQueryExpr{Responses, "5*"},
 	LatencyP50:       &simpleQueryExpr{},
 	LatencyP99:       &simpleQueryExpr{},
+	SuccessRate: div{
+		sum{
+			&suffixedQueryExpr{Responses, "1*"},
+			&suffixedQueryExpr{Responses, "2*"},
+			&suffixedQueryExpr{Responses, "3*"},
+		},
+		&suffixedQueryExpr{Requests, ""},
+	},
 }
 
 // Given org and zone keys and a StatsQueryTimeSeries, produce a

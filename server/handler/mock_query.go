@@ -123,6 +123,10 @@ func numRequests(ts int64) float64 {
 	return math.Floor(mockRequests[s] + 0.5)
 }
 
+func numSuccesses(ts int64) float64 {
+	return numRequests(ts) - numFailures(ts) - numErrors(ts)
+}
+
 func numFailures(ts int64) float64 {
 	// seconds offset within day
 	s := (ts / microsPerSecond) % secondsPerDay
@@ -172,13 +176,16 @@ func mockCountTimeSeries(start, end int64, qts StatsQueryTimeSeries) StatsTimeSe
 			value = numRequests(ts) - numFailures(ts)
 
 		case SuccessfulResponses:
-			value = numRequests(ts) - numFailures(ts) - numErrors(ts)
+			value = numSuccesses(ts)
 
 		case ErrorResponses:
 			value = numErrors(ts)
 
 		case FailureResponses:
 			value = numFailures(ts)
+
+		case SuccessRate:
+			value = numSuccesses(ts) / numRequests(ts)
 
 		default:
 			value = 1.0
@@ -249,7 +256,8 @@ func (mqh *mockQueryHandler) RunQuery(
 
 	for idx, qts := range q.TimeSeries {
 		switch qts.QueryType {
-		case Requests, Responses, SuccessfulResponses, ErrorResponses, FailureResponses:
+		case Requests, Responses, SuccessfulResponses, ErrorResponses, FailureResponses,
+			SuccessRate:
 			result.TimeSeries[idx] = mockCountTimeSeries(start, end, qts)
 		case LatencyP50, LatencyP99:
 			result.TimeSeries[idx] = mockLatencyTimeSeries(start, end, qts)

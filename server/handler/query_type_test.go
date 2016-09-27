@@ -8,6 +8,13 @@ import (
 	"github.com/turbinelabs/test/assert"
 )
 
+func forEachQueryType(f func(QueryType)) {
+	for i := 1; i <= int(maxQueryType); i++ {
+		qt := QueryType(i)
+		f(qt)
+	}
+}
+
 type testStruct struct {
 	QueryType QueryType `json:"query_type"`
 }
@@ -22,17 +29,16 @@ func TestIsValidQueryType(t *testing.T) {
 	invalid := []QueryType{
 		QueryType(-1),
 		QueryType(0),
-		QueryType(8),
+		QueryType(maxQueryType + 1),
 	}
 
 	for _, qt := range invalid {
 		assert.False(t, IsValidQueryType(qt))
 	}
 
-	for i := 1; i <= 7; i++ {
-		qt := QueryType(i)
+	forEachQueryType(func(qt QueryType) {
 		assert.True(t, IsValidQueryType(qt))
-	}
+	})
 }
 
 func TestQueryTypeFromName(t *testing.T) {
@@ -79,7 +85,7 @@ func TestQueryTypeMarshalJSON(t *testing.T) {
 }
 
 func TestQueryTypeMarshalJSONUnknown(t *testing.T) {
-	unknownQueryTypes := []QueryType{UnknownQueryType, QueryType(8)}
+	unknownQueryTypes := []QueryType{UnknownQueryType, QueryType(maxQueryType + 1)}
 
 	for _, unknownQueryType := range unknownQueryTypes {
 		bytes, err := unknownQueryType.MarshalJSON()

@@ -140,6 +140,48 @@ func TestFormatWavefrontQueryUrl(t *testing.T) {
 	)
 }
 
+func TestFormatWavefrontQueryUrlSuccessRate(t *testing.T) {
+	start := int64(1472667004)
+	end := start + 3600
+	orgKey := api.OrgKey("o")
+	zoneKey := api.ZoneKey("z")
+	domainKey := api.DomainKey("d")
+	routeKey := api.RouteKey("r")
+	method := "GET"
+
+	qts := StatsQueryTimeSeries{
+		QueryType: SuccessRate,
+		DomainKey: &domainKey,
+		RouteKey:  &routeKey,
+		Method:    &method,
+	}
+
+	u := formatWavefrontQueryUrl(start*1000000, end*1000000, orgKey, zoneKey, &qts)
+	url, err := url.Parse(u)
+	assert.Nil(t, err)
+
+	assert.Equal(t, url.Scheme, "https")
+	assert.Equal(t, url.Host, "metrics.wavefront.com")
+	assert.Equal(t, url.Path, "/chart/api")
+
+	queryParams := url.Query()
+	for k, v := range queryParams {
+		if !assert.Equal(t, len(v), 1) {
+			fmt.Println("multiple values for ", k)
+		}
+	}
+
+	assert.Equal(t, queryParams.Get("g"), "s")
+	assert.Equal(t, queryParams.Get("summarization"), "MEAN")
+	assert.Equal(t, queryParams.Get("s"), fmt.Sprintf("%d", start))
+	assert.Equal(t, queryParams.Get("e"), fmt.Sprintf("%d", end))
+	assert.Equal(
+		t,
+		queryParams.Get("q"),
+		queryExprMap[SuccessRate].Format(orgKey, zoneKey, &qts),
+	)
+}
+
 type formatQueryExprTestCase struct {
 	queryType     QueryType
 	expectedQuery string
@@ -157,14 +199,18 @@ func (tc formatQueryExprTestCase) run(t *testing.T, orgKey api.OrgKey, zoneKey a
 func TestFormatQueryExprs(t *testing.T) {
 	ok := api.OrgKey("o")
 	zk := api.ZoneKey("z")
+
+	successfulResponsesQuery :=
+		`(ts("o.z.*.*.*.responses.1*")+ts("o.z.*.*.*.responses.2*")+ts("o.z.*.*.*.responses.3*"))`
 	testCases := []formatQueryExprTestCase{
 		{Requests, `ts("o.z.*.*.*.requests")`},
 		{Responses, `ts("o.z.*.*.*.responses")`},
-		{SuccessfulResponses, `(ts("o.z.*.*.*.responses.1*")+ts("o.z.*.*.*.responses.2*")+ts("o.z.*.*.*.responses.3*"))`},
+		{SuccessfulResponses, successfulResponsesQuery},
 		{ErrorResponses, `ts("o.z.*.*.*.responses.4*")`},
 		{FailureResponses, `ts("o.z.*.*.*.responses.5*")`},
 		{LatencyP50, `ts("o.z.*.*.*.latency_p50")`},
 		{LatencyP99, `ts("o.z.*.*.*.latency_p99")`},
+		{SuccessRate, `(` + successfulResponsesQuery + `/ts("o.z.*.*.*.requests"))`},
 	}
 
 	for _, tc := range testCases {

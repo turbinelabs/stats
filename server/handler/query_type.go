@@ -16,6 +16,7 @@ const (
 	FailureResponses
 	LatencyP50
 	LatencyP99
+	SuccessRate
 )
 
 var _dummy = QueryType(0)
@@ -31,6 +32,7 @@ const (
 	failureResponses    = "failure"
 	latency_p50         = "latency_p50"
 	latency_p99         = "latency_p99"
+	successRate         = "success_rate"
 )
 
 var names = [...]string{
@@ -42,6 +44,7 @@ var names = [...]string{
 	failureResponses,
 	latency_p50,
 	latency_p99,
+	successRate,
 }
 
 var maxQueryType = QueryType(len(names) - 1)
