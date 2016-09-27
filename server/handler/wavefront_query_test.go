@@ -24,13 +24,14 @@ type formatMetricTestCase struct {
 }
 
 func (tc formatMetricTestCase) run(t *testing.T) {
-	qts := StatsQueryTimeSeries{
-		QueryType: tc.queryType,
-		DomainKey: tc.domainKey,
-		RouteKey:  tc.routeKey,
-		Method:    tc.method,
-	}
-	metric := formatMetric(tc.orgKey, tc.zoneKey, &qts)
+	metric := formatMetric(
+		tc.orgKey,
+		tc.zoneKey,
+		tc.domainKey,
+		tc.routeKey,
+		tc.method,
+		tc.queryType,
+	)
 	assert.Equal(t, metric, tc.expectedMetric)
 }
 
@@ -41,15 +42,15 @@ func TestFormatMetric(t *testing.T) {
 	rk := api.RouteKey("r")
 	md := "POST"
 	testCases := []formatMetricTestCase{
-		{ok, zk, nil, nil, nil, Requests, "o/z/*/*/*/requests"},
-		{ok, zk, &dk, nil, nil, Requests, "o/z/d/*/*/requests"},
-		{ok, zk, nil, &rk, nil, Requests, "o/z/*/r/*/requests"},
-		{ok, zk, nil, nil, &md, Requests, "o/z/*/*/POST/requests"},
-		{ok, zk, &dk, &rk, nil, Requests, "o/z/d/r/*/requests"},
-		{ok, zk, &dk, nil, &md, Requests, "o/z/d/*/POST/requests"},
-		{ok, zk, nil, &rk, &md, Requests, "o/z/*/r/POST/requests"},
-		{ok, zk, &dk, &rk, &md, Requests, "o/z/d/r/POST/requests"},
-		{ok, zk, nil, nil, nil, Responses, "o/z/*/*/*/responses"},
+		{ok, zk, nil, nil, nil, Requests, "o.z.*.*.*.requests"},
+		{ok, zk, &dk, nil, nil, Requests, "o.z.d.*.*.requests"},
+		{ok, zk, nil, &rk, nil, Requests, "o.z.*.r.*.requests"},
+		{ok, zk, nil, nil, &md, Requests, "o.z.*.*.POST.requests"},
+		{ok, zk, &dk, &rk, nil, Requests, "o.z.d.r.*.requests"},
+		{ok, zk, &dk, nil, &md, Requests, "o.z.d.*.POST.requests"},
+		{ok, zk, nil, &rk, &md, Requests, "o.z.*.r.POST.requests"},
+		{ok, zk, &dk, &rk, &md, Requests, "o.z.d.r.POST.requests"},
+		{ok, zk, nil, nil, nil, Responses, "o.z.*.*.*.responses"},
 	}
 
 	for _, tc := range testCases {
@@ -132,8 +133,57 @@ func TestFormatWavefrontQueryUrl(t *testing.T) {
 	assert.Equal(
 		t,
 		queryParams.Get("q"),
-		formatQuery(formatMetric(orgKey, zoneKey, &qts), &qts),
+		formatQuery(
+			formatMetric(orgKey, zoneKey, &domainKey, &routeKey, &method, Requests),
+			&qts,
+		),
 	)
+}
+
+type formatQueryExprTestCase struct {
+	queryType     QueryType
+	expectedQuery string
+}
+
+func (tc formatQueryExprTestCase) run(t *testing.T, orgKey api.OrgKey, zoneKey api.ZoneKey, qts StatsQueryTimeSeries) {
+	qts.QueryType = tc.queryType
+
+	expr := queryExprMap[qts.QueryType]
+
+	query := expr.Format(orgKey, zoneKey, &qts)
+	assert.Equal(t, query, tc.expectedQuery)
+}
+
+func TestFormatQueryExprs(t *testing.T) {
+	ok := api.OrgKey("o")
+	zk := api.ZoneKey("z")
+	testCases := []formatQueryExprTestCase{
+		{Requests, `ts("o.z.*.*.*.requests")`},
+		{Responses, `ts("o.z.*.*.*.responses")`},
+		{SuccessfulResponses, `(ts("o.z.*.*.*.responses.1*")+ts("o.z.*.*.*.responses.2*")+ts("o.z.*.*.*.responses.3*"))`},
+		{ErrorResponses, `ts("o.z.*.*.*.responses.4*")`},
+		{FailureResponses, `ts("o.z.*.*.*.responses.5*")`},
+		{LatencyP50, `ts("o.z.*.*.*.latency_p50")`},
+		{LatencyP99, `ts("o.z.*.*.*.latency_p99")`},
+	}
+
+	for _, tc := range testCases {
+		tc.run(t, ok, zk, StatsQueryTimeSeries{})
+	}
+}
+
+func TestFormatQueryExprWithTags(t *testing.T) {
+	ok := api.OrgKey("o")
+	zk := api.ZoneKey("z")
+	ck := api.ClusterKey("c")
+	qts := StatsQueryTimeSeries{
+		ClusterKey:   &ck,
+		InstanceKeys: []string{"i1"},
+	}
+	formatQueryExprTestCase{
+		Requests,
+		`ts("o.z.*.*.*.requests", upstream="c" and (instance="i1"))`,
+	}.run(t, ok, zk, qts)
 }
 
 const wavefrontResponse = `{

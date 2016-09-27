@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
@@ -62,7 +63,9 @@ func (f *metricsCollector) Forward(payload *stats.StatsPayload) (int, error) {
 
 	values := make([]metric.MetricValue, 0, len(payload.Stats))
 	for _, stat := range payload.Stats {
-		m, err := source.NewMetric(stat.Name)
+		cleanName := strings.Replace(stat.Name, ".", "_", -1)
+		cleanName = strings.Replace(cleanName, "/", ".", -1)
+		m, err := source.NewMetric(cleanName)
 		if err != nil {
 			rememberFirstError(err)
 			continue

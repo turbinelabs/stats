@@ -34,6 +34,10 @@ var (
 )
 
 func makePayload(numStats int) *stats.StatsPayload {
+	return makeFormattedPayload(numStats, "s/%d")
+}
+
+func makeFormattedPayload(numStats int, metricNameFmt string) *stats.StatsPayload {
 	s := []stats.Stat{}
 	for i := 0; i < numStats; i++ {
 		tags := map[string]string{
@@ -41,7 +45,7 @@ func makePayload(numStats int) *stats.StatsPayload {
 		}
 
 		stat := stats.Stat{
-			Name:      fmt.Sprintf("s%d", i),
+			Name:      fmt.Sprintf(metricNameFmt, i),
 			Value:     float64(i) + 0.25,
 			Timestamp: testEpoch + int64(i),
 			Tags:      tags,
@@ -57,13 +61,17 @@ func makePayload(numStats int) *stats.StatsPayload {
 }
 
 func makeExpectedMetricValues(numStats int) []metric.MetricValue {
+	return makeExpectedFormattedMetricValues(numStats, "s.%d")
+}
+
+func makeExpectedFormattedMetricValues(numStats int, metricNameFmt string) []metric.MetricValue {
 	v := []metric.MetricValue{}
 	for i := 0; i < numStats; i++ {
 		tags := map[string]string{
 			fmt.Sprintf("t%dk", i): fmt.Sprintf("t%dv", i),
 		}
 
-		m, _ := metricSource.NewMetric(fmt.Sprintf("s%d", i))
+		m, _ := metricSource.NewMetric(fmt.Sprintf(metricNameFmt, i))
 
 		ts := testEpochTime.Add(time.Duration(i) * time.Microsecond)
 
@@ -285,6 +293,18 @@ func (tc *forwardTestCase) run(t *testing.T) {
 	tc.checkForwardErr(t, err)
 
 	assert.DeepEqual(t, recordedValues, tc.expectedMetricValues)
+}
+
+func TestMetricsCollectorForwardWithPeriods(t *testing.T) {
+	tc := forwardTestCase{
+		payload:              makeFormattedPayload(2, "s.o.s./%d"),
+		expectedMetricValues: makeExpectedFormattedMetricValues(2, "s_o_s_.%d"),
+		numSent:              2,
+		checkForwardErr: func(t *testing.T, e error) {
+			assert.Nil(t, e)
+		},
+	}
+	tc.run(t)
 }
 
 func TestMetricsCollectorForward(t *testing.T) {

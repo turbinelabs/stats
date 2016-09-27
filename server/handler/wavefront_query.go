@@ -33,31 +33,111 @@ type wavefrontTimeSeries struct {
 
 type wavefrontPoint [2]float64
 
+type queryExpr interface {
+	Format(api.OrgKey, api.ZoneKey, *StatsQueryTimeSeries) string
+}
+
+type simpleQueryExpr struct{}
+
+func (r *simpleQueryExpr) Format(
+	orgKey api.OrgKey,
+	zoneKey api.ZoneKey,
+	q *StatsQueryTimeSeries,
+) string {
+	return formatQuery(
+		formatMetric(orgKey, zoneKey, q.DomainKey, q.RouteKey, q.Method, q.QueryType),
+		q,
+	)
+}
+
+type suffixedQueryExpr struct {
+	queryType QueryType
+	suffix    string
+}
+
+func (r *suffixedQueryExpr) Format(
+	orgKey api.OrgKey,
+	zoneKey api.ZoneKey,
+	q *StatsQueryTimeSeries,
+) string {
+	metric :=
+		formatMetric(orgKey, zoneKey, q.DomainKey, q.RouteKey, q.Method, r.queryType) +
+			"." +
+			r.suffix
+	return formatQuery(metric, q)
+}
+
+type div []queryExpr
+
+func (d div) Format(orgKey api.OrgKey, zoneKey api.ZoneKey, qts *StatsQueryTimeSeries) string {
+	exprs := make([]string, len(d))
+	for i, r := range d {
+		exprs[i] = r.Format(orgKey, zoneKey, qts)
+	}
+	return "(" + strings.Join(exprs, "/") + ")"
+}
+
+type sum []queryExpr
+
+func (s sum) Format(orgKey api.OrgKey, zoneKey api.ZoneKey, qts *StatsQueryTimeSeries) string {
+	exprs := make([]string, len(s))
+	for i, r := range s {
+		exprs[i] = r.Format(orgKey, zoneKey, qts)
+	}
+	return "(" + strings.Join(exprs, "+") + ")"
+}
+
+var _ queryExpr = &simpleQueryExpr{}
+var _ queryExpr = &suffixedQueryExpr{}
+var _ queryExpr = div{}
+var _ queryExpr = sum{}
+
+var queryExprMap = map[QueryType]queryExpr{
+	Requests:  &simpleQueryExpr{},
+	Responses: &simpleQueryExpr{},
+	SuccessfulResponses: sum{
+		&suffixedQueryExpr{Responses, "1*"},
+		&suffixedQueryExpr{Responses, "2*"},
+		&suffixedQueryExpr{Responses, "3*"},
+	},
+	ErrorResponses:   &suffixedQueryExpr{Responses, "4*"},
+	FailureResponses: &suffixedQueryExpr{Responses, "5*"},
+	LatencyP50:       &simpleQueryExpr{},
+	LatencyP99:       &simpleQueryExpr{},
+}
+
 // Given org and zone keys and a StatsQueryTimeSeries, produce a
 // string containing the appropriate metric name.
-func formatMetric(orgKey api.OrgKey, zoneKey api.ZoneKey, qts *StatsQueryTimeSeries) string {
+func formatMetric(
+	orgKey api.OrgKey,
+	zoneKey api.ZoneKey,
+	domainKey *api.DomainKey,
+	routeKey *api.RouteKey,
+	method *string,
+	queryType QueryType,
+) string {
 	parts := []string{
 		string(orgKey),
 		string(zoneKey),
 		"*",
 		"*",
 		"*",
-		qts.QueryType.String(),
+		queryType.String(),
 	}
 
-	if qts.DomainKey != nil {
-		parts[2] = string(*qts.DomainKey)
+	if domainKey != nil {
+		parts[2] = strings.Replace(string(*domainKey), ".", "_", -1)
 	}
 
-	if qts.RouteKey != nil {
-		parts[3] = string(*qts.RouteKey)
+	if routeKey != nil {
+		parts[3] = string(*routeKey)
 	}
 
-	if qts.Method != nil {
-		parts[4] = string(*qts.Method)
+	if method != nil {
+		parts[4] = string(*method)
 	}
 
-	return strings.Join(parts, "/")
+	return strings.Join(parts, ".")
 }
 
 // Given a metric name and a StatsQueryTimeSeries, produces a
@@ -100,8 +180,8 @@ func formatWavefrontQueryUrl(
 	startSeconds := tbntime.FromUnixMicro(startMicros).Unix()
 	endSeconds := tbntime.FromUnixMicro(endMicros).Unix()
 
-	metric := formatMetric(orgKey, zoneKey, qts)
-	query := formatQuery(metric, qts)
+	expr := queryExprMap[qts.QueryType]
+	query := expr.Format(orgKey, zoneKey, qts)
 
 	return fmt.Sprintf(
 		"https://metrics.wavefront.com/chart/api?g=s&summarization=MEAN&s=%d&e=%d&q=%s",
