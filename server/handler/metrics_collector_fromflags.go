@@ -35,7 +35,7 @@ func NewMetricsCollectorFromFlags(flagset *flag.FlagSet) MetricsCollectorFromFla
 	ff.forwarderFromFlags = forwarder.NewFromFlags(
 		pfs,
 		forwarder.SetDefaultForwarderType(forwarder.WavefrontForwarderType),
-		forwarder.DisableTurbineApiForwarding(),
+		forwarder.DisableTurbineAPIForwarding(),
 	)
 
 	return ff
