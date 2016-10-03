@@ -22,6 +22,25 @@ var (
 	)
 )
 
+const DefaultWavefrontServerUrl = "https://metrics.wavefront.com"
+
+type wavefrontQueryBuilder struct {
+	wavefrontServerUrl string
+}
+
+func newWavefrontQueryBuilder(wavefrontServerUrl string) (*wavefrontQueryBuilder, error) {
+	_, err := url.ParseRequestURI(wavefrontServerUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	if strings.HasSuffix(wavefrontServerUrl, "/") {
+		wavefrontServerUrl = wavefrontServerUrl[0 : len(wavefrontServerUrl)-1]
+	}
+
+	return &wavefrontQueryBuilder{wavefrontServerUrl}, nil
+}
+
 // c.f. https://metrics.wavefront.com/api-docs/ui/#!/Query_APIs/chart
 type wavefrontQueryResponse struct {
 	TimeSeries []wavefrontTimeSeries `json:"timeseries"`
@@ -34,18 +53,18 @@ type wavefrontTimeSeries struct {
 type wavefrontPoint [2]float64
 
 type queryExpr interface {
-	Format(api.OrgKey, api.ZoneKey, *StatsQueryTimeSeries) string
+	Format(api.OrgKey, string, *StatsQueryTimeSeries) string
 }
 
 type simpleQueryExpr struct{}
 
 func (r *simpleQueryExpr) Format(
 	orgKey api.OrgKey,
-	zoneKey api.ZoneKey,
+	zoneName string,
 	q *StatsQueryTimeSeries,
 ) string {
 	return formatQuery(
-		formatMetric(orgKey, zoneKey, q.DomainKey, q.RouteKey, q.Method, q.QueryType),
+		formatMetric(orgKey, zoneName, q.DomainKey, q.RouteKey, q.Method, q.QueryType),
 		q,
 	)
 }
@@ -57,10 +76,10 @@ type suffixedQueryExpr struct {
 
 func (r *suffixedQueryExpr) Format(
 	orgKey api.OrgKey,
-	zoneKey api.ZoneKey,
+	zoneName string,
 	q *StatsQueryTimeSeries,
 ) string {
-	metric := formatMetric(orgKey, zoneKey, q.DomainKey, q.RouteKey, q.Method, r.queryType)
+	metric := formatMetric(orgKey, zoneName, q.DomainKey, q.RouteKey, q.Method, r.queryType)
 	if r.suffix != "" {
 		metric = metric + "." + r.suffix
 	}
@@ -69,20 +88,20 @@ func (r *suffixedQueryExpr) Format(
 
 type div []queryExpr
 
-func (d div) Format(orgKey api.OrgKey, zoneKey api.ZoneKey, qts *StatsQueryTimeSeries) string {
+func (d div) Format(orgKey api.OrgKey, zoneName string, qts *StatsQueryTimeSeries) string {
 	exprs := make([]string, len(d))
 	for i, r := range d {
-		exprs[i] = r.Format(orgKey, zoneKey, qts)
+		exprs[i] = r.Format(orgKey, zoneName, qts)
 	}
 	return "(" + strings.Join(exprs, "/") + ")"
 }
 
 type sum []queryExpr
 
-func (s sum) Format(orgKey api.OrgKey, zoneKey api.ZoneKey, qts *StatsQueryTimeSeries) string {
+func (s sum) Format(orgKey api.OrgKey, zoneName string, qts *StatsQueryTimeSeries) string {
 	exprs := make([]string, len(s))
 	for i, r := range s {
-		exprs[i] = r.Format(orgKey, zoneKey, qts)
+		exprs[i] = r.Format(orgKey, zoneName, qts)
 	}
 	return "(" + strings.Join(exprs, "+") + ")"
 }
@@ -114,19 +133,36 @@ var queryExprMap = map[QueryType]queryExpr{
 	},
 }
 
+func escape(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r >= '0' && r <= '9':
+			return r
+		case r >= 'A' && r <= 'Z':
+			return r
+		case r >= 'a' && r <= 'z':
+			return r
+		case r == '_' || r == '-':
+			return r
+		default:
+			return '_'
+		}
+	}, s)
+}
+
 // Given org and zone keys and a StatsQueryTimeSeries, produce a
 // string containing the appropriate metric name.
 func formatMetric(
 	orgKey api.OrgKey,
-	zoneKey api.ZoneKey,
+	zoneName string,
 	domainKey *api.DomainKey,
 	routeKey *api.RouteKey,
 	method *string,
 	queryType QueryType,
 ) string {
 	parts := []string{
-		string(orgKey),
-		string(zoneKey),
+		escape(string(orgKey)),
+		escape(zoneName),
 		"*",
 		"*",
 		"*",
@@ -134,15 +170,15 @@ func formatMetric(
 	}
 
 	if domainKey != nil {
-		parts[2] = strings.Replace(string(*domainKey), ".", "_", -1)
+		parts[2] = escape(string(*domainKey))
 	}
 
 	if routeKey != nil {
-		parts[3] = string(*routeKey)
+		parts[3] = escape(string(*routeKey))
 	}
 
 	if method != nil {
-		parts[4] = string(*method)
+		parts[4] = escape(string(*method))
 	}
 
 	return strings.Join(parts, ".")
@@ -178,21 +214,22 @@ func formatQuery(metric string, qts *StatsQueryTimeSeries) string {
 }
 
 // Produces a wavefront charts API query URL.
-func formatWavefrontQueryUrl(
+func (builder wavefrontQueryBuilder) FormatWavefrontQueryUrl(
 	startMicros int64,
 	endMicros int64,
 	orgKey api.OrgKey,
-	zoneKey api.ZoneKey,
+	zoneName string,
 	qts *StatsQueryTimeSeries,
 ) string {
 	startSeconds := tbntime.FromUnixMicro(startMicros).Unix()
 	endSeconds := tbntime.FromUnixMicro(endMicros).Unix()
 
 	expr := queryExprMap[qts.QueryType]
-	query := expr.Format(orgKey, zoneKey, qts)
+	query := expr.Format(orgKey, zoneName, qts)
 
 	return fmt.Sprintf(
-		"https://metrics.wavefront.com/chart/api?g=s&summarization=MEAN&s=%d&e=%d&q=%s",
+		"%s/chart/api?g=s&summarization=MEAN&s=%d&e=%d&q=%s",
+		builder.wavefrontServerUrl,
 		startSeconds,
 		endSeconds,
 		url.QueryEscape(query),

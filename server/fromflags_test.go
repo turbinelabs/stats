@@ -122,6 +122,7 @@ func (tc makeTestCase) run(t *testing.T) {
 	corsFromFlags := cors.NewMockFromFlags(ctrl)
 
 	ffImpl := &fromFlags{
+		wavefrontServerUrl:        handler.DefaultWavefrontServerUrl,
 		devMode:                   flags.NewStringsWithConstraint(),
 		ServerFromFlags:           serverFromFlags,
 		StatsFromFlags:            statsFromFlags,

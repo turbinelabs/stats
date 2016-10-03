@@ -13,11 +13,13 @@ import (
 
 	"github.com/golang/mock/gomock"
 
+	"github.com/turbinelabs/api"
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
 	"github.com/turbinelabs/server/http/envelope"
 	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats"
+	"github.com/turbinelabs/stats/server/handler/requestcontext"
 	"github.com/turbinelabs/test/assert"
 	testio "github.com/turbinelabs/test/io"
 	tbntime "github.com/turbinelabs/time"
@@ -60,8 +62,8 @@ func makeFormattedPayload(numStats int, metricNameFmt string) *stats.StatsPayloa
 	}
 }
 
-func makeExpectedMetricValues(numStats int) []metric.MetricValue {
-	return makeExpectedFormattedMetricValues(numStats, "s.%d")
+func makeExpectedMetricValues(numStats int, orgKey api.OrgKey) []metric.MetricValue {
+	return makeExpectedFormattedMetricValues(numStats, string(orgKey)+".s.%d")
 }
 
 func makeExpectedFormattedMetricValues(numStats int, metricNameFmt string) []metric.MetricValue {
@@ -159,8 +161,10 @@ func TestAsHandler(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
+	orgKey := api.OrgKey("ok")
+
 	c := NewMockMetricsCollector(ctrl)
-	c.EXPECT().Forward(gomock.Any()).Return(1, nil)
+	c.EXPECT().Forward(orgKey, gomock.Any()).Return(1, nil)
 
 	handler := asHandler(c)
 
@@ -168,6 +172,9 @@ func TestAsHandler(t *testing.T) {
 	req := &http.Request{}
 	req.Body = ioutil.NopCloser(bytes.NewBuffer(makeBytes(t, payload)))
 	recorder := httptest.NewRecorder()
+
+	reqCtxt := requestcontext.New(req)
+	reqCtxt.SetOrgKey(orgKey)
 
 	handler(recorder, req)
 
@@ -184,10 +191,12 @@ func TestAsHandlerForwardingError(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
+	orgKey := api.OrgKey("ok")
+
 	httpErr := httperr.New500("herp", httperr.UnknownDecodingCode)
 
 	c := NewMockMetricsCollector(ctrl)
-	c.EXPECT().Forward(gomock.Any()).Return(1, httpErr)
+	c.EXPECT().Forward(orgKey, gomock.Any()).Return(1, httpErr)
 
 	handler := asHandler(c)
 
@@ -195,6 +204,9 @@ func TestAsHandlerForwardingError(t *testing.T) {
 	req := &http.Request{}
 	req.Body = ioutil.NopCloser(bytes.NewBuffer(makeBytes(t, payload)))
 	recorder := httptest.NewRecorder()
+
+	reqCtxt := requestcontext.New(req)
+	reqCtxt.SetOrgKey(orgKey)
 
 	handler(recorder, req)
 
@@ -219,6 +231,9 @@ func TestAsHandlerBodyError(t *testing.T) {
 	req.Body = testio.NewFailingReader()
 	recorder := httptest.NewRecorder()
 
+	reqCtxt := requestcontext.New(req)
+	reqCtxt.SetOrgKey(api.OrgKey("ok"))
+
 	handler(recorder, req)
 
 	assert.Equal(t, recorder.Code, 500)
@@ -230,9 +245,34 @@ func TestAsHandlerBodyError(t *testing.T) {
 	assert.ErrorContains(t, response.Error, "could not read request body")
 }
 
+func TestAsHandlerMissingOrgKey(t *testing.T) {
+	ctrl := gomock.NewController(assert.Tracing(t))
+	defer ctrl.Finish()
+
+	c := NewMockMetricsCollector(ctrl)
+
+	handler := asHandler(c)
+
+	req := &http.Request{}
+	req.Body = testio.NewFailingReader()
+	recorder := httptest.NewRecorder()
+
+	handler(recorder, req)
+
+	assert.Equal(t, recorder.Code, 500)
+
+	response := &envelope.Response{}
+	err := json.Unmarshal(recorder.Body.Bytes(), response)
+	assert.Nil(t, err)
+	assert.NonNil(t, response.Error)
+	assert.ErrorContains(t, response.Error, "authorization config error")
+}
+
 func TestMetricsCollectorForwardInvalidSource(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
+
+	orgKey := api.OrgKey("ok")
 
 	mockForwarder := forwarder.NewMockForwarder(ctrl)
 
@@ -240,28 +280,13 @@ func TestMetricsCollectorForwardInvalidSource(t *testing.T) {
 
 	payload := &stats.StatsPayload{Source: "a bird in the hand"}
 
-	sent, err := collector.Forward(payload)
+	sent, err := collector.Forward(orgKey, payload)
 	assert.Equal(t, sent, 0)
 	assert.ErrorContains(t, err, "invalid metric source")
 }
 
-func TestMetricsCollectorForwardInvalidMetric(t *testing.T) {
-	ctrl := gomock.NewController(assert.Tracing(t))
-	defer ctrl.Finish()
-
-	mockForwarder := forwarder.NewMockForwarder(ctrl)
-
-	collector := metricsCollector{forwarder: mockForwarder}
-
-	payload := makePayload(1)
-	payload.Stats[0].Name = "none shall pass"
-
-	sent, err := collector.Forward(payload)
-	assert.Equal(t, sent, 0)
-	assert.ErrorContains(t, err, "invalid metric")
-}
-
 type forwardTestCase struct {
+	orgKey               api.OrgKey
 	payload              *stats.StatsPayload
 	expectedMetricValues []metric.MetricValue
 
@@ -283,22 +308,38 @@ func (tc *forwardTestCase) run(t *testing.T) {
 		recordedValues = append(recordedValues, v...)
 	}
 
-	mockForwarder.EXPECT().
-		Send(gomock.Any()).
-		Do(recordMetricValues).
-		Return(tc.numSent, tc.sendErr)
+	if len(tc.expectedMetricValues) > 0 {
+		mockForwarder.EXPECT().
+			Send(gomock.Any()).
+			Do(recordMetricValues).
+			Return(tc.numSent, tc.sendErr)
+	}
 
-	sent, err := collector.Forward(tc.payload)
+	sent, err := collector.Forward(tc.orgKey, tc.payload)
 	assert.Equal(t, sent, tc.numSent)
 	tc.checkForwardErr(t, err)
 
 	assert.DeepEqual(t, recordedValues, tc.expectedMetricValues)
 }
 
+func TestMetricsCollectorForwardInvalidMetric(t *testing.T) {
+	tc := forwardTestCase{
+		orgKey:               api.OrgKey("ok"),
+		payload:              makeFormattedPayload(1, "this is invalid %d"),
+		expectedMetricValues: makeExpectedFormattedMetricValues(1, "ok.this_is_invalid_%d"),
+		numSent:              1,
+		checkForwardErr: func(t *testing.T, e error) {
+			assert.Nil(t, e)
+		},
+	}
+	tc.run(t)
+}
+
 func TestMetricsCollectorForwardWithPeriods(t *testing.T) {
 	tc := forwardTestCase{
+		orgKey:               api.OrgKey("ok"),
 		payload:              makeFormattedPayload(2, "s.o.s./%d"),
-		expectedMetricValues: makeExpectedFormattedMetricValues(2, "s_o_s_.%d"),
+		expectedMetricValues: makeExpectedFormattedMetricValues(2, "ok.s_o_s_.%d"),
 		numSent:              2,
 		checkForwardErr: func(t *testing.T, e error) {
 			assert.Nil(t, e)
@@ -308,9 +349,11 @@ func TestMetricsCollectorForwardWithPeriods(t *testing.T) {
 }
 
 func TestMetricsCollectorForward(t *testing.T) {
+	orgKey := api.OrgKey("ok")
 	tc := forwardTestCase{
+		orgKey:               orgKey,
 		payload:              makePayload(2),
-		expectedMetricValues: makeExpectedMetricValues(2),
+		expectedMetricValues: makeExpectedMetricValues(2, orgKey),
 		numSent:              2,
 		checkForwardErr: func(t *testing.T, e error) {
 			assert.Nil(t, e)
@@ -320,29 +363,31 @@ func TestMetricsCollectorForward(t *testing.T) {
 }
 
 func TestMetricsCollectorForwardPartialError(t *testing.T) {
-	p := makePayload(3)
-	p.Stats[0].Name = "first bad name"
-	p.Stats[1].Name = "second bad name"
+	orgKey := api.OrgKey("ok!")
 
-	v := makeExpectedMetricValues(3)[2:]
+	p := makePayload(2)
+	p.Stats[0].Name = "first"
+	p.Stats[1].Name = "second"
 
 	tc := forwardTestCase{
-		payload:              p,
-		expectedMetricValues: v,
-		numSent:              2,
+		orgKey:  orgKey,
+		payload: p,
+		numSent: 0,
 		checkForwardErr: func(t *testing.T, err error) {
 			assert.ErrorContains(t, err, "invalid metric name")
-			assert.ErrorContains(t, err, "first bad name")
+			assert.ErrorContains(t, err, "first")
 		},
 	}
 	tc.run(t)
 }
 
 func TestMetricsCollectorForwardSendError(t *testing.T) {
+	orgKey := api.OrgKey("ok")
 	err := errors.New("could not send")
 	tc := forwardTestCase{
+		orgKey:               orgKey,
 		payload:              makePayload(2),
-		expectedMetricValues: makeExpectedMetricValues(2),
+		expectedMetricValues: makeExpectedMetricValues(2, orgKey),
 		numSent:              0,
 		sendErr:              err,
 		checkForwardErr: func(t *testing.T, e error) {

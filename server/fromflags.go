@@ -56,6 +56,13 @@ func NewFromFlags(flagset *flag.FlagSet) FromFlags {
 		"Authentication token for the wavefront API. Required unless developer mode is used to generate mock data.",
 	)
 
+	flagset.StringVar(
+		&ff.wavefrontServerUrl,
+		"wavefront-api.url",
+		handler.DefaultWavefrontServerUrl,
+		"Sets the wavefront server URL.",
+	)
+
 	serverFlagSet := flags.NewPrefixedFlagSet(flagset, "listener", "stats listener")
 	ff.ServerFromFlags = server.NewFromFlags(serverFlagSet)
 
@@ -70,6 +77,7 @@ func NewFromFlags(flagset *flag.FlagSet) FromFlags {
 type fromFlags struct {
 	devMode                   flags.Strings
 	wavefrontApiToken         string
+	wavefrontServerUrl        string
 	ServerFromFlags           server.FromFlags
 	StatsFromFlags            statsd.FromFlags
 	CORSFromFlags             cors.FromFlags
@@ -133,7 +141,13 @@ func (ff *fromFlags) Make() (server.Server, error) {
 	if mockData {
 		queryHandler = handler.NewMockQueryHandler()
 	} else {
-		queryHandler = handler.NewQueryHandler(ff.wavefrontApiToken)
+		queryHandler, err = handler.NewQueryHandler(
+			ff.wavefrontServerUrl,
+			ff.wavefrontApiToken,
+		)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	allowedOrigins := ff.CORSFromFlags.AllowedOrigins()

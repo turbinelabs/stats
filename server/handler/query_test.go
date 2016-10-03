@@ -104,12 +104,13 @@ func mkRequest(
 
 func TestNewQueryHandler(t *testing.T) {
 	wavefrontApiToken := "api-token"
-	qh := NewQueryHandler(wavefrontApiToken)
+	qh, err := NewQueryHandler(DefaultWavefrontServerUrl, wavefrontApiToken)
+	assert.Nil(t, err)
 
 	qhImpl := qh.(*queryHandler)
 	assert.Equal(t, qhImpl.wavefrontApiToken, wavefrontApiToken)
 	assert.NonNil(t, qhImpl.client)
-	assert.SameInstance(t, qhImpl.formatQueryUrl, formatWavefrontQueryUrl)
+	assert.NonNil(t, qhImpl.formatQueryUrl)
 }
 
 func testHandlerDecodingError(t *testing.T, useHumaneEncoding bool) {
@@ -160,7 +161,7 @@ func TestHandlerMissingOrgKey(t *testing.T) {
 
 }
 
-func testZoneKeyValidation(t *testing.T, useHumaneEncoding bool) {
+func testZoneNameValidation(t *testing.T, useHumaneEncoding bool) {
 	req := mkRequest(t, queryMap{}, useHumaneEncoding)
 	rw := httptest.NewRecorder()
 	handler := (&queryHandler{}).AsHandler()
@@ -168,17 +169,17 @@ func testZoneKeyValidation(t *testing.T, useHumaneEncoding bool) {
 	handler(rw, req)
 
 	assert.Equal(t, rw.Code, 400)
-	assert.MatchesRegex(t, rw.Body.String(), "query requires zone_key")
+	assert.MatchesRegex(t, rw.Body.String(), "query requires zone_name")
 }
 
-func TestRunQueryZoneKeyValidation(t *testing.T) {
-	testZoneKeyValidation(t, true)
-	testZoneKeyValidation(t, false)
+func TestRunQueryZoneNameValidation(t *testing.T) {
+	testZoneNameValidation(t, true)
+	testZoneNameValidation(t, false)
 }
 
 func testQueryTypeEmpty(t *testing.T, useHumaneEncoding bool) {
 	params := queryMap{
-		"zone_key": "zk",
+		"zone_name": "zn",
 		"timeseries": []queryMap{
 			{"domain_key": "dk"},
 		},
@@ -197,7 +198,7 @@ func testQueryTypeEmpty(t *testing.T, useHumaneEncoding bool) {
 
 func testQueryTypeInvalid(t *testing.T, useHumaneEncoding bool) {
 	params := queryMap{
-		"zone_key": "zk",
+		"zone_name": "zn",
 		"timeseries": []queryMap{
 			{"query_type": "invalid"},
 		},
@@ -240,7 +241,7 @@ func testRunQuery(t *testing.T, useHumaneEncoding bool) {
 		func(
 			start, end int64,
 			orgKey api.OrgKey,
-			zoneKey api.ZoneKey,
+			zoneName string,
 			qts *StatsQueryTimeSeries,
 		) string {
 			return server.URL
@@ -253,7 +254,7 @@ func testRunQuery(t *testing.T, useHumaneEncoding bool) {
 	}
 
 	params := queryMap{
-		"zone_key": "zk",
+		"zone_name": "zn",
 		"timeseries": []queryMap{
 			{"query_type": "requests"},
 		},

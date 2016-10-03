@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/turbinelabs/api"
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
 	"github.com/turbinelabs/ptr"
@@ -15,6 +16,7 @@ import (
 	"github.com/turbinelabs/server/handler"
 	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats"
+	"github.com/turbinelabs/stats/server/handler/requestcontext"
 	"github.com/turbinelabs/time"
 )
 
@@ -26,7 +28,7 @@ type MetricsCollector interface {
 	// external service and the first error encountered. Errors
 	// may occur while encoding metrics for forwarding or during
 	// forwarding itself.
-	Forward(stats *stats.StatsPayload) (int, error)
+	Forward(api.OrgKey, *stats.StatsPayload) (int, error)
 
 	// Closes any resources associated with the external service.
 	Close() error
@@ -48,7 +50,7 @@ type metricsCollector struct {
 
 var _ server.Closer = &metricsCollector{}
 
-func (f *metricsCollector) Forward(payload *stats.StatsPayload) (int, error) {
+func (f *metricsCollector) Forward(orgKey api.OrgKey, payload *stats.StatsPayload) (int, error) {
 	source, err := metric.NewSource(payload.Source, "")
 	if err != nil {
 		return 0, err
@@ -63,9 +65,12 @@ func (f *metricsCollector) Forward(payload *stats.StatsPayload) (int, error) {
 
 	values := make([]metric.MetricValue, 0, len(payload.Stats))
 	for _, stat := range payload.Stats {
-		cleanName := strings.Replace(stat.Name, ".", "_", -1)
-		cleanName = strings.Replace(cleanName, "/", ".", -1)
-		m, err := source.NewMetric(cleanName)
+		parts := strings.Split(stat.Name, "/")
+		for idx, part := range parts {
+			parts[idx] = escape(part)
+		}
+		cleanName := strings.Join(parts, ".")
+		m, err := source.NewMetric(string(orgKey) + "." + cleanName)
 		if err != nil {
 			rememberFirstError(err)
 			continue
@@ -96,17 +101,25 @@ func asHandler(f MetricsCollector) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		rrw := handler.RichResponseWriter{rw}
 
-		fr := metricsCollectorRequest{r}
+		requestContext := requestcontext.New(r)
+		if orgKey, ok := requestContext.GetOrgKey(); ok {
+			fr := metricsCollectorRequest{r}
 
-		payload, err := fr.getPayload()
-		if err != nil {
-			rrw.WriteEnvelope(err, nil)
-			return
+			payload, err := fr.getPayload()
+			if err != nil {
+				rrw.WriteEnvelope(err, nil)
+				return
+			}
+
+			num, err := f.Forward(orgKey, payload)
+
+			rrw.WriteEnvelope(err, &stats.Result{NumAccepted: num})
+		} else {
+			rrw.WriteEnvelope(
+				httperr.New500("authorization config error", httperr.MiscErrorCode),
+				nil,
+			)
 		}
-
-		num, err := f.Forward(payload)
-
-		rrw.WriteEnvelope(err, &stats.Result{NumAccepted: num})
 	}
 }
 

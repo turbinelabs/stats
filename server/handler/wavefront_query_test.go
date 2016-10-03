@@ -14,7 +14,7 @@ import (
 
 type formatMetricTestCase struct {
 	orgKey    api.OrgKey
-	zoneKey   api.ZoneKey
+	zoneName  string
 	domainKey *api.DomainKey
 	routeKey  *api.RouteKey
 	method    *string
@@ -26,7 +26,7 @@ type formatMetricTestCase struct {
 func (tc formatMetricTestCase) run(t *testing.T) {
 	metric := formatMetric(
 		tc.orgKey,
-		tc.zoneKey,
+		tc.zoneName,
 		tc.domainKey,
 		tc.routeKey,
 		tc.method,
@@ -37,20 +37,20 @@ func (tc formatMetricTestCase) run(t *testing.T) {
 
 func TestFormatMetric(t *testing.T) {
 	ok := api.OrgKey("o")
-	zk := api.ZoneKey("z")
+	zn := "z"
 	dk := api.DomainKey("d")
 	rk := api.RouteKey("r")
 	md := "POST"
 	testCases := []formatMetricTestCase{
-		{ok, zk, nil, nil, nil, Requests, "o.z.*.*.*.requests"},
-		{ok, zk, &dk, nil, nil, Requests, "o.z.d.*.*.requests"},
-		{ok, zk, nil, &rk, nil, Requests, "o.z.*.r.*.requests"},
-		{ok, zk, nil, nil, &md, Requests, "o.z.*.*.POST.requests"},
-		{ok, zk, &dk, &rk, nil, Requests, "o.z.d.r.*.requests"},
-		{ok, zk, &dk, nil, &md, Requests, "o.z.d.*.POST.requests"},
-		{ok, zk, nil, &rk, &md, Requests, "o.z.*.r.POST.requests"},
-		{ok, zk, &dk, &rk, &md, Requests, "o.z.d.r.POST.requests"},
-		{ok, zk, nil, nil, nil, Responses, "o.z.*.*.*.responses"},
+		{ok, zn, nil, nil, nil, Requests, "o.z.*.*.*.requests"},
+		{ok, zn, &dk, nil, nil, Requests, "o.z.d.*.*.requests"},
+		{ok, zn, nil, &rk, nil, Requests, "o.z.*.r.*.requests"},
+		{ok, zn, nil, nil, &md, Requests, "o.z.*.*.POST.requests"},
+		{ok, zn, &dk, &rk, nil, Requests, "o.z.d.r.*.requests"},
+		{ok, zn, &dk, nil, &md, Requests, "o.z.d.*.POST.requests"},
+		{ok, zn, nil, &rk, &md, Requests, "o.z.*.r.POST.requests"},
+		{ok, zn, &dk, &rk, &md, Requests, "o.z.d.r.POST.requests"},
+		{ok, zn, nil, nil, nil, Responses, "o.z.*.*.*.responses"},
 	}
 
 	for _, tc := range testCases {
@@ -95,11 +95,38 @@ func TestFormatQuery(t *testing.T) {
 	}
 }
 
-func TestFormatWavefrontQueryUrl(t *testing.T) {
+func TestNewWavefrontQueryBuilder(t *testing.T) {
+	builder, err := newWavefrontQueryBuilder("not a url")
+	assert.Nil(t, builder)
+	assert.NonNil(t, err)
+
+	builder, err = newWavefrontQueryBuilder(DefaultWavefrontServerUrl)
+	assert.NonNil(t, builder)
+	assert.Equal(t, builder.wavefrontServerUrl, DefaultWavefrontServerUrl)
+	assert.Nil(t, err)
+
+	builder, err = newWavefrontQueryBuilder("http://something.something.com")
+	assert.NonNil(t, builder)
+	assert.Equal(t, builder.wavefrontServerUrl, "http://something.something.com")
+	assert.Nil(t, err)
+
+	builder, err = newWavefrontQueryBuilder("http://something.com/with/path")
+	assert.NonNil(t, builder)
+	assert.Equal(t, builder.wavefrontServerUrl, "http://something.com/with/path")
+	assert.Nil(t, err)
+
+	// removes trailing slash
+	builder, err = newWavefrontQueryBuilder("http://something.com/")
+	assert.NonNil(t, builder)
+	assert.Equal(t, builder.wavefrontServerUrl, "http://something.com")
+	assert.Nil(t, err)
+}
+
+func TestWavefrontQueryBuilder(t *testing.T) {
 	start := int64(1472667004)
 	end := start + 3600
 	orgKey := api.OrgKey("o")
-	zoneKey := api.ZoneKey("z")
+	zoneName := "n"
 	domainKey := api.DomainKey("d")
 	routeKey := api.RouteKey("r")
 	method := "GET"
@@ -111,12 +138,14 @@ func TestFormatWavefrontQueryUrl(t *testing.T) {
 		Method:    &method,
 	}
 
-	u := formatWavefrontQueryUrl(start*1000000, end*1000000, orgKey, zoneKey, &qts)
+	builder := wavefrontQueryBuilder{"https://wavefront.example.com"}
+
+	u := builder.FormatWavefrontQueryUrl(start*1000000, end*1000000, orgKey, zoneName, &qts)
 	url, err := url.Parse(u)
 	assert.Nil(t, err)
 
 	assert.Equal(t, url.Scheme, "https")
-	assert.Equal(t, url.Host, "metrics.wavefront.com")
+	assert.Equal(t, url.Host, "wavefront.example.com")
 	assert.Equal(t, url.Path, "/chart/api")
 
 	queryParams := url.Query()
@@ -134,17 +163,17 @@ func TestFormatWavefrontQueryUrl(t *testing.T) {
 		t,
 		queryParams.Get("q"),
 		formatQuery(
-			formatMetric(orgKey, zoneKey, &domainKey, &routeKey, &method, Requests),
+			formatMetric(orgKey, zoneName, &domainKey, &routeKey, &method, Requests),
 			&qts,
 		),
 	)
 }
 
-func TestFormatWavefrontQueryUrlSuccessRate(t *testing.T) {
+func TestWavefrontQueryBuilderSuccessRate(t *testing.T) {
 	start := int64(1472667004)
 	end := start + 3600
 	orgKey := api.OrgKey("o")
-	zoneKey := api.ZoneKey("z")
+	zoneName := "z'"
 	domainKey := api.DomainKey("d")
 	routeKey := api.RouteKey("r")
 	method := "GET"
@@ -156,12 +185,14 @@ func TestFormatWavefrontQueryUrlSuccessRate(t *testing.T) {
 		Method:    &method,
 	}
 
-	u := formatWavefrontQueryUrl(start*1000000, end*1000000, orgKey, zoneKey, &qts)
+	builder := wavefrontQueryBuilder{"https://wavefront.example.com"}
+
+	u := builder.FormatWavefrontQueryUrl(start*1000000, end*1000000, orgKey, zoneName, &qts)
 	url, err := url.Parse(u)
 	assert.Nil(t, err)
 
 	assert.Equal(t, url.Scheme, "https")
-	assert.Equal(t, url.Host, "metrics.wavefront.com")
+	assert.Equal(t, url.Host, "wavefront.example.com")
 	assert.Equal(t, url.Path, "/chart/api")
 
 	queryParams := url.Query()
@@ -178,8 +209,26 @@ func TestFormatWavefrontQueryUrlSuccessRate(t *testing.T) {
 	assert.Equal(
 		t,
 		queryParams.Get("q"),
-		queryExprMap[SuccessRate].Format(orgKey, zoneKey, &qts),
+		queryExprMap[SuccessRate].Format(orgKey, zoneName, &qts),
 	)
+}
+
+func TestEscape(t *testing.T) {
+	testcases := [][]string{
+		{"simple", "simple"},
+		{"0123456789", "0123456789"},
+		{"SIMPLE", "SIMPLE"},
+		{"this-is_ok_too", "this-is_ok_too"},
+		{"a/b+c:d.e!", "a_b_c_d_e_"},
+	}
+
+	for _, tc := range testcases {
+		input := tc[0]
+		assert.Group(fmt.Sprintf("input: `%s`", input), t, func(g *assert.G) {
+			expected := tc[1]
+			assert.Equal(g, escape(input), expected)
+		})
+	}
 }
 
 type formatQueryExprTestCase struct {
@@ -187,18 +236,23 @@ type formatQueryExprTestCase struct {
 	expectedQuery string
 }
 
-func (tc formatQueryExprTestCase) run(t *testing.T, orgKey api.OrgKey, zoneKey api.ZoneKey, qts StatsQueryTimeSeries) {
+func (tc formatQueryExprTestCase) run(
+	t *testing.T,
+	orgKey api.OrgKey,
+	zoneName string,
+	qts StatsQueryTimeSeries,
+) {
 	qts.QueryType = tc.queryType
 
 	expr := queryExprMap[qts.QueryType]
 
-	query := expr.Format(orgKey, zoneKey, &qts)
+	query := expr.Format(orgKey, zoneName, &qts)
 	assert.Equal(t, query, tc.expectedQuery)
 }
 
 func TestFormatQueryExprs(t *testing.T) {
 	ok := api.OrgKey("o")
-	zk := api.ZoneKey("z")
+	zn := "z"
 
 	successfulResponsesQuery :=
 		`(ts("o.z.*.*.*.responses.1*")+ts("o.z.*.*.*.responses.2*")+ts("o.z.*.*.*.responses.3*"))`
@@ -214,13 +268,13 @@ func TestFormatQueryExprs(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc.run(t, ok, zk, StatsQueryTimeSeries{})
+		tc.run(t, ok, zn, StatsQueryTimeSeries{})
 	}
 }
 
 func TestFormatQueryExprWithTags(t *testing.T) {
 	ok := api.OrgKey("o")
-	zk := api.ZoneKey("z")
+	zn := "z"
 	ck := api.ClusterKey("c")
 	qts := StatsQueryTimeSeries{
 		ClusterKey:   &ck,
@@ -229,7 +283,7 @@ func TestFormatQueryExprWithTags(t *testing.T) {
 	formatQueryExprTestCase{
 		Requests,
 		`ts("o.z.*.*.*.requests", upstream="c" and (instance="i1"))`,
-	}.run(t, ok, zk, qts)
+	}.run(t, ok, zn, qts)
 }
 
 const wavefrontResponse = `{

@@ -69,9 +69,9 @@ type StatsQueryTimeSeries struct {
 }
 
 type StatsQuery struct {
-	// Specifies the ZoneKey for which stats are
+	// Specifies the zone name for which stats are
 	// queried. Required.
-	ZoneKey api.ZoneKey `json:"zone_key" form:"zone_key"`
+	ZoneName string `json:"zone_name" form:"zone_name"`
 
 	// Specifies the time range of the query. Defaults to the last
 	// hour.
@@ -126,24 +126,31 @@ type QueryHandler interface {
 	AsHandler() http.HandlerFunc
 }
 
-func NewQueryHandler(wavefrontApiToken string) QueryHandler {
+// Constructs a new QueryHandler from the given wavefrontServerUrl
+// (e.g., "https://metrics.wavefront.com") and wavefrontApiToken.
+func NewQueryHandler(wavefrontServerUrl string, wavefrontApiToken string) (QueryHandler, error) {
+	queryBuilder, err := newWavefrontQueryBuilder(wavefrontServerUrl)
+	if err != nil {
+		return nil, err
+	}
+
 	return &queryHandler{
 		wavefrontApiToken: wavefrontApiToken,
 		client:            clienthttp.HeaderPreserving(),
-		formatQueryUrl:    formatWavefrontQueryUrl,
-	}
+		formatQueryUrl:    queryBuilder.FormatWavefrontQueryUrl,
+	}, nil
 }
 
 type queryHandler struct {
 	wavefrontApiToken string
 	client            *http.Client
-	formatQueryUrl    func(int64, int64, api.OrgKey, api.ZoneKey, *StatsQueryTimeSeries) string
+	formatQueryUrl    func(int64, int64, api.OrgKey, string, *StatsQueryTimeSeries) string
 }
 
 func validateQuery(q *StatsQuery) *httperr.Error {
-	if q.ZoneKey == "" {
+	if q.ZoneName == "" {
 		return httperr.New400(
-			"query requires zone_key",
+			"query requires zone_name",
 			httperr.InvalidObjectErrorCode,
 		)
 	}
@@ -313,7 +320,7 @@ func (qh *queryHandler) RunQuery(
 
 	queryUrls := make([]string, len(q.TimeSeries))
 	for idx, qts := range q.TimeSeries {
-		queryUrls[idx] = qh.formatQueryUrl(start, end, orgKey, q.ZoneKey, &qts)
+		queryUrls[idx] = qh.formatQueryUrl(start, end, orgKey, q.ZoneName, &qts)
 	}
 
 	tsResponse, err := qh.runQueries(queryUrls)
