@@ -35,7 +35,7 @@ const (
 	successRate         = "success_rate"
 )
 
-var names = [...]string{
+var queryTypeNames = [...]string{
 	unknown,
 	requests,
 	responses,
@@ -47,14 +47,14 @@ var names = [...]string{
 	successRate,
 }
 
-var maxQueryType = QueryType(len(names) - 1)
+var maxQueryType = QueryType(len(queryTypeNames) - 1)
 
 func IsValidQueryType(i QueryType) bool {
 	return i >= 1 && i <= maxQueryType
 }
 
 func QueryTypeFromName(s string) QueryType {
-	for idx, name := range names {
+	for idx, name := range queryTypeNames {
 		if idx == 0 {
 			continue
 		}
@@ -70,7 +70,7 @@ func (i QueryType) String() string {
 	if !IsValidQueryType(i) {
 		return fmt.Sprintf("unknown(%d)", i)
 	}
-	return names[i]
+	return queryTypeNames[i]
 }
 
 func (i *QueryType) MarshalJSON() ([]byte, error) {
@@ -83,7 +83,7 @@ func (i *QueryType) MarshalJSON() ([]byte, error) {
 		return nil, fmt.Errorf("cannot marshal unknown query type (%d)", qt)
 	}
 
-	name := names[qt]
+	name := queryTypeNames[qt]
 	b := make([]byte, 0, len(name)+2)
 	b = append(b, '"')
 	b = append(b, name...)

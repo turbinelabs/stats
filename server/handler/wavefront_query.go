@@ -217,6 +217,7 @@ func formatQuery(metric string, qts *StatsQueryTimeSeries) string {
 func (builder wavefrontQueryBuilder) FormatWavefrontQueryUrl(
 	startMicros int64,
 	endMicros int64,
+	granularity TimeGranularity,
 	orgKey api.OrgKey,
 	zoneName string,
 	qts *StatsQueryTimeSeries,
@@ -227,9 +228,22 @@ func (builder wavefrontQueryBuilder) FormatWavefrontQueryUrl(
 	expr := queryExprMap[qts.QueryType]
 	query := expr.Format(orgKey, zoneName, qts)
 
+	var wavefrontGranularity string
+	switch granularity {
+	case Seconds:
+		wavefrontGranularity = "s"
+	case Minutes:
+		wavefrontGranularity = "m"
+	case Hours:
+		wavefrontGranularity = "h"
+	default:
+		wavefrontGranularity = "s"
+	}
+
 	return fmt.Sprintf(
-		"%s/chart/api?g=s&summarization=MEAN&s=%d&e=%d&q=%s",
+		"%s/chart/api?strict=true&g=%s&summarization=MEAN&s=%d&e=%d&q=%s",
 		builder.wavefrontServerUrl,
+		wavefrontGranularity,
 		startSeconds,
 		endSeconds,
 		url.QueryEscape(query),

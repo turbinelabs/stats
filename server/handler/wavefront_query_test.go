@@ -126,7 +126,7 @@ func TestWavefrontQueryBuilder(t *testing.T) {
 	start := int64(1472667004)
 	end := start + 3600
 	orgKey := api.OrgKey("o")
-	zoneName := "n"
+	zoneName := "z"
 	domainKey := api.DomainKey("d")
 	routeKey := api.RouteKey("r")
 	method := "GET"
@@ -140,7 +140,14 @@ func TestWavefrontQueryBuilder(t *testing.T) {
 
 	builder := wavefrontQueryBuilder{"https://wavefront.example.com"}
 
-	u := builder.FormatWavefrontQueryUrl(start*1000000, end*1000000, orgKey, zoneName, &qts)
+	u := builder.FormatWavefrontQueryUrl(
+		start*1000000,
+		end*1000000,
+		Seconds,
+		orgKey,
+		zoneName,
+		&qts,
+	)
 	url, err := url.Parse(u)
 	assert.Nil(t, err)
 
@@ -157,6 +164,7 @@ func TestWavefrontQueryBuilder(t *testing.T) {
 
 	assert.Equal(t, queryParams.Get("g"), "s")
 	assert.Equal(t, queryParams.Get("summarization"), "MEAN")
+	assert.Equal(t, queryParams.Get("strict"), "true")
 	assert.Equal(t, queryParams.Get("s"), fmt.Sprintf("%d", start))
 	assert.Equal(t, queryParams.Get("e"), fmt.Sprintf("%d", end))
 	assert.Equal(
@@ -173,7 +181,7 @@ func TestWavefrontQueryBuilderSuccessRate(t *testing.T) {
 	start := int64(1472667004)
 	end := start + 3600
 	orgKey := api.OrgKey("o")
-	zoneName := "z'"
+	zoneName := "z"
 	domainKey := api.DomainKey("d")
 	routeKey := api.RouteKey("r")
 	method := "GET"
@@ -186,8 +194,14 @@ func TestWavefrontQueryBuilderSuccessRate(t *testing.T) {
 	}
 
 	builder := wavefrontQueryBuilder{"https://wavefront.example.com"}
-
-	u := builder.FormatWavefrontQueryUrl(start*1000000, end*1000000, orgKey, zoneName, &qts)
+	u := builder.FormatWavefrontQueryUrl(
+		start*1000000,
+		end*1000000,
+		Seconds,
+		orgKey,
+		zoneName,
+		&qts,
+	)
 	url, err := url.Parse(u)
 	assert.Nil(t, err)
 
@@ -204,6 +218,7 @@ func TestWavefrontQueryBuilderSuccessRate(t *testing.T) {
 
 	assert.Equal(t, queryParams.Get("g"), "s")
 	assert.Equal(t, queryParams.Get("summarization"), "MEAN")
+	assert.Equal(t, queryParams.Get("strict"), "true")
 	assert.Equal(t, queryParams.Get("s"), fmt.Sprintf("%d", start))
 	assert.Equal(t, queryParams.Get("e"), fmt.Sprintf("%d", end))
 	assert.Equal(
@@ -211,6 +226,42 @@ func TestWavefrontQueryBuilderSuccessRate(t *testing.T) {
 		queryParams.Get("q"),
 		queryExprMap[SuccessRate].Format(orgKey, zoneName, &qts),
 	)
+}
+
+func TestWavefrontQueryUrlGranularities(t *testing.T) {
+	start := int64(1472667004)
+	end := start + 3600
+	orgKey := api.OrgKey("o")
+	zoneName := "z"
+	domainKey := api.DomainKey("d")
+	routeKey := api.RouteKey("r")
+	method := "GET"
+
+	qts := StatsQueryTimeSeries{
+		QueryType: SuccessRate,
+		DomainKey: &domainKey,
+		RouteKey:  &routeKey,
+		Method:    &method,
+	}
+
+	forEachTimeGranularity(func(tg TimeGranularity) {
+		firstLetter := strings.ToLower(tg.String()[0:1])
+
+		builder := wavefrontQueryBuilder{"https://wavefront.example.com"}
+		u := builder.FormatWavefrontQueryUrl(
+			start*1000000,
+			end*1000000,
+			tg,
+			orgKey,
+			zoneName,
+			&qts,
+		)
+		url, err := url.Parse(u)
+		assert.Nil(t, err)
+
+		queryParams := url.Query()
+		assert.Equal(t, queryParams.Get("g"), firstLetter)
+	})
 }
 
 func TestEscape(t *testing.T) {

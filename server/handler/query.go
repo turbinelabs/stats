@@ -34,6 +34,11 @@ type StatsTimeRange struct {
 	// start of the time span that many microseconds into the past
 	// (e.g., Duration microseconds ago, until now).
 	Duration *int64 `json:"duration,omitempty" form:"duration"`
+
+	// Granularity specifies how much time each data point
+	// represents. If absent, it defaults to "seconds". Valid
+	// values are "seconds", "minutes", or "hours".
+	Granularity TimeGranularity `json:"granularity" form:"granularity"`
 }
 
 type StatsQueryTimeSeries struct {
@@ -141,16 +146,35 @@ func NewQueryHandler(wavefrontServerUrl string, wavefrontApiToken string) (Query
 	}, nil
 }
 
+type queryFormatter func(
+	int64,
+	int64,
+	TimeGranularity,
+	api.OrgKey,
+	string,
+	*StatsQueryTimeSeries,
+) string
+
 type queryHandler struct {
 	wavefrontApiToken string
 	client            *http.Client
-	formatQueryUrl    func(int64, int64, api.OrgKey, string, *StatsQueryTimeSeries) string
+	formatQueryUrl    queryFormatter
 }
 
 func validateQuery(q *StatsQuery) *httperr.Error {
 	if q.ZoneName == "" {
 		return httperr.New400(
 			"query requires zone_name",
+			httperr.InvalidObjectErrorCode,
+		)
+	}
+
+	if !IsValidTimeGranularity(q.TimeRange.Granularity) {
+		return httperr.New400(
+			fmt.Sprintf(
+				"query contains invalid time granularity %s",
+				q.TimeRange.Granularity,
+			),
 			httperr.InvalidObjectErrorCode,
 		)
 	}
@@ -223,10 +247,9 @@ func normalizeTimeRange(tr StatsTimeRange) (int64, int64, *httperr.Error) {
 				)
 			}
 		} else {
-			return 0, 0, httperr.New400(
-				"time range start is not set",
-				httperr.MiscErrorCode,
-			)
+			end := tbntime.ToUnixMicro(time.Now().Truncate(time.Second))
+			start := end - *tr.Duration
+			return start, end, nil
 		}
 	} else if tr.Start != nil {
 		return 0, 0, httperr.New400(
@@ -281,6 +304,7 @@ func (qh *queryHandler) runQueries(urls []string) ([]StatsTimeSeries, *httperr.E
 
 func makeQueryResult(
 	start, end int64,
+	granularity TimeGranularity,
 	queryTimeSeries []StatsQueryTimeSeries,
 	resultTimeSeries []StatsTimeSeries,
 ) (*StatsQueryResult, *httperr.Error) {
@@ -297,9 +321,10 @@ func makeQueryResult(
 
 	duration := end - start
 	responseTimeRange := StatsTimeRange{
-		Start:    &start,
-		End:      &end,
-		Duration: &duration,
+		Start:       &start,
+		End:         &end,
+		Duration:    &duration,
+		Granularity: granularity,
 	}
 
 	return &StatsQueryResult{TimeRange: responseTimeRange, TimeSeries: resultTimeSeries}, nil
@@ -320,7 +345,15 @@ func (qh *queryHandler) RunQuery(
 
 	queryUrls := make([]string, len(q.TimeSeries))
 	for idx, qts := range q.TimeSeries {
-		queryUrls[idx] = qh.formatQueryUrl(start, end, orgKey, q.ZoneName, &qts)
+		queryUrls[idx] =
+			qh.formatQueryUrl(
+				start,
+				end,
+				q.TimeRange.Granularity,
+				orgKey,
+				q.ZoneName,
+				&qts,
+			)
 	}
 
 	tsResponse, err := qh.runQueries(queryUrls)
@@ -328,7 +361,7 @@ func (qh *queryHandler) RunQuery(
 		return nil, err
 	}
 
-	return makeQueryResult(start, end, q.TimeSeries, tsResponse)
+	return makeQueryResult(start, end, q.TimeRange.Granularity, q.TimeSeries, tsResponse)
 }
 
 func (qh *queryHandler) AsHandler() http.HandlerFunc {
