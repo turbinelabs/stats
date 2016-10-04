@@ -58,6 +58,16 @@ type StatsQueryTimeSeries struct {
 	// not specified, stats are aggregated across routes.
 	RouteKey *api.RouteKey `json:"route_key,omitempty" form:"route_key"`
 
+	// Specifies the SharedRule name for which stats are
+	// returned. If not specified, stats are aggregated across
+	// shared rules.
+	SharedRuleName *string `json:"shared_rule_name,omitempty" form:"shared_rule_name"`
+
+	// Specifies the RuleKey for which stats are returned.
+	// Requires that a RouteKey or SharedRuleName is given. If not
+	// specified, stats are aggregated across rules.
+	RuleKey *api.RuleKey `json:"rule_key,omitempty" form:"rule_key"`
+
 	// Specifies the HTTP method for which stats are returned. If
 	// not specified, stats are aggregated across methods.
 	Method *string `json:"method,omitempty" form:"method"`
@@ -179,10 +189,32 @@ func validateQuery(q *StatsQuery) *httperr.Error {
 		)
 	}
 
-	for _, tsq := range q.TimeSeries {
+	nameOrIndex := func(name string, idx int) string {
+		if name == "" {
+			return fmt.Sprintf("[%d]", idx)
+		} else {
+			return fmt.Sprintf(" '%s'", name)
+		}
+	}
+
+	for idx, tsq := range q.TimeSeries {
 		if !IsValidQueryType(tsq.QueryType) {
 			return httperr.New400(
-				fmt.Sprintf("query contains invalid query type %s", tsq.QueryType),
+				fmt.Sprintf(
+					"query%s contains invalid query type %s",
+					nameOrIndex(tsq.Name, idx),
+					tsq.QueryType,
+				),
+				httperr.InvalidObjectErrorCode,
+			)
+		}
+
+		if tsq.RuleKey != nil && tsq.RouteKey == nil && tsq.SharedRuleName == nil {
+			return httperr.New400(
+				fmt.Sprintf(
+					"query%s must have a RouteKey and/or SharedRuleName to scope the given RuleKey",
+					nameOrIndex(tsq.Name, idx),
+				),
 				httperr.InvalidObjectErrorCode,
 			)
 		}

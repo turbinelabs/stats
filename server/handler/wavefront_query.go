@@ -188,24 +188,37 @@ func formatMetric(
 // wavefront query with source tag filters for instances and/or
 // clusters.
 func formatQuery(metric string, qts *StatsQueryTimeSeries) string {
-	instanceTagExprs := make([]string, len(qts.InstanceKeys))
-	for idx, instanceKey := range qts.InstanceKeys {
-		instanceTagExprs[idx] = fmt.Sprintf(`instance="%s"`, instanceKey)
+	tagExprs := make([]string, 0, 4)
+
+	if qts.RuleKey != nil {
+		ruleTag := fmt.Sprintf(`rule="%s"`, *qts.RuleKey)
+		tagExprs = append(tagExprs, ruleTag)
 	}
-	tags := strings.Join(instanceTagExprs, " or ")
+
+	if qts.SharedRuleName != nil {
+		sharedRuleTag := fmt.Sprintf(`shared_rule="%s"`, *qts.SharedRuleName)
+		tagExprs = append(tagExprs, sharedRuleTag)
+	}
 
 	if qts.ClusterKey != nil {
-		if tags != "" {
-			tags = fmt.Sprintf(
-				`upstream="%s" and (%s)`,
-				*qts.ClusterKey,
-				tags,
-			)
-		} else {
-			tags = fmt.Sprintf(`upstream="%s"`, *qts.ClusterKey)
-		}
+		clusterTag := fmt.Sprintf(`upstream="%s"`, *qts.ClusterKey)
+		tagExprs = append(tagExprs, clusterTag)
 	}
 
+	if len(qts.InstanceKeys) > 0 {
+		instanceTagExprs := make([]string, len(qts.InstanceKeys))
+		for idx, instanceKey := range qts.InstanceKeys {
+			instanceTagExprs[idx] = fmt.Sprintf(`instance="%s"`, instanceKey)
+		}
+
+		instanceTag := strings.Join(instanceTagExprs, " or ")
+		if len(instanceTagExprs) > 1 && len(tagExprs) > 0 {
+			instanceTag = "(" + instanceTag + ")"
+		}
+		tagExprs = append(tagExprs, instanceTag)
+	}
+
+	tags := strings.Join(tagExprs, " and ")
 	if tags != "" {
 		return fmt.Sprintf(`ts("%s", %s)`, metric, tags)
 	} else {

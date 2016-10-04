@@ -59,17 +59,21 @@ func TestFormatMetric(t *testing.T) {
 }
 
 type formatQueryTestCase struct {
-	metric       string
-	clusterKey   *api.ClusterKey
-	instanceKeys []string
+	metric         string
+	ruleKey        *api.RuleKey
+	sharedRuleName *string
+	clusterKey     *api.ClusterKey
+	instanceKeys   []string
 
 	expectedQuery string
 }
 
 func (tc formatQueryTestCase) run(t *testing.T) {
 	qts := StatsQueryTimeSeries{
-		ClusterKey:   tc.clusterKey,
-		InstanceKeys: tc.instanceKeys,
+		RuleKey:        tc.ruleKey,
+		SharedRuleName: tc.sharedRuleName,
+		ClusterKey:     tc.clusterKey,
+		InstanceKeys:   tc.instanceKeys,
 	}
 
 	query := formatQuery(tc.metric, &qts)
@@ -77,17 +81,40 @@ func (tc formatQueryTestCase) run(t *testing.T) {
 }
 
 func TestFormatQuery(t *testing.T) {
+	rk := api.RuleKey("r")
+	sn := "s"
 	ck := api.ClusterKey("c")
 	ik1 := []string{"i1"}
 	ik2 := []string{"i1", "i2"}
 	m := "a-metric"
 	testCases := []formatQueryTestCase{
-		{m, nil, nil, `ts("a-metric")`},
-		{m, &ck, nil, `ts("a-metric", upstream="c")`},
-		{m, nil, ik1, `ts("a-metric", instance="i1")`},
-		{m, nil, ik2, `ts("a-metric", instance="i1" or instance="i2")`},
-		{m, &ck, ik1, `ts("a-metric", upstream="c" and (instance="i1"))`},
-		{m, &ck, ik2, `ts("a-metric", upstream="c" and (instance="i1" or instance="i2"))`},
+		{m, nil, nil, nil, nil, `ts("a-metric")`},
+		{m, nil, nil, &ck, nil, `ts("a-metric", upstream="c")`},
+		{m, nil, nil, nil, ik1, `ts("a-metric", instance="i1")`},
+		{m, nil, nil, nil, ik2, `ts("a-metric", instance="i1" or instance="i2")`},
+		{m, nil, nil, &ck, ik1, `ts("a-metric", upstream="c" and instance="i1")`},
+		{m, nil, nil, &ck, ik2, `ts("a-metric", upstream="c" and (instance="i1" or instance="i2"))`},
+
+		{m, &rk, nil, nil, nil, `ts("a-metric", rule="r")`},
+		{m, &rk, nil, &ck, nil, `ts("a-metric", rule="r" and upstream="c")`},
+		{m, &rk, nil, nil, ik1, `ts("a-metric", rule="r" and instance="i1")`},
+		{m, &rk, nil, nil, ik2, `ts("a-metric", rule="r" and (instance="i1" or instance="i2"))`},
+		{m, &rk, nil, &ck, ik1, `ts("a-metric", rule="r" and upstream="c" and instance="i1")`},
+		{m, &rk, nil, &ck, ik2, `ts("a-metric", rule="r" and upstream="c" and (instance="i1" or instance="i2"))`},
+
+		{m, nil, &sn, nil, nil, `ts("a-metric", shared_rule="s")`},
+		{m, nil, &sn, &ck, nil, `ts("a-metric", shared_rule="s" and upstream="c")`},
+		{m, nil, &sn, nil, ik1, `ts("a-metric", shared_rule="s" and instance="i1")`},
+		{m, nil, &sn, nil, ik2, `ts("a-metric", shared_rule="s" and (instance="i1" or instance="i2"))`},
+		{m, nil, &sn, &ck, ik1, `ts("a-metric", shared_rule="s" and upstream="c" and instance="i1")`},
+		{m, nil, &sn, &ck, ik2, `ts("a-metric", shared_rule="s" and upstream="c" and (instance="i1" or instance="i2"))`},
+
+		{m, &rk, &sn, nil, nil, `ts("a-metric", rule="r" and shared_rule="s")`},
+		{m, &rk, &sn, &ck, nil, `ts("a-metric", rule="r" and shared_rule="s" and upstream="c")`},
+		{m, &rk, &sn, nil, ik1, `ts("a-metric", rule="r" and shared_rule="s" and instance="i1")`},
+		{m, &rk, &sn, nil, ik2, `ts("a-metric", rule="r" and shared_rule="s" and (instance="i1" or instance="i2"))`},
+		{m, &rk, &sn, &ck, ik1, `ts("a-metric", rule="r" and shared_rule="s" and upstream="c" and instance="i1")`},
+		{m, &rk, &sn, &ck, ik2, `ts("a-metric", rule="r" and shared_rule="s" and upstream="c" and (instance="i1" or instance="i2"))`},
 	}
 
 	for _, tc := range testCases {
@@ -333,7 +360,7 @@ func TestFormatQueryExprWithTags(t *testing.T) {
 	}
 	formatQueryExprTestCase{
 		Requests,
-		`ts("o.z.*.*.*.requests", upstream="c" and (instance="i1"))`,
+		`ts("o.z.*.*.*.requests", upstream="c" and instance="i1")`,
 	}.run(t, ok, zn, qts)
 }
 

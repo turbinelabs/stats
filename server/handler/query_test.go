@@ -178,6 +178,8 @@ func TestRunQueryZoneNameValidation(t *testing.T) {
 }
 
 func testQueryTypeEmpty(t *testing.T, useHumaneEncoding bool) {
+	handler := (&queryHandler{}).AsHandler()
+
 	params := queryMap{
 		"zone_name": "zn",
 		"timeseries": []queryMap{
@@ -186,14 +188,28 @@ func testQueryTypeEmpty(t *testing.T, useHumaneEncoding bool) {
 	}
 
 	req := mkRequest(t, params, useHumaneEncoding)
-
 	rw := httptest.NewRecorder()
-	handler := (&queryHandler{}).AsHandler()
-
 	handler(rw, req)
 
 	assert.Equal(t, rw.Code, 400)
-	assert.MatchesRegex(t, rw.Body.String(), "query contains invalid query type")
+	assert.MatchesRegex(t, rw.Body.String(), `query\[0\] contains invalid query type`)
+
+	params = queryMap{
+		"zone_name": "zn",
+		"timeseries": []queryMap{
+			{
+				"name":       "this query",
+				"domain_key": "dk",
+			},
+		},
+	}
+
+	req = mkRequest(t, params, useHumaneEncoding)
+	rw = httptest.NewRecorder()
+	handler(rw, req)
+
+	assert.Equal(t, rw.Code, 400)
+	assert.MatchesRegex(t, rw.Body.String(), "query 'this query' contains invalid query type")
 }
 
 func testQueryTypeInvalid(t *testing.T, useHumaneEncoding bool) {
@@ -221,6 +237,73 @@ func TestRunQueryQueryTypeValidation(t *testing.T) {
 
 	testQueryTypeInvalid(t, true)
 	testQueryTypeInvalid(t, false)
+}
+
+func testRuleKeyValidation(
+	t *testing.T,
+	routeKey *api.RouteKey,
+	sharedRuleName *string,
+	valid bool,
+) {
+	ruleKey := api.RuleKey("some-rule-key")
+	query := &StatsQuery{
+		ZoneName: "zone_name",
+		TimeSeries: []StatsQueryTimeSeries{
+			{
+				QueryType:      Requests,
+				RouteKey:       routeKey,
+				SharedRuleName: sharedRuleName,
+				RuleKey:        &ruleKey,
+			},
+		},
+	}
+
+	err := validateQuery(query)
+	if valid {
+		assert.Nil(t, err)
+	} else {
+		assert.NonNil(t, err)
+		assert.ErrorContains(
+			t,
+			err,
+			"query[0] must have a RouteKey and/or SharedRuleName to scope the given RuleKey",
+		)
+	}
+
+	query = &StatsQuery{
+		ZoneName: "zone_name",
+		TimeSeries: []StatsQueryTimeSeries{
+			{
+				Name:           "this query",
+				QueryType:      Requests,
+				RouteKey:       routeKey,
+				SharedRuleName: sharedRuleName,
+				RuleKey:        &ruleKey,
+			},
+		},
+	}
+
+	err = validateQuery(query)
+	if valid {
+		assert.Nil(t, err)
+	} else {
+		assert.NonNil(t, err)
+		assert.ErrorContains(
+			t,
+			err,
+			"query 'this query' must have a RouteKey and/or SharedRuleName to scope the given RuleKey",
+		)
+	}
+}
+
+func TestRunQueryRuleKeyValidation(t *testing.T) {
+	rk := api.RouteKey("rk")
+	sr := "sr"
+
+	testRuleKeyValidation(t, nil, nil, false)
+	testRuleKeyValidation(t, &rk, nil, true)
+	testRuleKeyValidation(t, nil, &sr, true)
+	testRuleKeyValidation(t, &rk, &sr, true)
 }
 
 func testRunQuery(t *testing.T, useHumaneEncoding bool) {
