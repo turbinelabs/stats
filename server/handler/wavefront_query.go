@@ -218,11 +218,12 @@ func formatQuery(metric string, qts *StatsQueryTimeSeries) string {
 		tagExprs = append(tagExprs, instanceTag)
 	}
 
+	// TODO: https://github.com/turbinelabs/tbn/issues/1399
 	tags := strings.Join(tagExprs, " and ")
 	if tags != "" {
-		return fmt.Sprintf(`ts("%s", %s)`, metric, tags)
+		return fmt.Sprintf(`sum(ts("%s", %s))`, metric, tags)
 	} else {
-		return fmt.Sprintf(`ts("%s")`, metric)
+		return fmt.Sprintf(`sum(ts("%s"))`, metric)
 	}
 }
 
@@ -253,8 +254,9 @@ func (builder wavefrontQueryBuilder) FormatWavefrontQueryUrl(
 		wavefrontGranularity = "s"
 	}
 
+	// TODO: https://github.com/turbinelabs/tbn/issues/1399
 	return fmt.Sprintf(
-		"%s/chart/api?strict=true&g=%s&summarization=MEAN&s=%d&e=%d&q=%s",
+		"%s/chart/api?strict=true&g=%s&summarization=SUM&s=%d&e=%d&q=%s",
 		builder.wavefrontServerUrl,
 		wavefrontGranularity,
 		startSeconds,

@@ -88,33 +88,33 @@ func TestFormatQuery(t *testing.T) {
 	ik2 := []string{"i1", "i2"}
 	m := "a-metric"
 	testCases := []formatQueryTestCase{
-		{m, nil, nil, nil, nil, `ts("a-metric")`},
-		{m, nil, nil, &ck, nil, `ts("a-metric", upstream="c")`},
-		{m, nil, nil, nil, ik1, `ts("a-metric", instance="i1")`},
-		{m, nil, nil, nil, ik2, `ts("a-metric", instance="i1" or instance="i2")`},
-		{m, nil, nil, &ck, ik1, `ts("a-metric", upstream="c" and instance="i1")`},
-		{m, nil, nil, &ck, ik2, `ts("a-metric", upstream="c" and (instance="i1" or instance="i2"))`},
+		{m, nil, nil, nil, nil, `sum(ts("a-metric"))`},
+		{m, nil, nil, &ck, nil, `sum(ts("a-metric", upstream="c"))`},
+		{m, nil, nil, nil, ik1, `sum(ts("a-metric", instance="i1"))`},
+		{m, nil, nil, nil, ik2, `sum(ts("a-metric", instance="i1" or instance="i2"))`},
+		{m, nil, nil, &ck, ik1, `sum(ts("a-metric", upstream="c" and instance="i1"))`},
+		{m, nil, nil, &ck, ik2, `sum(ts("a-metric", upstream="c" and (instance="i1" or instance="i2")))`},
 
-		{m, &rk, nil, nil, nil, `ts("a-metric", rule="r")`},
-		{m, &rk, nil, &ck, nil, `ts("a-metric", rule="r" and upstream="c")`},
-		{m, &rk, nil, nil, ik1, `ts("a-metric", rule="r" and instance="i1")`},
-		{m, &rk, nil, nil, ik2, `ts("a-metric", rule="r" and (instance="i1" or instance="i2"))`},
-		{m, &rk, nil, &ck, ik1, `ts("a-metric", rule="r" and upstream="c" and instance="i1")`},
-		{m, &rk, nil, &ck, ik2, `ts("a-metric", rule="r" and upstream="c" and (instance="i1" or instance="i2"))`},
+		{m, &rk, nil, nil, nil, `sum(ts("a-metric", rule="r"))`},
+		{m, &rk, nil, &ck, nil, `sum(ts("a-metric", rule="r" and upstream="c"))`},
+		{m, &rk, nil, nil, ik1, `sum(ts("a-metric", rule="r" and instance="i1"))`},
+		{m, &rk, nil, nil, ik2, `sum(ts("a-metric", rule="r" and (instance="i1" or instance="i2")))`},
+		{m, &rk, nil, &ck, ik1, `sum(ts("a-metric", rule="r" and upstream="c" and instance="i1"))`},
+		{m, &rk, nil, &ck, ik2, `sum(ts("a-metric", rule="r" and upstream="c" and (instance="i1" or instance="i2")))`},
 
-		{m, nil, &sn, nil, nil, `ts("a-metric", shared_rule="s")`},
-		{m, nil, &sn, &ck, nil, `ts("a-metric", shared_rule="s" and upstream="c")`},
-		{m, nil, &sn, nil, ik1, `ts("a-metric", shared_rule="s" and instance="i1")`},
-		{m, nil, &sn, nil, ik2, `ts("a-metric", shared_rule="s" and (instance="i1" or instance="i2"))`},
-		{m, nil, &sn, &ck, ik1, `ts("a-metric", shared_rule="s" and upstream="c" and instance="i1")`},
-		{m, nil, &sn, &ck, ik2, `ts("a-metric", shared_rule="s" and upstream="c" and (instance="i1" or instance="i2"))`},
+		{m, nil, &sn, nil, nil, `sum(ts("a-metric", shared_rule="s"))`},
+		{m, nil, &sn, &ck, nil, `sum(ts("a-metric", shared_rule="s" and upstream="c"))`},
+		{m, nil, &sn, nil, ik1, `sum(ts("a-metric", shared_rule="s" and instance="i1"))`},
+		{m, nil, &sn, nil, ik2, `sum(ts("a-metric", shared_rule="s" and (instance="i1" or instance="i2")))`},
+		{m, nil, &sn, &ck, ik1, `sum(ts("a-metric", shared_rule="s" and upstream="c" and instance="i1"))`},
+		{m, nil, &sn, &ck, ik2, `sum(ts("a-metric", shared_rule="s" and upstream="c" and (instance="i1" or instance="i2")))`},
 
-		{m, &rk, &sn, nil, nil, `ts("a-metric", rule="r" and shared_rule="s")`},
-		{m, &rk, &sn, &ck, nil, `ts("a-metric", rule="r" and shared_rule="s" and upstream="c")`},
-		{m, &rk, &sn, nil, ik1, `ts("a-metric", rule="r" and shared_rule="s" and instance="i1")`},
-		{m, &rk, &sn, nil, ik2, `ts("a-metric", rule="r" and shared_rule="s" and (instance="i1" or instance="i2"))`},
-		{m, &rk, &sn, &ck, ik1, `ts("a-metric", rule="r" and shared_rule="s" and upstream="c" and instance="i1")`},
-		{m, &rk, &sn, &ck, ik2, `ts("a-metric", rule="r" and shared_rule="s" and upstream="c" and (instance="i1" or instance="i2"))`},
+		{m, &rk, &sn, nil, nil, `sum(ts("a-metric", rule="r" and shared_rule="s"))`},
+		{m, &rk, &sn, &ck, nil, `sum(ts("a-metric", rule="r" and shared_rule="s" and upstream="c"))`},
+		{m, &rk, &sn, nil, ik1, `sum(ts("a-metric", rule="r" and shared_rule="s" and instance="i1"))`},
+		{m, &rk, &sn, nil, ik2, `sum(ts("a-metric", rule="r" and shared_rule="s" and (instance="i1" or instance="i2")))`},
+		{m, &rk, &sn, &ck, ik1, `sum(ts("a-metric", rule="r" and shared_rule="s" and upstream="c" and instance="i1"))`},
+		{m, &rk, &sn, &ck, ik2, `sum(ts("a-metric", rule="r" and shared_rule="s" and upstream="c" and (instance="i1" or instance="i2")))`},
 	}
 
 	for _, tc := range testCases {
@@ -190,7 +190,7 @@ func TestWavefrontQueryBuilder(t *testing.T) {
 	}
 
 	assert.Equal(t, queryParams.Get("g"), "s")
-	assert.Equal(t, queryParams.Get("summarization"), "MEAN")
+	assert.Equal(t, queryParams.Get("summarization"), "SUM")
 	assert.Equal(t, queryParams.Get("strict"), "true")
 	assert.Equal(t, queryParams.Get("s"), fmt.Sprintf("%d", start))
 	assert.Equal(t, queryParams.Get("e"), fmt.Sprintf("%d", end))
@@ -244,7 +244,7 @@ func TestWavefrontQueryBuilderSuccessRate(t *testing.T) {
 	}
 
 	assert.Equal(t, queryParams.Get("g"), "s")
-	assert.Equal(t, queryParams.Get("summarization"), "MEAN")
+	assert.Equal(t, queryParams.Get("summarization"), "SUM")
 	assert.Equal(t, queryParams.Get("strict"), "true")
 	assert.Equal(t, queryParams.Get("s"), fmt.Sprintf("%d", start))
 	assert.Equal(t, queryParams.Get("e"), fmt.Sprintf("%d", end))
@@ -333,16 +333,16 @@ func TestFormatQueryExprs(t *testing.T) {
 	zn := "z"
 
 	successfulResponsesQuery :=
-		`(ts("o.z.*.*.*.responses.1*")+ts("o.z.*.*.*.responses.2*")+ts("o.z.*.*.*.responses.3*"))`
+		`(sum(ts("o.z.*.*.*.responses.1*"))+sum(ts("o.z.*.*.*.responses.2*"))+sum(ts("o.z.*.*.*.responses.3*")))`
 	testCases := []formatQueryExprTestCase{
-		{Requests, `ts("o.z.*.*.*.requests")`},
-		{Responses, `ts("o.z.*.*.*.responses")`},
+		{Requests, `sum(ts("o.z.*.*.*.requests"))`},
+		{Responses, `sum(ts("o.z.*.*.*.responses"))`},
 		{SuccessfulResponses, successfulResponsesQuery},
-		{ErrorResponses, `ts("o.z.*.*.*.responses.4*")`},
-		{FailureResponses, `ts("o.z.*.*.*.responses.5*")`},
-		{LatencyP50, `ts("o.z.*.*.*.latency_p50")`},
-		{LatencyP99, `ts("o.z.*.*.*.latency_p99")`},
-		{SuccessRate, `(` + successfulResponsesQuery + `/ts("o.z.*.*.*.requests"))`},
+		{ErrorResponses, `sum(ts("o.z.*.*.*.responses.4*"))`},
+		{FailureResponses, `sum(ts("o.z.*.*.*.responses.5*"))`},
+		{LatencyP50, `sum(ts("o.z.*.*.*.latency_p50"))`},
+		{LatencyP99, `sum(ts("o.z.*.*.*.latency_p99"))`},
+		{SuccessRate, `(` + successfulResponsesQuery + `/sum(ts("o.z.*.*.*.requests")))`},
 	}
 
 	for _, tc := range testCases {
@@ -360,13 +360,13 @@ func TestFormatQueryExprWithTags(t *testing.T) {
 	}
 	formatQueryExprTestCase{
 		Requests,
-		`ts("o.z.*.*.*.requests", upstream="c" and instance="i1")`,
+		`sum(ts("o.z.*.*.*.requests", upstream="c" and instance="i1"))`,
 	}.run(t, ok, zn, qts)
 }
 
 const wavefrontResponse = `{
-  "query": "ts(stats.counters.api.requests.count)",
-  "name": "ts(stats.counters.api.requests.count)",
+  "query": "sum(ts(stats.counters.api.requests.count))",
+  "name": "sum(ts(stats.counters.api.requests.count))",
   "timeseries": [
     {
       "label": "stats.counters.api.requests.count",
