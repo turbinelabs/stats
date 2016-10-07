@@ -104,13 +104,14 @@ func mkRequest(
 
 func TestNewQueryHandler(t *testing.T) {
 	wavefrontApiToken := "api-token"
-	qh, err := NewQueryHandler(DefaultWavefrontServerUrl, wavefrontApiToken)
+	qh, err := NewQueryHandler(DefaultWavefrontServerUrl, wavefrontApiToken, true)
 	assert.Nil(t, err)
 
 	qhImpl := qh.(*queryHandler)
 	assert.Equal(t, qhImpl.wavefrontApiToken, wavefrontApiToken)
 	assert.NonNil(t, qhImpl.client)
 	assert.NonNil(t, qhImpl.formatQueryUrl)
+	assert.True(t, qhImpl.verboseLogging)
 }
 
 func testHandlerDecodingError(t *testing.T, useHumaneEncoding bool) {

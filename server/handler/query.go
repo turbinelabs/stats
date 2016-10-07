@@ -143,7 +143,11 @@ type QueryHandler interface {
 
 // Constructs a new QueryHandler from the given wavefrontServerUrl
 // (e.g., "https://metrics.wavefront.com") and wavefrontApiToken.
-func NewQueryHandler(wavefrontServerUrl string, wavefrontApiToken string) (QueryHandler, error) {
+func NewQueryHandler(
+	wavefrontServerUrl string,
+	wavefrontApiToken string,
+	verboseLogging bool,
+) (QueryHandler, error) {
 	queryBuilder, err := newWavefrontQueryBuilder(wavefrontServerUrl)
 	if err != nil {
 		return nil, err
@@ -153,6 +157,7 @@ func NewQueryHandler(wavefrontServerUrl string, wavefrontApiToken string) (Query
 		wavefrontApiToken: wavefrontApiToken,
 		client:            clienthttp.HeaderPreserving(),
 		formatQueryUrl:    queryBuilder.FormatWavefrontQueryUrl,
+		verboseLogging:    verboseLogging,
 	}, nil
 }
 
@@ -169,6 +174,7 @@ type queryHandler struct {
 	wavefrontApiToken string
 	client            *http.Client
 	formatQueryUrl    queryFormatter
+	verboseLogging    bool
 }
 
 func validateQuery(q *StatsQuery) *httperr.Error {
@@ -377,15 +383,20 @@ func (qh *queryHandler) RunQuery(
 
 	queryUrls := make([]string, len(q.TimeSeries))
 	for idx, qts := range q.TimeSeries {
-		queryUrls[idx] =
-			qh.formatQueryUrl(
-				start,
-				end,
-				q.TimeRange.Granularity,
-				orgKey,
-				q.ZoneName,
-				&qts,
-			)
+		url := qh.formatQueryUrl(
+			start,
+			end,
+			q.TimeRange.Granularity,
+			orgKey,
+			q.ZoneName,
+			&qts,
+		)
+
+		if qh.verboseLogging {
+			fmt.Println(url)
+		}
+
+		queryUrls[idx] = url
 	}
 
 	tsResponse, err := qh.runQueries(queryUrls)

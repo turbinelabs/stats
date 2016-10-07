@@ -21,6 +21,7 @@ import (
 const (
 	noAuthMode = "noauth"
 	mockMode   = "mock"
+	verbose    = "verbose"
 )
 
 // FromFlags validates and constructs a stats Server from command line
@@ -37,16 +38,17 @@ type FromFlags interface {
 // initializing its flags as appropriate.
 func NewFromFlags(flagset *flag.FlagSet) FromFlags {
 	ff := &fromFlags{
-		devMode: flags.NewStringsWithConstraint(noAuthMode, mockMode),
+		devMode: flags.NewStringsWithConstraint(noAuthMode, mockMode, verbose),
 	}
 
 	flagset.Var(
 		&ff.devMode,
 		"dev",
 		"Developer `modes`. Accepts a comma-separated list of modes. "+
-			"Possible modes are "+noAuthMode+" and "+mockMode+". "+
+			"Possible modes are "+noAuthMode+", "+mockMode+", and "+verbose+". "+
 			"The "+noAuthMode+" mode disables API key checking. "+
-			"The "+mockMode+" mode returns mock data only.",
+			"The "+mockMode+" mode returns mock data only."+
+			"The "+verbose+" mode enables verbose logging.",
 	)
 
 	flagset.StringVar(
@@ -91,6 +93,10 @@ func (ff *fromFlags) devModeNoAuth() bool {
 
 func (ff *fromFlags) devModeMockData() bool {
 	return indexof.String(ff.devMode.Strings, mockMode) != indexof.NotFound
+}
+
+func (ff *fromFlags) devModeVerbose() bool {
+	return indexof.String(ff.devMode.Strings, verbose) != indexof.NotFound
 }
 
 func (ff *fromFlags) Validate() error {
@@ -144,6 +150,7 @@ func (ff *fromFlags) Make() (server.Server, error) {
 		queryHandler, err = handler.NewQueryHandler(
 			ff.wavefrontServerUrl,
 			ff.wavefrontApiToken,
+			ff.devModeVerbose(),
 		)
 		if err != nil {
 			return nil, err
