@@ -163,56 +163,58 @@ func splitkv(s string) (string, string, error) {
 }
 
 type expr struct {
-	token  string
-	metric string
-	tags   map[string][]string
-	data   []*data
+	token   string
+	metrics []string
+	tags    map[string][]string
+	data    [][]*data
 }
 
 func (e *expr) eval(ts int64) (float64, error) {
 	result := 0.0
 
-	for _, d := range e.data {
-		pts := d.points
-		idx := sort.Search(len(pts), func(i int) bool {
-			return pts[i].timestamp.Unix() >= ts
-		})
+	for _, data := range e.data {
+		for _, d := range data {
+			pts := d.points
+			idx := sort.Search(len(pts), func(i int) bool {
+				return pts[i].timestamp.Unix() >= ts
+			})
 
-		if idx < 0 || idx >= len(pts) {
-			continue
-		}
-
-		pt := pts[idx]
-		if pt.timestamp.Unix() != ts {
-			continue
-		}
-
-		if len(e.tags) > 0 {
-			if len(pt.tags) == 0 {
+			if idx < 0 || idx >= len(pts) {
 				continue
 			}
 
-			foundAllTags := true
-			for name, values := range e.tags {
-				foundTag := false
-				for _, value := range values {
-					if pt.tags[name] == value {
-						foundTag = true
+			pt := pts[idx]
+			if pt.timestamp.Unix() != ts {
+				continue
+			}
+
+			if len(e.tags) > 0 {
+				if len(pt.tags) == 0 {
+					continue
+				}
+
+				foundAllTags := true
+				for name, values := range e.tags {
+					foundTag := false
+					for _, value := range values {
+						if pt.tags[name] == value {
+							foundTag = true
+							break
+						}
+					}
+
+					if !foundTag {
+						foundAllTags = false
 						break
 					}
 				}
 
-				if !foundTag {
-					foundAllTags = false
-					break
+				if foundAllTags {
+					result += pt.value
 				}
-			}
-
-			if foundAllTags {
+			} else {
 				result += pt.value
 			}
-		} else {
-			result += pt.value
 		}
 	}
 
@@ -246,7 +248,7 @@ func (em *exprMap) metrics() []string {
 }
 
 func (em *exprMap) parse(reducedQuery string) error {
-	expr, err := parser.ParseExpr(reducedQuery)
+	expr, err := parser.ParseExpr(strings.ToUpper(reducedQuery))
 	if err != nil {
 		return err
 	}
@@ -295,6 +297,33 @@ func (em exprMap) evalExpr(ts int64, expr ast.Expr) (float64, error) {
 		default:
 			return math.NaN(), fmt.Errorf("unknown operator: %s", e.Op.String())
 		}
+
+	case *ast.CallExpr:
+		nameIdent, ok := e.Fun.(*ast.Ident)
+		if !ok {
+			return math.NaN(), fmt.Errorf("unexpected function node '%+v'", e.Fun)
+		}
+		if nameIdent.Name == "DEFAULT" {
+			if len(e.Args) != 2 {
+				return math.NaN(), fmt.Errorf(
+					"wrong number of arguments to default: '%+v'",
+					e.Args,
+				)
+			}
+
+			return em.evalExpr(ts, e.Args[1])
+		} else if nameIdent.Name == "RAWSUM" {
+			if len(e.Args) != 1 {
+				return math.NaN(), fmt.Errorf(
+					"wrong number of arguments to rawsum: '%+v'",
+					e.Args,
+				)
+			}
+
+			return em.evalExpr(ts, e.Args[0])
+		} else {
+			return math.NaN(), fmt.Errorf("unknown function '%s'", nameIdent.Name)
+		}
 	}
 
 	if expr.Pos().IsValid() && expr.End().IsValid() {
@@ -341,7 +370,9 @@ func parseTagExpr(tagExpr string) (map[string][]string, error) {
 	return tags, nil
 }
 
-var queryRegex = regexp.MustCompile(`ts\( *"([A-Za-z0-9._*-]+)" *(?:, *([^)]+))?\)`)
+var queryRegex = regexp.MustCompile(
+	`ts\( *("[A-Za-z0-9._*-]+"(?: +or +"[A-Za-z0-9._*-]+")*) *(?:, *([^)]+))?\)`,
+)
 
 func (a *mockApi) parseQuery(q string) (*exprMap, error, bool) {
 	exprMap := &exprMap{}
@@ -381,11 +412,20 @@ func (a *mockApi) parseQuery(q string) (*exprMap, error, bool) {
 		reducedQuery += remainder[0:match[0]] + token
 		remainder = remainder[match[1]:]
 
-		d := a.findMetrics(metric)
-		if len(d) > 0 {
-			numMetricsFound++
+		metrics, err := a.splitMetrics(metric)
+		if err != nil {
+			return nil, err, false
 		}
-		exprMap.add(&expr{token: token, metric: metric, tags: tags, data: d})
+
+		dataSets := make([][]*data, len(metrics))
+		for i, metric := range metrics {
+			d := a.findMetrics(metric)
+			if len(d) > 0 {
+				numMetricsFound++
+			}
+			dataSets[i] = d
+		}
+		exprMap.add(&expr{token: token, metrics: metrics, tags: tags, data: dataSets})
 	}
 
 	if exprMap.len() == 0 {
@@ -411,22 +451,26 @@ func (a *mockApi) parseQuery(q string) (*exprMap, error, bool) {
 	return exprMap, nil, false
 }
 
-func write(w http.ResponseWriter, i interface{}) {
-	b, err := json.Marshal(i)
-	if err != nil {
-		w.WriteHeader(500)
-		w.Write([]byte(err.Error()))
-		return
+var metricRegex = regexp.MustCompile(`^"([A-Za-z0-9._*-]+)"((?: +or +"[A-Za-z0-9._*-]+")*)$`)
+
+func (a *mockApi) splitMetrics(metric string) ([]string, error) {
+	metrics := []string{}
+	original := metric
+	for metric != "" {
+		match := metricRegex.FindStringSubmatchIndex(metric)
+		if len(match) == 0 {
+			return nil, fmt.Errorf("could not split metric '%s'", original)
+		}
+
+		metrics = append(metrics, metric[match[2]:match[3]])
+		if match[4] >= 0 {
+			metric = strings.TrimLeft(metric[match[4]:], " or")
+		} else {
+			metric = ""
+		}
 	}
 
-	w.Write(b)
-}
-
-func parseInt(s string, def int64) (int64, error) {
-	if s == "" {
-		return def, nil
-	}
-	return strconv.ParseInt(s, 10, 64)
+	return metrics, nil
 }
 
 type apiString string
@@ -461,6 +505,24 @@ func (a *mockApi) findMetrics(metric string) []*data {
 	}
 
 	return result
+}
+
+func write(w http.ResponseWriter, i interface{}) {
+	b, err := json.Marshal(i)
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	w.Write(b)
+}
+
+func parseInt(s string, def int64) (int64, error) {
+	if s == "" {
+		return def, nil
+	}
+	return strconv.ParseInt(s, 10, 64)
 }
 
 func (a *mockApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {

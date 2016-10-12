@@ -53,20 +53,28 @@ type wavefrontTimeSeries struct {
 type wavefrontPoint [2]float64
 
 type queryExpr interface {
-	Format(api.OrgKey, string, *StatsQueryTimeSeries) string
+	Query(api.OrgKey, string, *StatsQueryTimeSeries) string
+	Metrics(api.OrgKey, string, *StatsQueryTimeSeries) []string
 }
 
 type simpleQueryExpr struct{}
 
-func (r *simpleQueryExpr) Format(
+func (e *simpleQueryExpr) Query(
 	orgKey api.OrgKey,
 	zoneName string,
 	q *StatsQueryTimeSeries,
 ) string {
-	return formatQuery(
+	return formatQuery(e.Metrics(orgKey, zoneName, q), q)
+}
+
+func (e *simpleQueryExpr) Metrics(
+	orgKey api.OrgKey,
+	zoneName string,
+	q *StatsQueryTimeSeries,
+) []string {
+	return []string{
 		formatMetric(orgKey, zoneName, q.DomainKey, q.RouteKey, q.Method, q.QueryType),
-		q,
-	)
+	}
 }
 
 type suffixedQueryExpr struct {
@@ -74,62 +82,102 @@ type suffixedQueryExpr struct {
 	suffix    string
 }
 
-func (r *suffixedQueryExpr) Format(
+func (e *suffixedQueryExpr) Query(
 	orgKey api.OrgKey,
 	zoneName string,
 	q *StatsQueryTimeSeries,
 ) string {
-	metric := formatMetric(orgKey, zoneName, q.DomainKey, q.RouteKey, q.Method, r.queryType)
-	if r.suffix != "" {
-		metric = metric + "." + r.suffix
+	return formatQuery(e.Metrics(orgKey, zoneName, q), q)
+}
+
+func (e *suffixedQueryExpr) Metrics(
+	orgKey api.OrgKey,
+	zoneName string,
+	q *StatsQueryTimeSeries,
+) []string {
+	metric := formatMetric(orgKey, zoneName, q.DomainKey, q.RouteKey, q.Method, e.queryType)
+	if e.suffix != "" {
+		metric = metric + "." + e.suffix
 	}
-	return formatQuery(metric, q)
+	return []string{metric}
 }
 
 type div []queryExpr
 
-func (d div) Format(orgKey api.OrgKey, zoneName string, qts *StatsQueryTimeSeries) string {
+func (d div) Query(orgKey api.OrgKey, zoneName string, qts *StatsQueryTimeSeries) string {
 	exprs := make([]string, len(d))
 	for i, r := range d {
-		exprs[i] = r.Format(orgKey, zoneName, qts)
+		exprs[i] = r.Query(orgKey, zoneName, qts)
 	}
 	return "(" + strings.Join(exprs, "/") + ")"
 }
 
+func (d div) Metrics(_ api.OrgKey, _ string, _ *StatsQueryTimeSeries) []string {
+	return nil
+}
+
 type sum []queryExpr
 
-func (s sum) Format(orgKey api.OrgKey, zoneName string, qts *StatsQueryTimeSeries) string {
-	exprs := make([]string, len(s))
-	for i, r := range s {
-		exprs[i] = r.Format(orgKey, zoneName, qts)
+func (s sum) Query(orgKey api.OrgKey, zoneName string, qts *StatsQueryTimeSeries) string {
+	return formatQuery(s.Metrics(orgKey, zoneName, qts), qts)
+}
+
+func (s sum) Metrics(orgKey api.OrgKey, zoneName string, qts *StatsQueryTimeSeries) []string {
+	metrics := make([]string, 0, len(s))
+	for _, e := range s {
+		metrics = append(metrics, e.Metrics(orgKey, zoneName, qts)...)
 	}
-	return "(" + strings.Join(exprs, "+") + ")"
+	return metrics
+}
+
+type defaultExpr struct {
+	value      float64
+	underlying queryExpr
+}
+
+func (d *defaultExpr) Query(orgKey api.OrgKey, zoneName string, qts *StatsQueryTimeSeries) string {
+	return fmt.Sprintf("default(%g, %s)", d.value, d.underlying.Query(orgKey, zoneName, qts))
+}
+
+func (d *defaultExpr) Metrics(
+	orgKey api.OrgKey,
+	zoneName string,
+	qts *StatsQueryTimeSeries,
+) []string {
+	return d.underlying.Metrics(orgKey, zoneName, qts)
 }
 
 var _ queryExpr = &simpleQueryExpr{}
 var _ queryExpr = &suffixedQueryExpr{}
 var _ queryExpr = div{}
 var _ queryExpr = sum{}
+var _ queryExpr = &defaultExpr{}
 
 var queryExprMap = map[QueryType]queryExpr{
-	Requests:  &simpleQueryExpr{},
-	Responses: &simpleQueryExpr{},
-	SuccessfulResponses: sum{
-		&suffixedQueryExpr{Responses, "1*"},
-		&suffixedQueryExpr{Responses, "2*"},
-		&suffixedQueryExpr{Responses, "3*"},
-	},
-	ErrorResponses:   &suffixedQueryExpr{Responses, "4*"},
-	FailureResponses: &suffixedQueryExpr{Responses, "5*"},
-	LatencyP50:       &simpleQueryExpr{},
-	LatencyP99:       &simpleQueryExpr{},
-	SuccessRate: div{
+	Requests:  &defaultExpr{0.0, &simpleQueryExpr{}},
+	Responses: &defaultExpr{0.0, &simpleQueryExpr{}},
+	SuccessfulResponses: &defaultExpr{
+		0.0,
 		sum{
 			&suffixedQueryExpr{Responses, "1*"},
 			&suffixedQueryExpr{Responses, "2*"},
 			&suffixedQueryExpr{Responses, "3*"},
 		},
-		&suffixedQueryExpr{Requests, ""},
+	},
+	ErrorResponses:   &defaultExpr{0.0, &suffixedQueryExpr{Responses, "4*"}},
+	FailureResponses: &defaultExpr{0.0, &suffixedQueryExpr{Responses, "5*"}},
+	LatencyP50:       &defaultExpr{0.0, &simpleQueryExpr{}},
+	LatencyP99:       &defaultExpr{0.0, &simpleQueryExpr{}},
+	SuccessRate: &defaultExpr{
+		0.0,
+		div{
+			sum{
+				&suffixedQueryExpr{Responses, "1*"},
+				&suffixedQueryExpr{Responses, "2*"},
+				&suffixedQueryExpr{Responses, "3*"},
+			},
+			&suffixedQueryExpr{Requests, ""},
+		},
 	},
 }
 
@@ -187,7 +235,7 @@ func formatMetric(
 // Given a metric name and a StatsQueryTimeSeries, produces a
 // wavefront query with source tag filters for instances and/or
 // clusters.
-func formatQuery(metric string, qts *StatsQueryTimeSeries) string {
+func formatQuery(metrics []string, qts *StatsQueryTimeSeries) string {
 	tagExprs := make([]string, 0, 4)
 
 	if qts.RuleKey != nil {
@@ -221,9 +269,9 @@ func formatQuery(metric string, qts *StatsQueryTimeSeries) string {
 	// TODO: https://github.com/turbinelabs/tbn/issues/1399
 	tags := strings.Join(tagExprs, " and ")
 	if tags != "" {
-		return fmt.Sprintf(`sum(ts("%s", %s))`, metric, tags)
+		return fmt.Sprintf(`rawsum(ts("%s", %s))`, strings.Join(metrics, `" or "`), tags)
 	} else {
-		return fmt.Sprintf(`sum(ts("%s"))`, metric)
+		return fmt.Sprintf(`rawsum(ts("%s"))`, strings.Join(metrics, `" or "`))
 	}
 }
 
@@ -240,7 +288,7 @@ func (builder wavefrontQueryBuilder) FormatWavefrontQueryUrl(
 	endSeconds := tbntime.FromUnixMicro(endMicros).Unix()
 
 	expr := queryExprMap[qts.QueryType]
-	query := expr.Format(orgKey, zoneName, qts)
+	query := expr.Query(orgKey, zoneName, qts)
 
 	var wavefrontGranularity string
 	switch granularity {
