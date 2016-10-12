@@ -14,7 +14,7 @@ import (
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
 )
 
-const noAuthOrgKey = "no-auth-org-key"
+const noAuthOrgKey = "test-org-key"
 
 type apiAuthorizer struct {
 	client   *http.Client

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -324,8 +325,20 @@ func (qh *queryHandler) runQueries(urls []string) ([]StatsTimeSeries, *httperr.E
 		}
 
 		if r.response.StatusCode >= http.StatusBadRequest {
+			defer r.response.Body.Close()
+			var responseBody string
+			if body, readErr := ioutil.ReadAll(r.response.Body); readErr == nil {
+				responseBody = string(body)
+			} else {
+				responseBody =
+					"(no error details available: could not read response body)"
+			}
 			return nil, httperr.New500(
-				fmt.Sprintf("Error %d querying wavefront", r.response.StatusCode),
+				fmt.Sprintf(
+					"Error %d querying wavefront: %s",
+					r.response.StatusCode,
+					responseBody,
+				),
 				httperr.MiscErrorCode,
 			)
 		}
