@@ -15,6 +15,7 @@ func MkRoutes(
 	metricsCollector handler.MetricsCollector,
 	queryHandler handler.QueryHandler,
 	allowedOrigins []string,
+	allowedHeaders []string,
 ) serverroute.RouteSet {
 	routes := serverroute.RouteSet{
 		serverroute.NewAuthorized(
@@ -43,7 +44,7 @@ func MkRoutes(
 
 	routes = append(
 		routes,
-		cors.Route(stats, allowedOrigins).SetName("CorsHandler"),
+		cors.Route(stats, allowedOrigins, allowedHeaders).SetName("CorsHandler"),
 	)
 
 	return routes

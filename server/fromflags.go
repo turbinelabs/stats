@@ -158,8 +158,10 @@ func (ff *fromFlags) Make() (server.Server, error) {
 	}
 
 	allowedOrigins := ff.CORSFromFlags.AllowedOrigins()
+	allowedHeaders := ff.CORSFromFlags.AllowedHeaders()
 
-	routes := route.MkRoutes(stats, authorizer, collector, queryHandler, allowedOrigins)
+	routes := route.MkRoutes(
+		stats, authorizer, collector, queryHandler, allowedOrigins, allowedHeaders)
 
 	server, err := ff.ServerFromFlags.Make(logger, logger, stats, routes)
 	if err != nil {

@@ -183,6 +183,7 @@ func (tc makeTestCase) run(t *testing.T) {
 
 	metricsCollector.EXPECT().AsHandler().Return(serverhandler.NotImplementedHandler)
 	corsFromFlags.EXPECT().AllowedOrigins().Return([]string{"*"})
+	corsFromFlags.EXPECT().AllowedHeaders().Return([]string{"X-Turbine-API-Key"})
 	if tc.makeServerError != nil {
 		serverFromFlags.EXPECT().
 			Make(gomock.Any(), gomock.Any(), stats, gomock.Any()).
