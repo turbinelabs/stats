@@ -243,5 +243,5 @@ func TestMockAuthorizer(t *testing.T) {
 
 	requestContext := requestcontext.New(request)
 	rcOrgKey, _ := requestContext.GetOrgKey()
-	assert.Equal(t, rcOrgKey, api.OrgKey(noAuthOrgKey))
+	assert.Equal(t, rcOrgKey, api.OrgKey(NoAuthOrgKey))
 }

@@ -1,4 +1,4 @@
-package main
+package test
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 	"go/parser"
 	"go/token"
 	"math"
+	"net"
 	"net/http"
 	"regexp"
 	"sort"
@@ -14,6 +15,13 @@ import (
 	"strings"
 	"time"
 )
+
+type MockStat struct {
+	Name      string
+	Value     float64
+	Timestamp time.Time
+	Tags      map[string]string
+}
 
 type point struct {
 	timestamp time.Time
@@ -57,15 +65,16 @@ func (d *data) add(s *MockStat) error {
 	return nil
 }
 
-type mockApi struct {
+type MockWavefrontApi struct {
 	port       int
-	err        error
+	listener   net.Listener
 	metrics    map[string]*data
 	lastUpdate time.Time
+	closed     bool
 }
 
-func startMockWavefrontApi(port int, statsChannel <-chan *MockStat) error {
-	mockApi := &mockApi{
+func StartMockWavefrontApi(port int, statsChannel <-chan *MockStat) (*MockWavefrontApi, error) {
+	mockApi := &MockWavefrontApi{
 		port:       port,
 		metrics:    make(map[string]*data, 10),
 		lastUpdate: time.Now(),
@@ -97,6 +106,9 @@ func startMockWavefrontApi(port int, statsChannel <-chan *MockStat) error {
 	go func() {
 		lastCheck := time.Now()
 		for {
+			if mockApi.closed {
+				break
+			}
 			if len(mockApi.metrics) > 0 && mockApi.lastUpdate.After(lastCheck) {
 				fmt.Println("--")
 				oldest := int64(math.MaxInt64)
@@ -106,8 +118,8 @@ func startMockWavefrontApi(port int, statsChannel <-chan *MockStat) error {
 					if n == 1 {
 						t := v.points[0].timestamp.Unix()
 						fmt.Printf("%-30s %d points (%d)\n", k+":", n, t)
-						oldest = minInt(oldest, t)
-						newest = maxInt(newest, t)
+						oldest = minInt64(oldest, t)
+						newest = maxInt64(newest, t)
 					} else {
 						first := v.points[0].timestamp.Unix()
 						last := v.points[n-1].timestamp.Unix()
@@ -118,8 +130,8 @@ func startMockWavefrontApi(port int, statsChannel <-chan *MockStat) error {
 							first,
 							last,
 						)
-						oldest = minInt(oldest, first)
-						newest = maxInt(newest, last)
+						oldest = minInt64(oldest, first)
+						newest = maxInt64(newest, last)
 					}
 				}
 				fmt.Printf("Time range %d to %d\n", oldest, newest)
@@ -129,7 +141,52 @@ func startMockWavefrontApi(port int, statsChannel <-chan *MockStat) error {
 		}
 	}()
 
-	return mockApi.Listen()
+	if err := mockApi.listen(); err != nil {
+		return nil, err
+	}
+
+	return mockApi, nil
+}
+
+func (a *MockWavefrontApi) TotalPoints() int {
+	n := 0
+	for _, d := range a.metrics {
+		n += len(d.points)
+	}
+	return n
+}
+
+func (a *MockWavefrontApi) CountPoints() (int, int) {
+	if len(a.metrics) == 0 {
+		return -1, -1
+	}
+
+	min := a.TotalPoints() + 1
+	max := 0
+
+	for _, d := range a.metrics {
+		min = minInt(min, len(d.points))
+		max = maxInt(max, len(d.points))
+	}
+
+	return min, max
+}
+
+func (a *MockWavefrontApi) MetricNames() []string {
+	names := make([]string, 0, len(a.metrics))
+	for name := range a.metrics {
+		names = append(names, name)
+	}
+	return names
+}
+
+func (a *MockWavefrontApi) Close() error {
+	a.closed = true
+	if a.listener != nil {
+		return a.listener.Close()
+	}
+
+	return nil
 }
 
 func unparen(s string) (string, bool) {
@@ -179,41 +236,44 @@ func (e *expr) eval(ts int64) (float64, error) {
 				return pts[i].timestamp.Unix() >= ts
 			})
 
-			if idx < 0 || idx >= len(pts) {
+			if idx < 0 {
 				continue
 			}
 
-			pt := pts[idx]
-			if pt.timestamp.Unix() != ts {
-				continue
-			}
-
-			if len(e.tags) > 0 {
-				if len(pt.tags) == 0 {
-					continue
+			for idx < len(pts) {
+				pt := pts[idx]
+				if pt.timestamp.Unix() != ts {
+					break
 				}
 
-				foundAllTags := true
-				for name, values := range e.tags {
-					foundTag := false
-					for _, value := range values {
-						if pt.tags[name] == value {
-							foundTag = true
+				if len(e.tags) > 0 {
+					if len(pt.tags) == 0 {
+						continue
+					}
+
+					foundAllTags := true
+					for name, values := range e.tags {
+						foundTag := false
+						for _, value := range values {
+							if pt.tags[name] == value {
+								foundTag = true
+								break
+							}
+						}
+
+						if !foundTag {
+							foundAllTags = false
 							break
 						}
 					}
 
-					if !foundTag {
-						foundAllTags = false
-						break
+					if foundAllTags {
+						result += pt.value
 					}
-				}
-
-				if foundAllTags {
+				} else {
 					result += pt.value
 				}
-			} else {
-				result += pt.value
+				idx++
 			}
 		}
 	}
@@ -374,7 +434,7 @@ var queryRegex = regexp.MustCompile(
 	`ts\( *("[A-Za-z0-9._*-]+"(?: +or +"[A-Za-z0-9._*-]+")*) *(?:, *([^)]+))?\)`,
 )
 
-func (a *mockApi) parseQuery(q string) (*exprMap, error, bool) {
+func (a *MockWavefrontApi) parseQuery(q string) (*exprMap, error, bool) {
 	exprMap := &exprMap{}
 
 	tokenN := 1
@@ -453,7 +513,7 @@ func (a *mockApi) parseQuery(q string) (*exprMap, error, bool) {
 
 var metricRegex = regexp.MustCompile(`^"([A-Za-z0-9._*-]+)"((?: +or +"[A-Za-z0-9._*-]+")*)$`)
 
-func (a *mockApi) splitMetrics(metric string) ([]string, error) {
+func (a *MockWavefrontApi) splitMetrics(metric string) ([]string, error) {
 	metrics := []string{}
 	original := metric
 	for metric != "" {
@@ -483,7 +543,7 @@ func (s apiString) String() string {
 	return string(s)
 }
 
-func (a *mockApi) findMetrics(metric string) []*data {
+func (a *MockWavefrontApi) findMetrics(metric string) []*data {
 	if d, ok := a.metrics[metric]; ok {
 		return []*data{d}
 	}
@@ -525,8 +585,10 @@ func parseInt(s string, def int64) (int64, error) {
 	return strconv.ParseInt(s, 10, 64)
 }
 
-func (a *mockApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (a *MockWavefrontApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
+
+	fmt.Println(params)
 
 	query := params.Get("q")
 
@@ -603,25 +665,43 @@ func (a *mockApi) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	write(w, result)
 }
 
-func (a *mockApi) Listen() error {
-	http.Handle("/chart/api", a)
+func (a *MockWavefrontApi) listen() error {
+	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", a.port))
+	if err != nil {
+		return err
+	}
 
 	go func() {
-		a.err = http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", a.port), nil)
+		http.Serve(l, a)
 	}()
 
-	time.Sleep(1 * time.Second)
-	return a.err
+	a.listener = l
+
+	return nil
 }
 
-func minInt(a, b int64) int64 {
+func minInt64(a, b int64) int64 {
 	if a < b {
 		return a
 	}
 	return b
 }
 
-func maxInt(a, b int64) int64 {
+func maxInt64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}

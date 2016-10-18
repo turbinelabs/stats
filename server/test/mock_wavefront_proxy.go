@@ -1,4 +1,4 @@
-package main
+package test
 
 import (
 	"bufio"
@@ -10,28 +10,29 @@ import (
 	"time"
 )
 
-func startMockWavefrontProxy(port int) (chan *MockStat, error) {
-	proxy := &mockProxy{
-		port:  port,
-		stats: make(chan *MockStat, 100),
+func StartMockWavefrontProxy(port int) (*MockWavefrontProxy, error) {
+	proxy := &MockWavefrontProxy{
+		Port:  port,
+		Stats: make(chan *MockStat, 100),
 	}
 
 	if err := proxy.startConsumer(); err != nil {
 		return nil, err
 	}
 
-	return proxy.stats, nil
+	return proxy, nil
 }
 
-type mockProxy struct {
-	port       int
+type MockWavefrontProxy struct {
+	Port  int
+	Stats chan *MockStat
+
 	listener   net.Listener
-	stats      chan *MockStat
 	chanClosed bool
 }
 
-func (p *mockProxy) open() error {
-	host := fmt.Sprintf("0.0.0.0:%d", p.port)
+func (p *MockWavefrontProxy) open() error {
+	host := fmt.Sprintf("0.0.0.0:%d", p.Port)
 	listener, err := net.Listen("tcp", host)
 	if err != nil {
 		return fmt.Errorf("could not start listener: %+v", err)
@@ -42,7 +43,7 @@ func (p *mockProxy) open() error {
 	return nil
 }
 
-func (p *mockProxy) consume(line string) error {
+func (p *MockWavefrontProxy) consume(line string) error {
 	parts := strings.SplitN(line, " ", 3)
 
 	if len(parts) < 3 {
@@ -88,7 +89,7 @@ func (p *mockProxy) consume(line string) error {
 			}
 			end += start
 			value = tagString[start:end]
-			tagString = tagString[end+1:]
+			tagString = strings.TrimSpace(tagString[end+1:])
 		} else {
 			start := idx + 1
 			end := strings.Index(tagString[start:], " ")
@@ -105,12 +106,12 @@ func (p *mockProxy) consume(line string) error {
 		tags[key] = value
 	}
 
-	p.stats <- &MockStat{Name: name, Value: value, Timestamp: timestamp, Tags: tags}
+	p.Stats <- &MockStat{Name: name, Value: value, Timestamp: timestamp, Tags: tags}
 
 	return nil
 }
 
-func (p *mockProxy) startConsumer() error {
+func (p *MockWavefrontProxy) startConsumer() error {
 	if err := p.open(); err != nil {
 		return err
 	}
@@ -149,18 +150,21 @@ func (p *mockProxy) startConsumer() error {
 	return nil
 }
 
-func (p *mockProxy) closeChannel() {
-	if p.stats != nil && !p.chanClosed {
-		close(p.stats)
+func (p *MockWavefrontProxy) closeChannel() {
+	if p.Stats != nil && !p.chanClosed {
+		close(p.Stats)
 		p.chanClosed = true
 	}
 }
 
-func (p *mockProxy) Close() {
+func (p *MockWavefrontProxy) Close() error {
 	p.closeChannel()
 
+	var err error
 	if p.listener != nil {
-		p.listener.Close()
+		err = p.listener.Close()
 		p.listener = nil
 	}
+
+	return err
 }

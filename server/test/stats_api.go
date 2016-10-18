@@ -1,4 +1,4 @@
-package main
+package test
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"github.com/turbinelabs/proc"
 )
 
-func startStatsApi(port, proxyPort, wavefrontApiPort int) (proc.ManagedProc, error) {
+func StartStatsApi(port, proxyPort, wavefrontApiPort int) (proc.ManagedProc, error) {
 	p := proc.NewDefaultManagedProc(
 		"stats-server",
 		[]string{
