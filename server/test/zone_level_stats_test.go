@@ -9,6 +9,7 @@ import (
 
 	"github.com/turbinelabs/api"
 	"github.com/turbinelabs/test/assert"
+	"github.com/turbinelabs/test/category"
 )
 
 const accessLogTemplate = `{{Timestamp .OffsetSeconds}} {{.RequestId}} {{.StatusCode}} {{.RemoteIP}} {{.Domain}} {{.Method}} {{.Path}} {{.RequestLength}} {{.ContentLength}} {{.BytesSent}} {{.BodyBytesSent}} {{.RequestTime}} "{{.HTTPReferrer}}" "{{.HTTPUserAgent}}"`
@@ -67,6 +68,8 @@ var accessLogEntries = []interface{}{
 }
 
 func TestZoneLevelStats(t *testing.T) {
+	category.SkipUnless(t, category.IntegrationTest)
+
 	harness := NewStatsServerTestHarness()
 	harness.WriteAccessLogFile(t, accessLogTemplate, accessLogEntries)
 	if err := harness.Start(); err != nil {

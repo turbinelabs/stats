@@ -10,6 +10,7 @@ import (
 	"github.com/turbinelabs/ptr"
 	"github.com/turbinelabs/stats/server/handler"
 	"github.com/turbinelabs/test/assert"
+	"github.com/turbinelabs/test/category"
 	tbntime "github.com/turbinelabs/time"
 )
 
@@ -77,6 +78,8 @@ var upstreamLogEntries = []interface{}{
 }
 
 func TestUnfilteredDetailedStats(t *testing.T) {
+	category.SkipUnless(t, category.IntegrationTest)
+
 	harness := NewStatsServerTestHarness()
 	harness.WriteUpstreamLogFile(t, upstreamLogTemplate, upstreamLogEntries)
 	if err := harness.Start(); err != nil {
@@ -151,6 +154,8 @@ func TestUnfilteredDetailedStats(t *testing.T) {
 }
 
 func TestFilteredDetailedStats(t *testing.T) {
+	category.SkipUnless(t, category.IntegrationTest)
+
 	harness := NewStatsServerTestHarness()
 	harness.WriteUpstreamLogFile(t, upstreamLogTemplate, upstreamLogEntries)
 	if err := harness.Start(); err != nil {
