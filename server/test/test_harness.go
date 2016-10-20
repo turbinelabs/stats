@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"text/template"
@@ -71,6 +73,8 @@ func NewStatsServerTestHarness() *StatsServerTestHarness {
 }
 
 func (s *StatsServerTestHarness) Start() error {
+	log := log.New(os.Stderr, "", log.LstdFlags)
+
 	invokeStop := true
 	defer func() {
 		if invokeStop {
@@ -142,6 +146,7 @@ func (s *StatsServerTestHarness) Start() error {
 		}
 
 		forwarder, err := forwarder.NewAPIForwarder(
+			log,
 			httpClient,
 			endpoint,
 			"IMOK",
@@ -178,6 +183,7 @@ func (s *StatsServerTestHarness) Start() error {
 		}
 
 		forwarder, err := forwarder.NewAPIForwarderForUpstreams(
+			log,
 			httpClient,
 			endpoint,
 			"IMOK",
