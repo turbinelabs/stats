@@ -348,7 +348,7 @@ func TestQueryExprs(t *testing.T) {
 		`rawsum(ts("o.z.*.*.*.responses.1*" or "o.z.*.*.*.responses.2*" or "o.z.*.*.*.responses.3*"))`
 	testCases := []queryExprTestCase{
 		{Requests, `rawsum(ts("o.z.*.*.*.requests"))`},
-		{Responses, `rawsum(ts("o.z.*.*.*.responses"))`},
+		{Responses, `rawsum(ts("o.z.*.*.*.responses.*"))`},
 		{SuccessfulResponses, successfulResponsesQuery},
 		{ErrorResponses, `rawsum(ts("o.z.*.*.*.responses.4*"))`},
 		{FailureResponses, `rawsum(ts("o.z.*.*.*.responses.5*"))`},

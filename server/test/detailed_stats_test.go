@@ -109,7 +109,7 @@ func TestUnfilteredDetailedStats(t *testing.T) {
 		},
 		TimeSeries: []handler.StatsQueryTimeSeries{
 			{Name: "req", QueryType: handler.Requests},
-			//			{Name: "resp", QueryType: handler.Responses}, // pending #1433
+			{Name: "resp", QueryType: handler.Responses},
 			{Name: "ok", QueryType: handler.SuccessfulResponses},
 			{Name: "err", QueryType: handler.ErrorResponses},
 			{Name: "fail", QueryType: handler.FailureResponses},
@@ -127,8 +127,8 @@ func TestUnfilteredDetailedStats(t *testing.T) {
 	assert.NonNil(t, result)
 
 	expected := [][]float64{
-		{5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // req
-		//{5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // resp
+		{5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},   // req
+		{5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},   // resp
 		{3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},   // ok
 		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},   // err
 		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},   // fail

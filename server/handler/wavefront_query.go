@@ -154,8 +154,13 @@ var _ queryExpr = sum{}
 var _ queryExpr = &defaultExpr{}
 
 var queryExprMap = map[QueryType]queryExpr{
-	Requests:  &defaultExpr{0.0, &simpleQueryExpr{}},
-	Responses: &defaultExpr{0.0, &simpleQueryExpr{}},
+	Requests: &defaultExpr{0.0, &simpleQueryExpr{}},
+	Responses: &defaultExpr{
+		0.0,
+		sum{
+			&suffixedQueryExpr{Responses, "*"},
+		},
+	},
 	SuccessfulResponses: &defaultExpr{
 		0.0,
 		sum{
