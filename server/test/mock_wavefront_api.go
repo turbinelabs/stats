@@ -381,6 +381,14 @@ func (em exprMap) evalExpr(ts int64, expr ast.Expr) (float64, error) {
 			}
 
 			return em.evalExpr(ts, e.Args[0])
+		} else if nameIdent.Name == "ALIGN" {
+			if len(e.Args) != 3 {
+				return math.NaN(), fmt.Errorf(
+					"wrong number of arguments to align: '%+v'",
+					e.Args,
+				)
+			}
+			return em.evalExpr(ts, e.Args[2])
 		} else {
 			return math.NaN(), fmt.Errorf("unknown function '%s'", nameIdent.Name)
 		}
@@ -434,8 +442,35 @@ var queryRegex = regexp.MustCompile(
 	`ts\( *("[A-Za-z0-9._*-]+"(?: +or +"[A-Za-z0-9._*-]+")*) *(?:, *([^)]+))?\)`,
 )
 
+var alignRegex = regexp.MustCompile(
+	`align\(([0-9]+[smh])\s*,\s*(sum|mean)\s*,`,
+)
+
 func (a *MockWavefrontApi) parseQuery(q string) (*exprMap, error, bool) {
 	exprMap := &exprMap{}
+
+	// Fix up align expressions so they'll parse later: the window
+	// and aggregation method are converted to strings.
+	for {
+		match := alignRegex.FindStringSubmatchIndex(q)
+		if len(match) == 0 {
+			break
+		}
+
+		windowStart := match[2]
+		windowEnd := match[3]
+		aggStart := match[4]
+		aggEnd := match[5]
+
+		q = strings.Join([]string{
+			q[0:windowStart],
+			q[windowStart:windowEnd],
+			q[windowEnd:aggStart],
+			q[aggStart:aggEnd],
+			q[aggEnd:],
+		}, `"`)
+
+	}
 
 	tokenN := 1
 	reducedQuery := ""

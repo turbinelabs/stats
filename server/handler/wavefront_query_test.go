@@ -88,33 +88,33 @@ func TestFormatQuery(t *testing.T) {
 	ik2 := []string{"i1", "i2"}
 	m := "a-metric"
 	testCases := []formatQueryTestCase{
-		{m, nil, nil, nil, nil, `rawsum(ts("a-metric"))`},
-		{m, nil, nil, &ck, nil, `rawsum(ts("a-metric", upstream="c"))`},
-		{m, nil, nil, nil, ik1, `rawsum(ts("a-metric", instance="i1"))`},
-		{m, nil, nil, nil, ik2, `rawsum(ts("a-metric", instance="i1" or instance="i2"))`},
-		{m, nil, nil, &ck, ik1, `rawsum(ts("a-metric", upstream="c" and instance="i1"))`},
-		{m, nil, nil, &ck, ik2, `rawsum(ts("a-metric", upstream="c" and (instance="i1" or instance="i2")))`},
+		{m, nil, nil, nil, nil, `ts("a-metric")`},
+		{m, nil, nil, &ck, nil, `ts("a-metric", upstream="c")`},
+		{m, nil, nil, nil, ik1, `ts("a-metric", instance="i1")`},
+		{m, nil, nil, nil, ik2, `ts("a-metric", instance="i1" or instance="i2")`},
+		{m, nil, nil, &ck, ik1, `ts("a-metric", upstream="c" and instance="i1")`},
+		{m, nil, nil, &ck, ik2, `ts("a-metric", upstream="c" and (instance="i1" or instance="i2"))`},
 
-		{m, &rk, nil, nil, nil, `rawsum(ts("a-metric", rule="r"))`},
-		{m, &rk, nil, &ck, nil, `rawsum(ts("a-metric", rule="r" and upstream="c"))`},
-		{m, &rk, nil, nil, ik1, `rawsum(ts("a-metric", rule="r" and instance="i1"))`},
-		{m, &rk, nil, nil, ik2, `rawsum(ts("a-metric", rule="r" and (instance="i1" or instance="i2")))`},
-		{m, &rk, nil, &ck, ik1, `rawsum(ts("a-metric", rule="r" and upstream="c" and instance="i1"))`},
-		{m, &rk, nil, &ck, ik2, `rawsum(ts("a-metric", rule="r" and upstream="c" and (instance="i1" or instance="i2")))`},
+		{m, &rk, nil, nil, nil, `ts("a-metric", rule="r")`},
+		{m, &rk, nil, &ck, nil, `ts("a-metric", rule="r" and upstream="c")`},
+		{m, &rk, nil, nil, ik1, `ts("a-metric", rule="r" and instance="i1")`},
+		{m, &rk, nil, nil, ik2, `ts("a-metric", rule="r" and (instance="i1" or instance="i2"))`},
+		{m, &rk, nil, &ck, ik1, `ts("a-metric", rule="r" and upstream="c" and instance="i1")`},
+		{m, &rk, nil, &ck, ik2, `ts("a-metric", rule="r" and upstream="c" and (instance="i1" or instance="i2"))`},
 
-		{m, nil, &sn, nil, nil, `rawsum(ts("a-metric", shared_rule="s"))`},
-		{m, nil, &sn, &ck, nil, `rawsum(ts("a-metric", shared_rule="s" and upstream="c"))`},
-		{m, nil, &sn, nil, ik1, `rawsum(ts("a-metric", shared_rule="s" and instance="i1"))`},
-		{m, nil, &sn, nil, ik2, `rawsum(ts("a-metric", shared_rule="s" and (instance="i1" or instance="i2")))`},
-		{m, nil, &sn, &ck, ik1, `rawsum(ts("a-metric", shared_rule="s" and upstream="c" and instance="i1"))`},
-		{m, nil, &sn, &ck, ik2, `rawsum(ts("a-metric", shared_rule="s" and upstream="c" and (instance="i1" or instance="i2")))`},
+		{m, nil, &sn, nil, nil, `ts("a-metric", shared_rule="s")`},
+		{m, nil, &sn, &ck, nil, `ts("a-metric", shared_rule="s" and upstream="c")`},
+		{m, nil, &sn, nil, ik1, `ts("a-metric", shared_rule="s" and instance="i1")`},
+		{m, nil, &sn, nil, ik2, `ts("a-metric", shared_rule="s" and (instance="i1" or instance="i2"))`},
+		{m, nil, &sn, &ck, ik1, `ts("a-metric", shared_rule="s" and upstream="c" and instance="i1")`},
+		{m, nil, &sn, &ck, ik2, `ts("a-metric", shared_rule="s" and upstream="c" and (instance="i1" or instance="i2"))`},
 
-		{m, &rk, &sn, nil, nil, `rawsum(ts("a-metric", rule="r" and shared_rule="s"))`},
-		{m, &rk, &sn, &ck, nil, `rawsum(ts("a-metric", rule="r" and shared_rule="s" and upstream="c"))`},
-		{m, &rk, &sn, nil, ik1, `rawsum(ts("a-metric", rule="r" and shared_rule="s" and instance="i1"))`},
-		{m, &rk, &sn, nil, ik2, `rawsum(ts("a-metric", rule="r" and shared_rule="s" and (instance="i1" or instance="i2")))`},
-		{m, &rk, &sn, &ck, ik1, `rawsum(ts("a-metric", rule="r" and shared_rule="s" and upstream="c" and instance="i1"))`},
-		{m, &rk, &sn, &ck, ik2, `rawsum(ts("a-metric", rule="r" and shared_rule="s" and upstream="c" and (instance="i1" or instance="i2")))`},
+		{m, &rk, &sn, nil, nil, `ts("a-metric", rule="r" and shared_rule="s")`},
+		{m, &rk, &sn, &ck, nil, `ts("a-metric", rule="r" and shared_rule="s" and upstream="c")`},
+		{m, &rk, &sn, nil, ik1, `ts("a-metric", rule="r" and shared_rule="s" and instance="i1")`},
+		{m, &rk, &sn, nil, ik2, `ts("a-metric", rule="r" and shared_rule="s" and (instance="i1" or instance="i2"))`},
+		{m, &rk, &sn, &ck, ik1, `ts("a-metric", rule="r" and shared_rule="s" and upstream="c" and instance="i1")`},
+		{m, &rk, &sn, &ck, ik2, `ts("a-metric", rule="r" and shared_rule="s" and upstream="c" and (instance="i1" or instance="i2"))`},
 	}
 
 	for _, tc := range testCases {
@@ -198,7 +198,7 @@ func TestWavefrontQueryBuilder(t *testing.T) {
 		t,
 		queryParams.Get("q"),
 		fmt.Sprintf(
-			"default(0, %s)",
+			"default(0, rawsum(align(1s, sum, %s)))",
 			formatQuery(
 				[]string{
 					formatMetric(
@@ -208,6 +208,73 @@ func TestWavefrontQueryBuilder(t *testing.T) {
 						&routeKey,
 						&method,
 						Requests,
+					),
+				},
+				&qts,
+			),
+		),
+	)
+}
+
+func TestWavefrontQueryBuilderLatencyP50(t *testing.T) {
+	start := int64(1472667004)
+	end := start + 3600
+	orgKey := api.OrgKey("o")
+	zoneName := "z"
+	domainKey := api.DomainKey("d")
+	routeKey := api.RouteKey("r")
+	method := "GET"
+
+	qts := StatsQueryTimeSeries{
+		QueryType: LatencyP50,
+		DomainKey: &domainKey,
+		RouteKey:  &routeKey,
+		Method:    &method,
+	}
+
+	builder := wavefrontQueryBuilder{"https://wavefront.example.com"}
+
+	u := builder.FormatWavefrontQueryUrl(
+		start*1000000,
+		end*1000000,
+		Seconds,
+		orgKey,
+		zoneName,
+		&qts,
+	)
+	url, err := url.Parse(u)
+	assert.Nil(t, err)
+
+	assert.Equal(t, url.Scheme, "https")
+	assert.Equal(t, url.Host, "wavefront.example.com")
+	assert.Equal(t, url.Path, "/chart/api")
+
+	queryParams := url.Query()
+	for k, v := range queryParams {
+		if !assert.Equal(t, len(v), 1) {
+			fmt.Println("multiple values for ", k)
+		}
+	}
+
+	assert.Equal(t, queryParams.Get("g"), "s")
+	assert.Equal(t, queryParams.Get("summarization"), "MEAN")
+	assert.Equal(t, queryParams.Get("strict"), "true")
+	assert.Equal(t, queryParams.Get("s"), fmt.Sprintf("%d", start))
+	assert.Equal(t, queryParams.Get("e"), fmt.Sprintf("%d", end))
+	assert.Equal(
+		t,
+		queryParams.Get("q"),
+		fmt.Sprintf(
+			"default(0, percentile(50, align(1s, mean, %s)))",
+			formatQuery(
+				[]string{
+					formatMetric(
+						orgKey,
+						zoneName,
+						&domainKey,
+						&routeKey,
+						&method,
+						LatencyP50,
 					),
 				},
 				&qts,
@@ -255,16 +322,19 @@ func TestWavefrontQueryBuilderSuccessRate(t *testing.T) {
 		}
 	}
 
+	ctxt := &queryContext{
+		orgKey:      orgKey,
+		zoneName:    zoneName,
+		granularity: Seconds,
+		qts:         &qts,
+	}
+
 	assert.Equal(t, queryParams.Get("g"), "s")
 	assert.Equal(t, queryParams.Get("summarization"), "SUM")
 	assert.Equal(t, queryParams.Get("strict"), "true")
 	assert.Equal(t, queryParams.Get("s"), fmt.Sprintf("%d", start))
 	assert.Equal(t, queryParams.Get("e"), fmt.Sprintf("%d", end))
-	assert.Equal(
-		t,
-		queryParams.Get("q"),
-		queryExprMap[SuccessRate].Query(orgKey, zoneName, &qts),
-	)
+	assert.Equal(t, queryParams.Get("q"), queryExprMap[SuccessRate].Query(ctxt))
 }
 
 func TestWavefrontQueryUrlGranularities(t *testing.T) {
@@ -326,18 +396,15 @@ type queryExprTestCase struct {
 	expectedQuery string
 }
 
-func (tc queryExprTestCase) run(
-	t *testing.T,
-	orgKey api.OrgKey,
-	zoneName string,
-	qts StatsQueryTimeSeries,
-) {
-	qts.QueryType = tc.queryType
-
-	expr := queryExprMap[qts.QueryType]
-
-	query := expr.Query(orgKey, zoneName, &qts)
-	assert.Equal(t, query, fmt.Sprintf("default(0, %s)", tc.expectedQuery))
+func (tc queryExprTestCase) run(t *testing.T, ctxt *queryContext) {
+	ctxt.qts.QueryType = tc.queryType
+	expr := queryExprMap[ctxt.qts.QueryType]
+	query := expr.Query(ctxt)
+	assert.Equal(
+		t,
+		query,
+		fmt.Sprintf("default(0, %s)", tc.expectedQuery),
+	)
 }
 
 func TestQueryExprs(t *testing.T) {
@@ -345,20 +412,20 @@ func TestQueryExprs(t *testing.T) {
 	zn := "z"
 
 	successfulResponsesQuery :=
-		`rawsum(ts("o.z.*.*.*.responses.1*" or "o.z.*.*.*.responses.2*" or "o.z.*.*.*.responses.3*"))`
+		`rawsum(align(1s, sum, ts("o.z.*.*.*.responses.1*" or "o.z.*.*.*.responses.2*" or "o.z.*.*.*.responses.3*")))`
 	testCases := []queryExprTestCase{
-		{Requests, `rawsum(ts("o.z.*.*.*.requests"))`},
-		{Responses, `rawsum(ts("o.z.*.*.*.responses.*"))`},
+		{Requests, `rawsum(align(1s, sum, ts("o.z.*.*.*.requests")))`},
+		{Responses, `rawsum(align(1s, sum, ts("o.z.*.*.*.responses.*")))`},
 		{SuccessfulResponses, successfulResponsesQuery},
-		{ErrorResponses, `rawsum(ts("o.z.*.*.*.responses.4*"))`},
-		{FailureResponses, `rawsum(ts("o.z.*.*.*.responses.5*"))`},
-		{LatencyP50, `rawsum(ts("o.z.*.*.*.latency_p50"))`},
-		{LatencyP99, `rawsum(ts("o.z.*.*.*.latency_p99"))`},
-		{SuccessRate, `(` + successfulResponsesQuery + `/rawsum(ts("o.z.*.*.*.requests")))`},
+		{ErrorResponses, `rawsum(align(1s, sum, ts("o.z.*.*.*.responses.4*")))`},
+		{FailureResponses, `rawsum(align(1s, sum, ts("o.z.*.*.*.responses.5*")))`},
+		{LatencyP50, `percentile(50, align(1s, mean, ts("o.z.*.*.*.latency")))`},
+		{LatencyP99, `percentile(99, align(1s, mean, ts("o.z.*.*.*.latency")))`},
+		{SuccessRate, `(` + successfulResponsesQuery + `/rawsum(align(1s, sum, ts("o.z.*.*.*.requests"))))`},
 	}
 
 	for _, tc := range testCases {
-		tc.run(t, ok, zn, StatsQueryTimeSeries{})
+		tc.run(t, &queryContext{ok, zn, Seconds, &StatsQueryTimeSeries{}})
 	}
 }
 
@@ -372,8 +439,8 @@ func TestQueryExprWithTags(t *testing.T) {
 	}
 	queryExprTestCase{
 		Requests,
-		`rawsum(ts("o.z.*.*.*.requests", upstream="c" and instance="i1"))`,
-	}.run(t, ok, zn, qts)
+		`rawsum(align(1s, sum, ts("o.z.*.*.*.requests", upstream="c" and instance="i1")))`,
+	}.run(t, &queryContext{ok, zn, Seconds, &qts})
 }
 
 const wavefrontResponse = `{

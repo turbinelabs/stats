@@ -52,28 +52,35 @@ type wavefrontTimeSeries struct {
 
 type wavefrontPoint [2]float64
 
+type queryContext struct {
+	orgKey      api.OrgKey
+	zoneName    string
+	granularity TimeGranularity
+	qts         *StatsQueryTimeSeries
+}
+
 type queryExpr interface {
-	Query(api.OrgKey, string, *StatsQueryTimeSeries) string
-	Metrics(api.OrgKey, string, *StatsQueryTimeSeries) []string
+	Query(*queryContext) string
+	Metrics(*queryContext) []string
 }
 
 type simpleQueryExpr struct{}
 
-func (e *simpleQueryExpr) Query(
-	orgKey api.OrgKey,
-	zoneName string,
-	q *StatsQueryTimeSeries,
-) string {
-	return formatQuery(e.Metrics(orgKey, zoneName, q), q)
+func (e *simpleQueryExpr) Query(ctxt *queryContext) string {
+	return formatQuery(e.Metrics(ctxt), ctxt.qts)
 }
 
-func (e *simpleQueryExpr) Metrics(
-	orgKey api.OrgKey,
-	zoneName string,
-	q *StatsQueryTimeSeries,
-) []string {
+func (e *simpleQueryExpr) Metrics(ctxt *queryContext) []string {
+	q := ctxt.qts
 	return []string{
-		formatMetric(orgKey, zoneName, q.DomainKey, q.RouteKey, q.Method, q.QueryType),
+		formatMetric(
+			ctxt.orgKey,
+			ctxt.zoneName,
+			q.DomainKey,
+			q.RouteKey,
+			q.Method,
+			q.QueryType,
+		),
 	}
 }
 
@@ -82,20 +89,20 @@ type suffixedQueryExpr struct {
 	suffix    string
 }
 
-func (e *suffixedQueryExpr) Query(
-	orgKey api.OrgKey,
-	zoneName string,
-	q *StatsQueryTimeSeries,
-) string {
-	return formatQuery(e.Metrics(orgKey, zoneName, q), q)
+func (e *suffixedQueryExpr) Query(ctxt *queryContext) string {
+	return formatQuery(e.Metrics(ctxt), ctxt.qts)
 }
 
-func (e *suffixedQueryExpr) Metrics(
-	orgKey api.OrgKey,
-	zoneName string,
-	q *StatsQueryTimeSeries,
-) []string {
-	metric := formatMetric(orgKey, zoneName, q.DomainKey, q.RouteKey, q.Method, e.queryType)
+func (e *suffixedQueryExpr) Metrics(ctxt *queryContext) []string {
+	q := ctxt.qts
+	metric := formatMetric(
+		ctxt.orgKey,
+		ctxt.zoneName,
+		q.DomainKey,
+		q.RouteKey,
+		q.Method,
+		e.queryType,
+	)
 	if e.suffix != "" {
 		metric = metric + "." + e.suffix
 	}
@@ -104,28 +111,40 @@ func (e *suffixedQueryExpr) Metrics(
 
 type div []queryExpr
 
-func (d div) Query(orgKey api.OrgKey, zoneName string, qts *StatsQueryTimeSeries) string {
+func (d div) Query(ctxt *queryContext) string {
 	exprs := make([]string, len(d))
 	for i, r := range d {
-		exprs[i] = r.Query(orgKey, zoneName, qts)
+		exprs[i] = r.Query(ctxt)
 	}
 	return "(" + strings.Join(exprs, "/") + ")"
 }
 
-func (d div) Metrics(_ api.OrgKey, _ string, _ *StatsQueryTimeSeries) []string {
+func (d div) Metrics(_ *queryContext) []string {
 	return nil
 }
 
-type sum []queryExpr
-
-func (s sum) Query(orgKey api.OrgKey, zoneName string, qts *StatsQueryTimeSeries) string {
-	return formatQuery(s.Metrics(orgKey, zoneName, qts), qts)
+type sum struct {
+	underlying queryExpr
 }
 
-func (s sum) Metrics(orgKey api.OrgKey, zoneName string, qts *StatsQueryTimeSeries) []string {
-	metrics := make([]string, 0, len(s))
-	for _, e := range s {
-		metrics = append(metrics, e.Metrics(orgKey, zoneName, qts)...)
+func (s sum) Query(ctxt *queryContext) string {
+	return fmt.Sprintf(`rawsum(%s)`, s.underlying.Query(ctxt))
+}
+
+func (s sum) Metrics(ctxt *queryContext) []string {
+	return s.underlying.Metrics(ctxt)
+}
+
+type or []queryExpr
+
+func (o or) Query(ctxt *queryContext) string {
+	return formatQuery(o.Metrics(ctxt), ctxt.qts)
+}
+
+func (o or) Metrics(ctxt *queryContext) []string {
+	metrics := make([]string, 0, len(o))
+	for _, e := range o {
+		metrics = append(metrics, e.Metrics(ctxt)...)
 	}
 	return metrics
 }
@@ -135,53 +154,129 @@ type defaultExpr struct {
 	underlying queryExpr
 }
 
-func (d *defaultExpr) Query(orgKey api.OrgKey, zoneName string, qts *StatsQueryTimeSeries) string {
-	return fmt.Sprintf("default(%g, %s)", d.value, d.underlying.Query(orgKey, zoneName, qts))
+func (d *defaultExpr) Query(ctxt *queryContext) string {
+	return fmt.Sprintf("default(%g, %s)", d.value, d.underlying.Query(ctxt))
 }
 
-func (d *defaultExpr) Metrics(
-	orgKey api.OrgKey,
-	zoneName string,
-	qts *StatsQueryTimeSeries,
-) []string {
-	return d.underlying.Metrics(orgKey, zoneName, qts)
+func (d *defaultExpr) Metrics(ctxt *queryContext) []string {
+	return d.underlying.Metrics(ctxt)
+}
+
+type percentileExpr struct {
+	percentile float64
+	underlying queryExpr
+}
+
+func (p *percentileExpr) Query(ctxt *queryContext) string {
+	return fmt.Sprintf("percentile(%g, %s)", p.percentile, p.underlying.Query(ctxt))
+}
+
+func (p *percentileExpr) Metrics(ctxt *queryContext) []string {
+	return p.underlying.Metrics(ctxt)
+}
+
+type alignExpr struct {
+	aggregation string
+	underlying  queryExpr
+}
+
+func (a *alignExpr) Query(ctxt *queryContext) string {
+	windowUnit := granularityToUnit(ctxt.granularity)
+
+	return fmt.Sprintf(
+		"align(1%s, %s, %s)",
+		windowUnit,
+		a.aggregation,
+		a.underlying.Query(ctxt),
+	)
+}
+
+func (a *alignExpr) Metrics(ctxt *queryContext) []string {
+	return a.underlying.Metrics(ctxt)
 }
 
 var _ queryExpr = &simpleQueryExpr{}
 var _ queryExpr = &suffixedQueryExpr{}
 var _ queryExpr = div{}
+var _ queryExpr = or{}
 var _ queryExpr = sum{}
 var _ queryExpr = &defaultExpr{}
+var _ queryExpr = &percentileExpr{}
+var _ queryExpr = &alignExpr{}
 
 var queryExprMap = map[QueryType]queryExpr{
-	Requests: &defaultExpr{0.0, &simpleQueryExpr{}},
-	Responses: &defaultExpr{
-		0.0,
-		sum{
-			&suffixedQueryExpr{Responses, "*"},
-		},
-	},
+	Requests:  &defaultExpr{0.0, &sum{&alignExpr{"sum", &simpleQueryExpr{}}}},
+	Responses: &defaultExpr{0.0, &sum{&alignExpr{"sum", &suffixedQueryExpr{Responses, "*"}}}},
 	SuccessfulResponses: &defaultExpr{
 		0.0,
-		sum{
-			&suffixedQueryExpr{Responses, "1*"},
-			&suffixedQueryExpr{Responses, "2*"},
-			&suffixedQueryExpr{Responses, "3*"},
+		&sum{
+			&alignExpr{
+				"sum",
+				or{
+					&suffixedQueryExpr{Responses, "1*"},
+					&suffixedQueryExpr{Responses, "2*"},
+					&suffixedQueryExpr{Responses, "3*"},
+				},
+			},
 		},
 	},
-	ErrorResponses:   &defaultExpr{0.0, &suffixedQueryExpr{Responses, "4*"}},
-	FailureResponses: &defaultExpr{0.0, &suffixedQueryExpr{Responses, "5*"}},
-	LatencyP50:       &defaultExpr{0.0, &simpleQueryExpr{}},
-	LatencyP99:       &defaultExpr{0.0, &simpleQueryExpr{}},
+	ErrorResponses: &defaultExpr{
+		0.0,
+		&sum{
+			&alignExpr{
+				"sum",
+				&suffixedQueryExpr{Responses, "4*"},
+			},
+		},
+	},
+	FailureResponses: &defaultExpr{
+		0.0,
+		&sum{
+			&alignExpr{
+				"sum",
+				&suffixedQueryExpr{Responses, "5*"},
+			},
+		},
+	},
+	LatencyP50: &defaultExpr{
+		0.0,
+		&percentileExpr{
+			50.0,
+			&alignExpr{
+				"mean",
+				&simpleQueryExpr{},
+			},
+		},
+	},
+	LatencyP99: &defaultExpr{
+		0.0,
+		&percentileExpr{
+			99.0,
+			&alignExpr{
+				"mean",
+				&simpleQueryExpr{},
+			},
+		},
+	},
 	SuccessRate: &defaultExpr{
 		0.0,
 		div{
 			sum{
-				&suffixedQueryExpr{Responses, "1*"},
-				&suffixedQueryExpr{Responses, "2*"},
-				&suffixedQueryExpr{Responses, "3*"},
+				&alignExpr{
+					"sum",
+					or{
+						&suffixedQueryExpr{Responses, "1*"},
+						&suffixedQueryExpr{Responses, "2*"},
+						&suffixedQueryExpr{Responses, "3*"},
+					},
+				},
 			},
-			&suffixedQueryExpr{Requests, ""},
+			sum{
+				&alignExpr{
+					"sum",
+					&suffixedQueryExpr{Requests, ""},
+				},
+			},
 		},
 	},
 }
@@ -213,13 +308,18 @@ func formatMetric(
 	method *string,
 	queryType QueryType,
 ) string {
+	metricName := queryType.String()
+	if queryType == LatencyP50 || queryType == LatencyP99 {
+		metricName = "latency"
+	}
+
 	parts := []string{
 		escape(string(orgKey)),
 		escape(zoneName),
 		"*",
 		"*",
 		"*",
-		queryType.String(),
+		metricName,
 	}
 
 	if domainKey != nil {
@@ -271,12 +371,24 @@ func formatQuery(metrics []string, qts *StatsQueryTimeSeries) string {
 		tagExprs = append(tagExprs, instanceTag)
 	}
 
-	// TODO: https://github.com/turbinelabs/tbn/issues/1399
 	tags := strings.Join(tagExprs, " and ")
 	if tags != "" {
-		return fmt.Sprintf(`rawsum(ts("%s", %s))`, strings.Join(metrics, `" or "`), tags)
+		return fmt.Sprintf(`ts("%s", %s)`, strings.Join(metrics, `" or "`), tags)
 	} else {
-		return fmt.Sprintf(`rawsum(ts("%s"))`, strings.Join(metrics, `" or "`))
+		return fmt.Sprintf(`ts("%s")`, strings.Join(metrics, `" or "`))
+	}
+}
+
+func granularityToUnit(g TimeGranularity) string {
+	switch g {
+	case Seconds:
+		return "s"
+	case Minutes:
+		return "m"
+	case Hours:
+		return "h"
+	default:
+		return "s"
 	}
 }
 
@@ -293,25 +405,30 @@ func (builder wavefrontQueryBuilder) FormatWavefrontQueryUrl(
 	endSeconds := tbntime.FromUnixMicro(endMicros).Unix()
 
 	expr := queryExprMap[qts.QueryType]
-	query := expr.Query(orgKey, zoneName, qts)
 
-	var wavefrontGranularity string
-	switch granularity {
-	case Seconds:
-		wavefrontGranularity = "s"
-	case Minutes:
-		wavefrontGranularity = "m"
-	case Hours:
-		wavefrontGranularity = "h"
+	ctxt := &queryContext{
+		orgKey:      orgKey,
+		zoneName:    zoneName,
+		granularity: granularity,
+		qts:         qts,
+	}
+	query := expr.Query(ctxt)
+
+	wavefrontGranularity := granularityToUnit(granularity)
+
+	var summarization string
+	switch qts.QueryType {
+	case LatencyP50, LatencyP99:
+		summarization = "MEAN"
 	default:
-		wavefrontGranularity = "s"
+		summarization = "SUM"
 	}
 
-	// TODO: https://github.com/turbinelabs/tbn/issues/1399
 	return fmt.Sprintf(
-		"%s/chart/api?strict=true&g=%s&summarization=SUM&s=%d&e=%d&q=%s",
+		"%s/chart/api?strict=true&g=%s&summarization=%s&s=%d&e=%d&q=%s",
 		builder.wavefrontServerUrl,
 		wavefrontGranularity,
+		summarization,
 		startSeconds,
 		endSeconds,
 		url.QueryEscape(query),
