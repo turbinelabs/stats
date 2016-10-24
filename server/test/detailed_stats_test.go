@@ -22,8 +22,8 @@ type upstreamLogEntry struct {
 	StatusCode    int
 	Port          int
 	ResponseTime  float64
-	Upstream      api.ClusterKey
-	Domain        api.DomainKey
+	Upstream      string
+	Domain        string
 	Route         api.RouteKey
 	Method        string
 	Rule          api.RuleKey
@@ -40,8 +40,8 @@ func (e *upstreamLogEntry) SharedRule() string       { return "sharing-is-caring
 var (
 	p1   = 8000
 	p2   = 9000
-	u1   = api.ClusterKey("upstream1")
-	u2   = api.ClusterKey("upstream2")
+	u1   = "upstream1"
+	u2   = "upstream2"
 	rte1 = api.RouteKey("route-key-1")
 	rte2 = api.RouteKey("route-key-2")
 	r1   = api.RuleKey("rule1")
@@ -185,14 +185,14 @@ func TestFilteredDetailedStats(t *testing.T) {
 		},
 		TimeSeries: []handler.StatsQueryTimeSeries{
 			{
-				Name:      "d1",
-				QueryType: handler.Requests,
-				DomainKey: &domain1,
+				Name:       "d1",
+				QueryType:  handler.Requests,
+				DomainHost: &domain1,
 			},
 			{
-				Name:      "d2",
-				QueryType: handler.Requests,
-				DomainKey: &domain2,
+				Name:       "d2",
+				QueryType:  handler.Requests,
+				DomainHost: &domain2,
 			},
 			{
 				Name:      "rte1",
@@ -200,10 +200,10 @@ func TestFilteredDetailedStats(t *testing.T) {
 				RouteKey:  &rte1,
 			},
 			{
-				Name:      "d1-rte1",
-				QueryType: handler.Requests,
-				DomainKey: &domain1,
-				RouteKey:  &rte1,
+				Name:       "d1-rte1",
+				QueryType:  handler.Requests,
+				DomainHost: &domain1,
+				RouteKey:   &rte1,
 			},
 			{
 				Name:         "p1",
@@ -216,9 +216,9 @@ func TestFilteredDetailedStats(t *testing.T) {
 				InstanceKeys: []string{fmt.Sprintf("localhost:%d", p2)},
 			},
 			{
-				Name:       "u1",
-				QueryType:  handler.Requests,
-				ClusterKey: &u1,
+				Name:        "u1",
+				QueryType:   handler.Requests,
+				ClusterName: &u1,
 			},
 			{
 				Name:      "method",
@@ -244,10 +244,10 @@ func TestFilteredDetailedStats(t *testing.T) {
 			{
 				Name:         "combo-move",
 				QueryType:    handler.Requests,
-				DomainKey:    &domain1,
+				DomainHost:   &domain1,
 				RouteKey:     &rte1,
 				Method:       ptr.String("GET"),
-				ClusterKey:   &u1,
+				ClusterName:  &u1,
 				InstanceKeys: []string{fmt.Sprintf("localhost:%d", p1)},
 			},
 		},

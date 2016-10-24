@@ -51,9 +51,13 @@ type StatsQueryTimeSeries struct {
 	// Specifies the type of data returned. Required.
 	QueryType QueryType `json:"query_type" form:"query_type"`
 
-	// Specifies the DomainKey for which stats are returned. If
-	// not specified, stats are aggregated across domains.
-	DomainKey *api.DomainKey `json:"domain_key,omitempty" form:"domain_key"`
+	// Specifies the domain host for which stats are returned. The
+	// host may be just a domain name (e.g., "example.com"), or a
+	// domain name and port (e.g., "example.com:443"). The former
+	// aggregates stats across all ports serving the domain. If
+	// DomainHost is not specified, stats are aggregated across
+	// all domains.
+	DomainHost *string `json:"domain_host,omitempty" form:"domain_host"`
 
 	// Specifies the RouteKey for which stats are returned. If
 	// not specified, stats are aggregated across routes.
@@ -73,9 +77,9 @@ type StatsQueryTimeSeries struct {
 	// not specified, stats are aggregated across methods.
 	Method *string `json:"method,omitempty" form:"method"`
 
-	// Specifies the ClusterKey for which stats are returned. If
+	// Specifies the Cluster name for which stats are returned. If
 	// not specified, stats are aggregated across clusters.
-	ClusterKey *api.ClusterKey `json:"cluster_key,omitempty" form:"cluster_key"`
+	ClusterName *string `json:"cluster_name,omitempty" form:"cluster_name"`
 
 	// Specifies the Instance keys (host:port) for which stats are
 	// returned. If empty, stats are aggregated across all

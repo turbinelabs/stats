@@ -184,7 +184,7 @@ func testQueryTypeEmpty(t *testing.T, useHumaneEncoding bool) {
 	params := queryMap{
 		"zone_name": "zn",
 		"timeseries": []queryMap{
-			{"domain_key": "dk"},
+			{"domain_host": "dh"},
 		},
 	}
 
@@ -199,8 +199,8 @@ func testQueryTypeEmpty(t *testing.T, useHumaneEncoding bool) {
 		"zone_name": "zn",
 		"timeseries": []queryMap{
 			{
-				"name":       "this query",
-				"domain_key": "dk",
+				"name":        "this query",
+				"domain_host": "dh",
 			},
 		},
 	}

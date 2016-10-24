@@ -76,7 +76,7 @@ func (e *simpleQueryExpr) Metrics(ctxt *queryContext) []string {
 		formatMetric(
 			ctxt.orgKey,
 			ctxt.zoneName,
-			q.DomainKey,
+			q.DomainHost,
 			q.RouteKey,
 			q.Method,
 			q.QueryType,
@@ -98,7 +98,7 @@ func (e *suffixedQueryExpr) Metrics(ctxt *queryContext) []string {
 	metric := formatMetric(
 		ctxt.orgKey,
 		ctxt.zoneName,
-		q.DomainKey,
+		q.DomainHost,
 		q.RouteKey,
 		q.Method,
 		e.queryType,
@@ -303,7 +303,7 @@ func escape(s string) string {
 func formatMetric(
 	orgKey api.OrgKey,
 	zoneName string,
-	domainKey *api.DomainKey,
+	domainHost *string,
 	routeKey *api.RouteKey,
 	method *string,
 	queryType QueryType,
@@ -322,8 +322,11 @@ func formatMetric(
 		metricName,
 	}
 
-	if domainKey != nil {
-		parts[2] = escape(string(*domainKey))
+	if domainHost != nil {
+		parts[2] = escape(*domainHost)
+		if strings.IndexRune(*domainHost, ':') == -1 {
+			parts[2] += "_*"
+		}
 	}
 
 	if routeKey != nil {
@@ -353,8 +356,8 @@ func formatQuery(metrics []string, qts *StatsQueryTimeSeries) string {
 		tagExprs = append(tagExprs, sharedRuleTag)
 	}
 
-	if qts.ClusterKey != nil {
-		clusterTag := fmt.Sprintf(`upstream="%s"`, *qts.ClusterKey)
+	if qts.ClusterName != nil {
+		clusterTag := fmt.Sprintf(`upstream="%s"`, *qts.ClusterName)
 		tagExprs = append(tagExprs, clusterTag)
 	}
 

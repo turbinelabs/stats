@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/turbinelabs/api"
 	"github.com/turbinelabs/test/assert"
 	"github.com/turbinelabs/test/category"
 )
@@ -19,7 +18,7 @@ type accessLogEntry struct {
 	RequestId     string
 	StatusCode    int
 	RemoteIP      string
-	Domain        api.DomainKey
+	Domain        string
 	Method        string
 	Path          string
 	RequestTime   float64
@@ -38,8 +37,8 @@ func genId() string {
 
 var (
 	localhost = "127.0.0.1"
-	domain1   = api.DomainKey("www.example.com")
-	domain2   = api.DomainKey("example.org")
+	domain1   = "www.example.com"
+	domain2   = "example.org"
 	path1     = "/"
 	path2     = "/users"
 )

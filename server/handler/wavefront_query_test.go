@@ -13,12 +13,12 @@ import (
 )
 
 type formatMetricTestCase struct {
-	orgKey    api.OrgKey
-	zoneName  string
-	domainKey *api.DomainKey
-	routeKey  *api.RouteKey
-	method    *string
-	queryType QueryType
+	orgKey     api.OrgKey
+	zoneName   string
+	domainHost *string
+	routeKey   *api.RouteKey
+	method     *string
+	queryType  QueryType
 
 	expectedMetric string
 }
@@ -27,7 +27,7 @@ func (tc formatMetricTestCase) run(t *testing.T) {
 	metric := formatMetric(
 		tc.orgKey,
 		tc.zoneName,
-		tc.domainKey,
+		tc.domainHost,
 		tc.routeKey,
 		tc.method,
 		tc.queryType,
@@ -38,19 +38,25 @@ func (tc formatMetricTestCase) run(t *testing.T) {
 func TestFormatMetric(t *testing.T) {
 	ok := api.OrgKey("o")
 	zn := "z"
-	dk := api.DomainKey("d")
+	dh := "d"
+	dp := "d:443"
 	rk := api.RouteKey("r")
 	md := "POST"
 	testCases := []formatMetricTestCase{
 		{ok, zn, nil, nil, nil, Requests, "o.z.*.*.*.requests"},
-		{ok, zn, &dk, nil, nil, Requests, "o.z.d.*.*.requests"},
+		{ok, zn, &dh, nil, nil, Requests, "o.z.d_*.*.*.requests"},
 		{ok, zn, nil, &rk, nil, Requests, "o.z.*.r.*.requests"},
 		{ok, zn, nil, nil, &md, Requests, "o.z.*.*.POST.requests"},
-		{ok, zn, &dk, &rk, nil, Requests, "o.z.d.r.*.requests"},
-		{ok, zn, &dk, nil, &md, Requests, "o.z.d.*.POST.requests"},
+		{ok, zn, &dh, &rk, nil, Requests, "o.z.d_*.r.*.requests"},
+		{ok, zn, &dh, nil, &md, Requests, "o.z.d_*.*.POST.requests"},
 		{ok, zn, nil, &rk, &md, Requests, "o.z.*.r.POST.requests"},
-		{ok, zn, &dk, &rk, &md, Requests, "o.z.d.r.POST.requests"},
+		{ok, zn, &dh, &rk, &md, Requests, "o.z.d_*.r.POST.requests"},
 		{ok, zn, nil, nil, nil, Responses, "o.z.*.*.*.responses"},
+
+		{ok, zn, &dp, nil, nil, Requests, "o.z.d_443.*.*.requests"},
+		{ok, zn, &dp, &rk, nil, Requests, "o.z.d_443.r.*.requests"},
+		{ok, zn, &dp, nil, &md, Requests, "o.z.d_443.*.POST.requests"},
+		{ok, zn, &dp, &rk, &md, Requests, "o.z.d_443.r.POST.requests"},
 	}
 
 	for _, tc := range testCases {
@@ -62,7 +68,7 @@ type formatQueryTestCase struct {
 	metric         string
 	ruleKey        *api.RuleKey
 	sharedRuleName *string
-	clusterKey     *api.ClusterKey
+	clusterName    *string
 	instanceKeys   []string
 
 	expectedQuery string
@@ -72,7 +78,7 @@ func (tc formatQueryTestCase) run(t *testing.T) {
 	qts := StatsQueryTimeSeries{
 		RuleKey:        tc.ruleKey,
 		SharedRuleName: tc.sharedRuleName,
-		ClusterKey:     tc.clusterKey,
+		ClusterName:    tc.clusterName,
 		InstanceKeys:   tc.instanceKeys,
 	}
 
@@ -83,38 +89,38 @@ func (tc formatQueryTestCase) run(t *testing.T) {
 func TestFormatQuery(t *testing.T) {
 	rk := api.RuleKey("r")
 	sn := "s"
-	ck := api.ClusterKey("c")
+	cn := "c"
 	ik1 := []string{"i1"}
 	ik2 := []string{"i1", "i2"}
 	m := "a-metric"
 	testCases := []formatQueryTestCase{
 		{m, nil, nil, nil, nil, `ts("a-metric")`},
-		{m, nil, nil, &ck, nil, `ts("a-metric", upstream="c")`},
+		{m, nil, nil, &cn, nil, `ts("a-metric", upstream="c")`},
 		{m, nil, nil, nil, ik1, `ts("a-metric", instance="i1")`},
 		{m, nil, nil, nil, ik2, `ts("a-metric", instance="i1" or instance="i2")`},
-		{m, nil, nil, &ck, ik1, `ts("a-metric", upstream="c" and instance="i1")`},
-		{m, nil, nil, &ck, ik2, `ts("a-metric", upstream="c" and (instance="i1" or instance="i2"))`},
+		{m, nil, nil, &cn, ik1, `ts("a-metric", upstream="c" and instance="i1")`},
+		{m, nil, nil, &cn, ik2, `ts("a-metric", upstream="c" and (instance="i1" or instance="i2"))`},
 
 		{m, &rk, nil, nil, nil, `ts("a-metric", rule="r")`},
-		{m, &rk, nil, &ck, nil, `ts("a-metric", rule="r" and upstream="c")`},
+		{m, &rk, nil, &cn, nil, `ts("a-metric", rule="r" and upstream="c")`},
 		{m, &rk, nil, nil, ik1, `ts("a-metric", rule="r" and instance="i1")`},
 		{m, &rk, nil, nil, ik2, `ts("a-metric", rule="r" and (instance="i1" or instance="i2"))`},
-		{m, &rk, nil, &ck, ik1, `ts("a-metric", rule="r" and upstream="c" and instance="i1")`},
-		{m, &rk, nil, &ck, ik2, `ts("a-metric", rule="r" and upstream="c" and (instance="i1" or instance="i2"))`},
+		{m, &rk, nil, &cn, ik1, `ts("a-metric", rule="r" and upstream="c" and instance="i1")`},
+		{m, &rk, nil, &cn, ik2, `ts("a-metric", rule="r" and upstream="c" and (instance="i1" or instance="i2"))`},
 
 		{m, nil, &sn, nil, nil, `ts("a-metric", shared_rule="s")`},
-		{m, nil, &sn, &ck, nil, `ts("a-metric", shared_rule="s" and upstream="c")`},
+		{m, nil, &sn, &cn, nil, `ts("a-metric", shared_rule="s" and upstream="c")`},
 		{m, nil, &sn, nil, ik1, `ts("a-metric", shared_rule="s" and instance="i1")`},
 		{m, nil, &sn, nil, ik2, `ts("a-metric", shared_rule="s" and (instance="i1" or instance="i2"))`},
-		{m, nil, &sn, &ck, ik1, `ts("a-metric", shared_rule="s" and upstream="c" and instance="i1")`},
-		{m, nil, &sn, &ck, ik2, `ts("a-metric", shared_rule="s" and upstream="c" and (instance="i1" or instance="i2"))`},
+		{m, nil, &sn, &cn, ik1, `ts("a-metric", shared_rule="s" and upstream="c" and instance="i1")`},
+		{m, nil, &sn, &cn, ik2, `ts("a-metric", shared_rule="s" and upstream="c" and (instance="i1" or instance="i2"))`},
 
 		{m, &rk, &sn, nil, nil, `ts("a-metric", rule="r" and shared_rule="s")`},
-		{m, &rk, &sn, &ck, nil, `ts("a-metric", rule="r" and shared_rule="s" and upstream="c")`},
+		{m, &rk, &sn, &cn, nil, `ts("a-metric", rule="r" and shared_rule="s" and upstream="c")`},
 		{m, &rk, &sn, nil, ik1, `ts("a-metric", rule="r" and shared_rule="s" and instance="i1")`},
 		{m, &rk, &sn, nil, ik2, `ts("a-metric", rule="r" and shared_rule="s" and (instance="i1" or instance="i2"))`},
-		{m, &rk, &sn, &ck, ik1, `ts("a-metric", rule="r" and shared_rule="s" and upstream="c" and instance="i1")`},
-		{m, &rk, &sn, &ck, ik2, `ts("a-metric", rule="r" and shared_rule="s" and upstream="c" and (instance="i1" or instance="i2"))`},
+		{m, &rk, &sn, &cn, ik1, `ts("a-metric", rule="r" and shared_rule="s" and upstream="c" and instance="i1")`},
+		{m, &rk, &sn, &cn, ik2, `ts("a-metric", rule="r" and shared_rule="s" and upstream="c" and (instance="i1" or instance="i2"))`},
 	}
 
 	for _, tc := range testCases {
@@ -154,15 +160,15 @@ func TestWavefrontQueryBuilder(t *testing.T) {
 	end := start + 3600
 	orgKey := api.OrgKey("o")
 	zoneName := "z"
-	domainKey := api.DomainKey("d")
+	domainHost := "d"
 	routeKey := api.RouteKey("r")
 	method := "GET"
 
 	qts := StatsQueryTimeSeries{
-		QueryType: Requests,
-		DomainKey: &domainKey,
-		RouteKey:  &routeKey,
-		Method:    &method,
+		QueryType:  Requests,
+		DomainHost: &domainHost,
+		RouteKey:   &routeKey,
+		Method:     &method,
 	}
 
 	builder := wavefrontQueryBuilder{"https://wavefront.example.com"}
@@ -204,7 +210,7 @@ func TestWavefrontQueryBuilder(t *testing.T) {
 					formatMetric(
 						orgKey,
 						zoneName,
-						&domainKey,
+						&domainHost,
 						&routeKey,
 						&method,
 						Requests,
@@ -221,15 +227,15 @@ func TestWavefrontQueryBuilderLatencyP50(t *testing.T) {
 	end := start + 3600
 	orgKey := api.OrgKey("o")
 	zoneName := "z"
-	domainKey := api.DomainKey("d")
+	domainHost := "d"
 	routeKey := api.RouteKey("r")
 	method := "GET"
 
 	qts := StatsQueryTimeSeries{
-		QueryType: LatencyP50,
-		DomainKey: &domainKey,
-		RouteKey:  &routeKey,
-		Method:    &method,
+		QueryType:  LatencyP50,
+		DomainHost: &domainHost,
+		RouteKey:   &routeKey,
+		Method:     &method,
 	}
 
 	builder := wavefrontQueryBuilder{"https://wavefront.example.com"}
@@ -271,7 +277,7 @@ func TestWavefrontQueryBuilderLatencyP50(t *testing.T) {
 					formatMetric(
 						orgKey,
 						zoneName,
-						&domainKey,
+						&domainHost,
 						&routeKey,
 						&method,
 						LatencyP50,
@@ -288,15 +294,15 @@ func TestWavefrontQueryBuilderSuccessRate(t *testing.T) {
 	end := start + 3600
 	orgKey := api.OrgKey("o")
 	zoneName := "z"
-	domainKey := api.DomainKey("d")
+	domainHost := "d"
 	routeKey := api.RouteKey("r")
 	method := "GET"
 
 	qts := StatsQueryTimeSeries{
-		QueryType: SuccessRate,
-		DomainKey: &domainKey,
-		RouteKey:  &routeKey,
-		Method:    &method,
+		QueryType:  SuccessRate,
+		DomainHost: &domainHost,
+		RouteKey:   &routeKey,
+		Method:     &method,
 	}
 
 	builder := wavefrontQueryBuilder{"https://wavefront.example.com"}
@@ -342,15 +348,15 @@ func TestWavefrontQueryUrlGranularities(t *testing.T) {
 	end := start + 3600
 	orgKey := api.OrgKey("o")
 	zoneName := "z"
-	domainKey := api.DomainKey("d")
+	domainHost := "d"
 	routeKey := api.RouteKey("r")
 	method := "GET"
 
 	qts := StatsQueryTimeSeries{
-		QueryType: SuccessRate,
-		DomainKey: &domainKey,
-		RouteKey:  &routeKey,
-		Method:    &method,
+		QueryType:  SuccessRate,
+		DomainHost: &domainHost,
+		RouteKey:   &routeKey,
+		Method:     &method,
 	}
 
 	forEachTimeGranularity(func(tg TimeGranularity) {
@@ -432,9 +438,9 @@ func TestQueryExprs(t *testing.T) {
 func TestQueryExprWithTags(t *testing.T) {
 	ok := api.OrgKey("o")
 	zn := "z"
-	ck := api.ClusterKey("c")
+	cn := "c"
 	qts := StatsQueryTimeSeries{
-		ClusterKey:   &ck,
+		ClusterName:  &cn,
 		InstanceKeys: []string{"i1"},
 	}
 	queryExprTestCase{
