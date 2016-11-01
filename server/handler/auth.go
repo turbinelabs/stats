@@ -8,8 +8,8 @@ import (
 	"github.com/turbinelabs/api/service"
 	svchttp "github.com/turbinelabs/api/service/http"
 	clienthttp "github.com/turbinelabs/client/http"
+	tbnauth "github.com/turbinelabs/server/auth"
 	"github.com/turbinelabs/server/handler"
-	"github.com/turbinelabs/server/header"
 	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
 )
@@ -38,23 +38,31 @@ func (a *apiAuthorizer) wrap(underlying http.HandlerFunc) http.HandlerFunc {
 // If the user-lookup fails, the request is treated as unauthorized.
 // Otherwise, the underlying handler is invoked.
 func (a *apiAuthorizerHandler) handler(rw http.ResponseWriter, r *http.Request) {
-	var err *httperr.Error
-	var orgKey api.OrgKey
-	if apiKey := r.Header[header.APIKey]; apiKey != nil && len(apiKey) == 1 {
-		orgKey, err = a.validate(apiKey[0])
-	} else {
-		log.Println("Missing API key")
-		err = httperr.AuthorizationError()
+	writeError := func(err *httperr.Error) {
+		rw := handler.RichResponseWriter{ResponseWriter: rw}
+		rw.WriteEnvelope(err, nil)
 	}
-
-	if err == nil {
-		requestContext := requestcontext.New(r)
-		requestContext.SetOrgKey(orgKey)
-
-		a.underlying.ServeHTTP(rw, r)
-	} else {
-		handler.RichResponseWriter{rw}.WriteEnvelope(err, nil)
+	apiKey, err := tbnauth.NewAPIAuthKeyFromRequest(r)
+	if err != nil {
+		log.Println("Authorization error: ", err)
+		writeError(httperr.AuthorizationError())
+		return
 	}
+	if apiKey.AuthSystem() != tbnauth.InternalAuthSystem {
+		log.Println("Only internal authorization is supported")
+		writeError(httperr.AuthorizationMethodDeniedError())
+		return
+	}
+	apiKeyStr := string(apiKey)
+	orgKey, validationError := a.validate(apiKeyStr)
+	if err != nil {
+		log.Println("Validation failed: ", validationError)
+		writeError(httperr.AuthorizationError())
+		return
+	}
+	requestContext := requestcontext.New(r)
+	requestContext.SetOrgKey(orgKey)
+	a.underlying.ServeHTTP(rw, r)
 }
 
 // Validates the given API key again the API. Returns nil if the API
@@ -65,7 +73,7 @@ func (a *apiAuthorizerHandler) validate(apiKey string) (api.OrgKey, *httperr.Err
 		return "", httperr.New500(err.Error(), httperr.UnknownTransportCode)
 	}
 
-	filter := service.UserFilter{APIAuthKey: api.APIAuthKey(apiKey)}
+	filter := service.UserFilter{APIAuthKey: tbnauth.APIAuthKey(apiKey)}
 	users, err := svc.User().Index(filter)
 	if err != nil {
 		return "", httperr.FromError(err, httperr.UnknownTransportCode)

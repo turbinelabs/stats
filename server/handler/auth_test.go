@@ -170,8 +170,8 @@ func TestApiAuthorizerHandlerSuccess(t *testing.T) {
 
 	responseRecorder := httptest.NewRecorder()
 
-	handler := auth.wrap(underlyingHandler.ServeHTTP)
-	handler(responseRecorder, request)
+	authHandler := auth.wrap(underlyingHandler.ServeHTTP)
+	authHandler(responseRecorder, request)
 
 	assert.Equal(t, responseRecorder.Code, 200)
 
@@ -190,6 +190,40 @@ func TestApiAuthorizerHandlerSuccess(t *testing.T) {
 	rcOrgKey, ok := requestContext.GetOrgKey()
 	assert.Equal(t, rcOrgKey, user.OrgKey)
 	assert.True(t, ok)
+}
+
+func TestApiAuthorizerHandlerWrongAuthSystem(t *testing.T) {
+	auth := apiAuthorizer{}
+
+	failingHandler := func(rw http.ResponseWriter, r *http.Request) {
+		t.Error("unexpected invocation of handler")
+		rw.WriteHeader(500)
+		rw.Write([]byte("nope"))
+	}
+
+	request, err := http.NewRequest("GET", "/whatever", nil)
+	assert.Nil(t, err)
+	request.Header.Add(header.APIKey, "Bearer xyz")
+
+	responseRecorder := httptest.NewRecorder()
+
+	handler := auth.wrap(failingHandler)
+	handler(responseRecorder, request)
+
+	assert.Equal(t, responseRecorder.Code, 403)
+
+	response := &envelope.Response{}
+	err = json.Unmarshal(responseRecorder.Body.Bytes(), response)
+	assert.Nil(t, err)
+	assert.DeepEqual(t, response.Error.Code, httperr.AuthMethodDeniedCode)
+
+	assert.NonNil(t, response.Error)
+	assert.Nil(t, response.Payload)
+
+	requestContext := requestcontext.New(request)
+	rcOrgKey, ok := requestContext.GetOrgKey()
+	assert.Equal(t, rcOrgKey, api.OrgKey(""))
+	assert.False(t, ok)
 }
 
 func TestApiAuthorizerHandlerNoHeader(t *testing.T) {
