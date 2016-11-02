@@ -10,12 +10,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"text/template"
 	"time"
 
 	clienthttp "github.com/turbinelabs/client/http"
+	"github.com/turbinelabs/executor"
 	"github.com/turbinelabs/logparser"
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
@@ -133,6 +135,15 @@ func (s *StatsServerTestHarness) Start() error {
 		return fmt.Errorf("failed to detect stats server: %s", err.Error())
 	}
 
+	exec := executor.NewRetryingExecutor(
+		executor.WithRetryDelayFunc(
+			executor.NewExponentialDelayFunc(100*time.Millisecond, 30*time.Second),
+		),
+		executor.WithMaxAttempts(8),
+		executor.WithMaxQueueDepth(runtime.NumCPU()*20),
+		executor.WithParallelism(runtime.NumCPU()*2),
+	)
+
 	var accessLogParser logparser.LogParser
 	if s.AccessLog != "" {
 		parser, err := parser.NewPositionalDelimiter(
@@ -151,6 +162,7 @@ func (s *StatsServerTestHarness) Start() error {
 			endpoint,
 			"IMOK",
 			TestZoneName,
+			exec,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create access log forwarder: %s", err.Error())
@@ -188,6 +200,7 @@ func (s *StatsServerTestHarness) Start() error {
 			endpoint,
 			"IMOK",
 			TestZoneName,
+			exec,
 		)
 		if err != nil {
 			return fmt.Errorf(
