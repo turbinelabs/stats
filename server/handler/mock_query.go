@@ -298,7 +298,7 @@ func mockLatencyTimeSeries(
 			value = 0.0
 		}
 
-		points[idx].Value = value
+		points[idx].Value = value / microsPerSecond
 	}
 
 	return StatsTimeSeries{Query: qts, Points: points}
