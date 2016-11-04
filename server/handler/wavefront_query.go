@@ -10,7 +10,7 @@ import (
 
 	"github.com/turbinelabs/api"
 	httperr "github.com/turbinelabs/server/http/error"
-	tbntime "github.com/turbinelabs/time"
+	tbntime "github.com/turbinelabs/stdlib/time"
 )
 
 var (

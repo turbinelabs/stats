@@ -7,8 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/turbinelabs/arrays/indexof"
-	"github.com/turbinelabs/cli/flags"
 	"github.com/turbinelabs/server"
 	"github.com/turbinelabs/server/cors"
 	serverhandler "github.com/turbinelabs/server/handler"
@@ -16,6 +14,8 @@ import (
 	"github.com/turbinelabs/stats/server/handler"
 	"github.com/turbinelabs/stats/server/route"
 	"github.com/turbinelabs/statsd"
+	"github.com/turbinelabs/stdlib/arrays/indexof"
+	tbnflag "github.com/turbinelabs/stdlib/flag"
 )
 
 const (
@@ -38,7 +38,7 @@ type FromFlags interface {
 // initializing its flags as appropriate.
 func NewFromFlags(flagset *flag.FlagSet) FromFlags {
 	ff := &fromFlags{
-		devMode: flags.NewStringsWithConstraint(noAuthMode, mockMode, verbose),
+		devMode: tbnflag.NewStringsWithConstraint(noAuthMode, mockMode, verbose),
 	}
 
 	flagset.Var(
@@ -65,19 +65,19 @@ func NewFromFlags(flagset *flag.FlagSet) FromFlags {
 		"Sets the wavefront server URL.",
 	)
 
-	serverFlagSet := flags.NewPrefixedFlagSet(flagset, "listener", "stats listener")
+	serverFlagSet := tbnflag.NewPrefixedFlagSet(flagset, "listener", "stats listener")
 	ff.ServerFromFlags = server.NewFromFlags(serverFlagSet)
 
 	ff.StatsFromFlags = statsd.NewFromFlags(serverFlagSet.Scope("stats", "internal server"))
 	ff.AuthorizerFromFlags = handler.NewAPIAuthorizerFromFlags(flagset)
 	ff.MetricsCollectorFromFlags = handler.NewMetricsCollectorFromFlags(flagset)
-	ff.CORSFromFlags = cors.NewFromFlags(flags.NewPrefixedFlagSet(flagset, "cors", "stats API server"))
+	ff.CORSFromFlags = cors.NewFromFlags(tbnflag.NewPrefixedFlagSet(flagset, "cors", "stats API server"))
 
 	return ff
 }
 
 type fromFlags struct {
-	devMode                   flags.Strings
+	devMode                   tbnflag.Strings
 	wavefrontApiToken         string
 	wavefrontServerUrl        string
 	ServerFromFlags           server.FromFlags

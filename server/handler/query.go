@@ -11,7 +11,7 @@ import (
 	"github.com/turbinelabs/server/handler"
 	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
-	tbntime "github.com/turbinelabs/time"
+	tbntime "github.com/turbinelabs/stdlib/time"
 )
 
 const (

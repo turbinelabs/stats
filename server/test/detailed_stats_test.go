@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/turbinelabs/api"
-	"github.com/turbinelabs/ptr"
 	"github.com/turbinelabs/stats/server/handler"
+	"github.com/turbinelabs/stdlib/ptr"
+	tbntime "github.com/turbinelabs/stdlib/time"
 	"github.com/turbinelabs/test/assert"
 	"github.com/turbinelabs/test/category"
-	tbntime "github.com/turbinelabs/time"
 )
 
 const upstreamLogTemplate = `{{Timestamp .OffsetSeconds}} {{.RequestId}} {{.StatusCode}} "{{.Instance}}" {{.InstanceAddr}} {{.ResponseLength}} {{.ResponseTime}} {{.ConnectTime}} {{.HeaderTime}} "{{.Upstream}}" {{.InstanceMetadata}} "{{.Domain}}" "{{.Route}}" {{.Method}} "{{.Rule}}" "{{.SharedRule}}"`

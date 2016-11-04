@@ -6,9 +6,9 @@ import (
 	"flag"
 	"log"
 
-	"github.com/turbinelabs/cli/flags"
 	"github.com/turbinelabs/client/http"
 	"github.com/turbinelabs/server/handler"
+	tbnflag "github.com/turbinelabs/stdlib/flag"
 )
 
 // AuthorizerFromFlags constructs a handler.Authorizer from command
@@ -23,7 +23,7 @@ type AuthorizerFromFlags interface {
 // a handler.Authorizer that uses the Turbine API to authorize
 // requests.
 func NewAPIAuthorizerFromFlags(flagset *flag.FlagSet) AuthorizerFromFlags {
-	prefixedFlagSet := flags.NewPrefixedFlagSet(
+	prefixedFlagSet := tbnflag.NewPrefixedFlagSet(
 		flagset,
 		"api",
 		"API",

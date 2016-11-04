@@ -8,12 +8,12 @@ import (
 
 	"github.com/golang/mock/gomock"
 
-	"github.com/turbinelabs/cli/flags"
 	"github.com/turbinelabs/server"
 	"github.com/turbinelabs/server/cors"
 	serverhandler "github.com/turbinelabs/server/handler"
 	"github.com/turbinelabs/stats/server/handler"
 	"github.com/turbinelabs/statsd"
+	tbnflag "github.com/turbinelabs/stdlib/flag"
 	"github.com/turbinelabs/test/assert"
 )
 
@@ -123,7 +123,7 @@ func (tc makeTestCase) run(t *testing.T) {
 
 	ffImpl := &fromFlags{
 		wavefrontServerUrl:        handler.DefaultWavefrontServerUrl,
-		devMode:                   flags.NewStringsWithConstraint(),
+		devMode:                   tbnflag.NewStringsWithConstraint(),
 		ServerFromFlags:           serverFromFlags,
 		StatsFromFlags:            statsFromFlags,
 		AuthorizerFromFlags:       authFromFlags,

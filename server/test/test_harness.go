@@ -22,10 +22,10 @@ import (
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
 	"github.com/turbinelabs/logparser/parser"
-	"github.com/turbinelabs/proc"
 	"github.com/turbinelabs/server/header"
 	"github.com/turbinelabs/server/http/envelope"
 	"github.com/turbinelabs/stats/server/handler"
+	"github.com/turbinelabs/stdlib/proc"
 	"github.com/turbinelabs/test/tempfile"
 )
 

@@ -3,7 +3,7 @@ package test
 import (
 	"fmt"
 
-	"github.com/turbinelabs/proc"
+	"github.com/turbinelabs/stdlib/proc"
 )
 
 func StartStatsApi(port, proxyPort, wavefrontApiPort int) (proc.ManagedProc, error) {

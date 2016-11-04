@@ -6,8 +6,8 @@ import (
 	"flag"
 	"log"
 
-	"github.com/turbinelabs/cli/flags"
 	"github.com/turbinelabs/logparser/forwarder"
+	tbnflag "github.com/turbinelabs/stdlib/flag"
 )
 
 // MetricsCollectorFromFlags constructs a MetricsCollector from
@@ -26,7 +26,7 @@ type MetricsCollectorFromFlags interface {
 func NewMetricsCollectorFromFlags(flagset *flag.FlagSet) MetricsCollectorFromFlags {
 	ff := &metricsCollectorFromFlags{}
 
-	pfs := flags.NewPrefixedFlagSet(
+	pfs := tbnflag.NewPrefixedFlagSet(
 		flagset,
 		"stats",
 		"stats forwarder",
