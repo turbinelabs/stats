@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/turbinelabs/api"
+	tbntime "github.com/turbinelabs/nonstdlib/time"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
-	tbntime "github.com/turbinelabs/stdlib/time"
 	"github.com/turbinelabs/test/assert"
 )
 

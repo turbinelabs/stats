@@ -11,13 +11,13 @@ import (
 	"github.com/turbinelabs/api"
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
+	"github.com/turbinelabs/nonstdlib/ptr"
+	"github.com/turbinelabs/nonstdlib/time"
 	"github.com/turbinelabs/server"
 	"github.com/turbinelabs/server/handler"
 	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
-	"github.com/turbinelabs/stdlib/ptr"
-	"github.com/turbinelabs/stdlib/time"
 )
 
 // MetricsCollector abstracts the collection of metrics and their

@@ -7,7 +7,7 @@ import (
 	"log"
 
 	"github.com/turbinelabs/logparser/forwarder"
-	tbnflag "github.com/turbinelabs/stdlib/flag"
+	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 )
 
 // MetricsCollectorFromFlags constructs a MetricsCollector from

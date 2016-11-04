@@ -16,11 +16,11 @@ import (
 	"github.com/turbinelabs/api"
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
+	tbntime "github.com/turbinelabs/nonstdlib/time"
 	"github.com/turbinelabs/server/http/envelope"
 	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
-	tbntime "github.com/turbinelabs/stdlib/time"
 	"github.com/turbinelabs/test/assert"
 	testio "github.com/turbinelabs/test/io"
 )

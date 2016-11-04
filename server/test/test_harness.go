@@ -17,15 +17,15 @@ import (
 	"time"
 
 	clienthttp "github.com/turbinelabs/client/http"
-	"github.com/turbinelabs/executor"
 	"github.com/turbinelabs/logparser"
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
 	"github.com/turbinelabs/logparser/parser"
+	"github.com/turbinelabs/nonstdlib/executor"
+	"github.com/turbinelabs/nonstdlib/proc"
 	"github.com/turbinelabs/server/header"
 	"github.com/turbinelabs/server/http/envelope"
 	"github.com/turbinelabs/stats/server/handler"
-	"github.com/turbinelabs/stdlib/proc"
 	"github.com/turbinelabs/test/tempfile"
 )
 

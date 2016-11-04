@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/turbinelabs/api"
+	"github.com/turbinelabs/nonstdlib/ptr"
+	tbntime "github.com/turbinelabs/nonstdlib/time"
 	"github.com/turbinelabs/stats/server/handler"
-	"github.com/turbinelabs/stdlib/ptr"
-	tbntime "github.com/turbinelabs/stdlib/time"
 	"github.com/turbinelabs/test/assert"
 	"github.com/turbinelabs/test/category"
 )

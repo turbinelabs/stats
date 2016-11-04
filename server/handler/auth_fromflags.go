@@ -7,8 +7,8 @@ import (
 	"log"
 
 	"github.com/turbinelabs/client/http"
+	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 	"github.com/turbinelabs/server/handler"
-	tbnflag "github.com/turbinelabs/stdlib/flag"
 )
 
 // AuthorizerFromFlags constructs a handler.Authorizer from command
