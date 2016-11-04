@@ -4,6 +4,7 @@
 package client
 
 import (
+	context "context"
 	gomock "github.com/golang/mock/gomock"
 	stats "github.com/turbinelabs/stats"
 )
@@ -29,13 +30,13 @@ func (_m *MockStats) EXPECT() *_MockStatsRecorder {
 	return _m.recorder
 }
 
-func (_m *MockStats) Forward(_param0 stats.StatsPayload) (stats.Result, error) {
-	ret := _m.ctrl.Call(_m, "Forward", _param0)
+func (_m *MockStats) Forward(_param0 context.Context, _param1 stats.StatsPayload) (stats.Result, error) {
+	ret := _m.ctrl.Call(_m, "Forward", _param0, _param1)
 	ret0, _ := ret[0].(stats.Result)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockStatsRecorder) Forward(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Forward", arg0)
+func (_mr *_MockStatsRecorder) Forward(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Forward", arg0, arg1)
 }

@@ -3,6 +3,7 @@ package client
 //go:generate mockgen -source $GOFILE -destination mock_$GOFILE -package $GOPACKAGE
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -18,7 +19,7 @@ const (
 )
 
 type Stats interface {
-	Forward(stats.StatsPayload) (stats.Result, error)
+	Forward(context.Context, stats.StatsPayload) (stats.Result, error)
 }
 
 type httpStatsV1 struct {
@@ -44,7 +45,10 @@ func (hs *httpStatsV1) post(encodedBody string) (*http.Request, error) {
 	return http.NewRequest("POST", hs.dest.Url("/v1.0/stats/forward", tbnhttp.Params{}), rdr)
 }
 
-func (hs *httpStatsV1) Forward(payload stats.StatsPayload) (stats.Result, error) {
+func (hs *httpStatsV1) Forward(
+	ctxt context.Context,
+	payload stats.StatsPayload,
+) (stats.Result, error) {
 	var encoded string
 	if b, err := json.Marshal(payload); err == nil {
 		encoded = string(b)
@@ -53,7 +57,13 @@ func (hs *httpStatsV1) Forward(payload stats.StatsPayload) (stats.Result, error)
 		return stats.Result{}, httperr.New400(msg, httperr.UnknownEncodingCode)
 	}
 
-	reqFn := func() (*http.Request, error) { return hs.post(encoded) }
+	reqFn := func() (*http.Request, error) {
+		req, err := hs.post(encoded)
+		if err == nil {
+			req = req.WithContext(ctxt)
+		}
+		return req, err
+	}
 	response := stats.Result{}
 	if err := hs.requestHandler.Do(reqFn, &response); err != nil {
 		return stats.Result{}, err
