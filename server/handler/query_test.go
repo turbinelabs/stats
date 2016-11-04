@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/turbinelabs/api"
+	"github.com/turbinelabs/nonstdlib/executor"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
 	"github.com/turbinelabs/test/assert"
@@ -104,7 +105,7 @@ func mkRequest(
 
 func TestNewQueryHandler(t *testing.T) {
 	wavefrontApiToken := "api-token"
-	qh, err := NewQueryHandler(DefaultWavefrontServerUrl, wavefrontApiToken, true)
+	qh, err := NewQueryHandler(DefaultWavefrontServerUrl, wavefrontApiToken, true, nil)
 	assert.Nil(t, err)
 
 	qhImpl := qh.(*queryHandler)
@@ -308,6 +309,11 @@ func TestRunQueryRuleKeyValidation(t *testing.T) {
 }
 
 func testRunQuery(t *testing.T, useHumaneEncoding bool) {
+	exec := executor.NewRetryingExecutor(
+		executor.WithRetryDelayFunc(executor.NewConstantDelayFunc(10 * time.Millisecond)),
+	)
+	defer exec.Stop()
+
 	apiToken := "the-api-token"
 
 	mockWavefrontHandler := http.HandlerFunc(
@@ -336,6 +342,7 @@ func testRunQuery(t *testing.T, useHumaneEncoding bool) {
 		wavefrontApiToken: apiToken,
 		client:            http.DefaultClient,
 		formatQueryUrl:    formatTestQueryUrl,
+		exec:              exec,
 	}
 
 	params := queryMap{
@@ -459,11 +466,17 @@ func TestNormalizeTimeRangeStartDuration(t *testing.T) {
 }
 
 func TestRunQueries(t *testing.T) {
+	exec := executor.NewRetryingExecutor(
+		executor.WithRetryDelayFunc(executor.NewConstantDelayFunc(10 * time.Millisecond)),
+	)
+	defer exec.Stop()
+
 	apiToken := "the-api-token"
 
 	queryHandler := &queryHandler{
 		wavefrontApiToken: apiToken,
 		client:            http.DefaultClient,
+		exec:              exec,
 	}
 
 	mockWavefrontHandler := http.HandlerFunc(
@@ -491,11 +504,17 @@ func TestRunQueries(t *testing.T) {
 }
 
 func TestRunQueriesWith500s(t *testing.T) {
+	exec := executor.NewRetryingExecutor(
+		executor.WithRetryDelayFunc(executor.NewConstantDelayFunc(10 * time.Millisecond)),
+	)
+	defer exec.Stop()
+
 	apiToken := "the-api-token"
 
 	queryHandler := &queryHandler{
 		wavefrontApiToken: apiToken,
 		client:            http.DefaultClient,
+		exec:              exec,
 	}
 
 	mockWavefrontHandler := http.HandlerFunc(
@@ -525,11 +544,17 @@ func TestRunQueriesWith500s(t *testing.T) {
 }
 
 func TestRunQueriesWithInvalidJson(t *testing.T) {
+	exec := executor.NewRetryingExecutor(
+		executor.WithRetryDelayFunc(executor.NewConstantDelayFunc(10 * time.Millisecond)),
+	)
+	defer exec.Stop()
+
 	apiToken := "the-api-token"
 
 	queryHandler := &queryHandler{
 		wavefrontApiToken: apiToken,
 		client:            http.DefaultClient,
+		exec:              exec,
 	}
 
 	mockWavefrontHandler := http.HandlerFunc(
@@ -558,11 +583,17 @@ func TestRunQueriesWithInvalidJson(t *testing.T) {
 }
 
 func TestRunQueriesWithRequestError(t *testing.T) {
+	exec := executor.NewRetryingExecutor(
+		executor.WithRetryDelayFunc(executor.NewConstantDelayFunc(10 * time.Millisecond)),
+	)
+	defer exec.Stop()
+
 	apiToken := "the-api-token"
 
 	queryHandler := &queryHandler{
 		wavefrontApiToken: apiToken,
 		client:            http.DefaultClient,
+		exec:              exec,
 	}
 
 	mockWavefrontHandler := http.HandlerFunc(

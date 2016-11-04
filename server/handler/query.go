@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/turbinelabs/api"
 	clienthttp "github.com/turbinelabs/client/http"
+	"github.com/turbinelabs/nonstdlib/executor"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
 	"github.com/turbinelabs/server/handler"
 	httperr "github.com/turbinelabs/server/http/error"
@@ -152,6 +154,8 @@ func NewQueryHandler(
 	wavefrontServerUrl string,
 	wavefrontApiToken string,
 	verboseLogging bool,
+	exec executor.Executor,
+
 ) (QueryHandler, error) {
 	queryBuilder, err := newWavefrontQueryBuilder(wavefrontServerUrl)
 	if err != nil {
@@ -163,6 +167,7 @@ func NewQueryHandler(
 		client:            clienthttp.HeaderPreserving(),
 		formatQueryUrl:    queryBuilder.FormatWavefrontQueryUrl,
 		verboseLogging:    verboseLogging,
+		exec:              exec,
 	}, nil
 }
 
@@ -180,6 +185,7 @@ type queryHandler struct {
 	client            *http.Client
 	formatQueryUrl    queryFormatter
 	verboseLogging    bool
+	exec              executor.Executor
 }
 
 func validateQuery(q *StatsQuery) *httperr.Error {
@@ -307,7 +313,7 @@ func normalizeTimeRange(tr StatsTimeRange) (int64, int64, *httperr.Error) {
 }
 
 func (qh *queryHandler) runQueries(urls []string) ([]StatsTimeSeries, *httperr.Error) {
-	requestFuncs := make([]httpRequestFn, len(urls))
+	requestFuncs := make([]executor.Func, len(urls))
 	for i, url := range urls {
 		request, err := http.NewRequest(http.MethodGet, url, nil)
 		if err != nil {
@@ -316,22 +322,31 @@ func (qh *queryHandler) runQueries(urls []string) ([]StatsTimeSeries, *httperr.E
 
 		request.Header.Add(wavefrontAuthTokenHeader, qh.wavefrontApiToken)
 
-		requestFuncs[i] = func() (*http.Response, error) {
-			return qh.client.Do(request)
+		requestFuncs[i] = func(ctxt context.Context) (interface{}, error) {
+			return qh.client.Do(request.WithContext(ctxt))
 		}
 	}
 
-	responses := scatterGatherHttpRequests(requestFuncs, 30*time.Second)
-	results := make([]StatsTimeSeries, len(responses))
-	for idx, r := range responses {
-		if r.err != nil {
-			return nil, httperr.New500(r.err.Error(), httperr.MiscErrorCode)
-		}
+	result := make(chan executor.Try, 1)
 
-		if r.response.StatusCode >= http.StatusBadRequest {
-			defer r.response.Body.Close()
+	qh.exec.ExecGathered(requestFuncs, func(try executor.Try) {
+		result <- try
+	})
+
+	try := <-result
+	if try.IsError() {
+		return nil, httperr.New500(try.Error().Error(), httperr.MiscErrorCode)
+	}
+
+	responses := try.Get().([]interface{})
+	results := make([]StatsTimeSeries, len(responses))
+	for idx, riface := range responses {
+		r := riface.(*http.Response)
+
+		if r.StatusCode >= http.StatusBadRequest {
+			defer r.Body.Close()
 			var responseBody string
-			if body, readErr := ioutil.ReadAll(r.response.Body); readErr == nil {
+			if body, readErr := ioutil.ReadAll(r.Body); readErr == nil {
 				responseBody = string(body)
 			} else {
 				responseBody =
@@ -340,14 +355,14 @@ func (qh *queryHandler) runQueries(urls []string) ([]StatsTimeSeries, *httperr.E
 			return nil, httperr.New500(
 				fmt.Sprintf(
 					"Error %d querying wavefront: %s",
-					r.response.StatusCode,
+					r.StatusCode,
 					responseBody,
 				),
 				httperr.MiscErrorCode,
 			)
 		}
 
-		ts, err := decodeWavefrontResponse(r.response)
+		ts, err := decodeWavefrontResponse(r)
 		if err != nil {
 			return nil, err
 		}

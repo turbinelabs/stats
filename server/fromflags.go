@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"flag"
 	"log"
 	"os"
@@ -51,22 +50,11 @@ func NewFromFlags(flagset *flag.FlagSet) FromFlags {
 			"The "+verbose+" mode enables verbose logging.",
 	)
 
-	flagset.StringVar(
-		&ff.wavefrontApiToken,
-		"wavefront-api.token",
-		"",
-		"Authentication token for the wavefront API. Required unless developer mode is used to generate mock data.",
-	)
-
-	flagset.StringVar(
-		&ff.wavefrontServerUrl,
-		"wavefront-api.url",
-		handler.DefaultWavefrontServerUrl,
-		"Sets the wavefront server URL.",
-	)
-
 	serverFlagSet := tbnflag.NewPrefixedFlagSet(flagset, "listener", "stats listener")
 	ff.ServerFromFlags = server.NewFromFlags(serverFlagSet)
+
+	qhFlagSet := tbnflag.NewPrefixedFlagSet(flagset, "wavefront-api", "Wavefront API Requests")
+	ff.QueryHandlerFromFlags = handler.NewQueryHandlerFromFlags(qhFlagSet)
 
 	ff.StatsFromFlags = statsd.NewFromFlags(serverFlagSet.Scope("stats", "internal server"))
 	ff.AuthorizerFromFlags = handler.NewAPIAuthorizerFromFlags(flagset)
@@ -78,12 +66,11 @@ func NewFromFlags(flagset *flag.FlagSet) FromFlags {
 
 type fromFlags struct {
 	devMode                   tbnflag.Strings
-	wavefrontApiToken         string
-	wavefrontServerUrl        string
 	ServerFromFlags           server.FromFlags
 	StatsFromFlags            statsd.FromFlags
 	CORSFromFlags             cors.FromFlags
 	AuthorizerFromFlags       handler.AuthorizerFromFlags
+	QueryHandlerFromFlags     handler.QueryHandlerFromFlags
 	MetricsCollectorFromFlags handler.MetricsCollectorFromFlags
 }
 
@@ -104,12 +91,12 @@ func (ff *fromFlags) Validate() error {
 		return err
 	}
 
-	if err := ff.MetricsCollectorFromFlags.Validate(); err != nil {
+	if err := ff.QueryHandlerFromFlags.Validate(ff.devModeMockData()); err != nil {
 		return err
 	}
 
-	if !ff.devModeMockData() && ff.wavefrontApiToken == "" {
-		return errors.New("--wavefront-api.token is a required flag")
+	if err := ff.MetricsCollectorFromFlags.Validate(); err != nil {
+		return err
 	}
 
 	return nil
@@ -138,23 +125,18 @@ func (ff *fromFlags) Make() (server.Server, error) {
 		}
 	}
 
-	collector, err := ff.MetricsCollectorFromFlags.Make(logger)
+	queryHandler, err := ff.QueryHandlerFromFlags.Make(
+		logger,
+		ff.devModeVerbose(),
+		ff.devModeMockData(),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	var queryHandler handler.QueryHandler
-	if mockData {
-		queryHandler = handler.NewMockQueryHandler()
-	} else {
-		queryHandler, err = handler.NewQueryHandler(
-			ff.wavefrontServerUrl,
-			ff.wavefrontApiToken,
-			ff.devModeVerbose(),
-		)
-		if err != nil {
-			return nil, err
-		}
+	collector, err := ff.MetricsCollectorFromFlags.Make(logger)
+	if err != nil {
+		return nil, err
 	}
 
 	allowedOrigins := ff.CORSFromFlags.AllowedOrigins()
