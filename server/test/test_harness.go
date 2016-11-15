@@ -25,11 +25,13 @@ import (
 	"github.com/turbinelabs/nonstdlib/proc"
 	"github.com/turbinelabs/server/header"
 	"github.com/turbinelabs/server/http/envelope"
+	"github.com/turbinelabs/stats/client"
 	"github.com/turbinelabs/stats/server/handler"
 	"github.com/turbinelabs/test/tempfile"
 )
 
 const (
+	TestAPIKey   = "IMOK"
 	TestOrgKey   = handler.NoAuthOrgKey
 	TestZoneName = "test-zone-name"
 
@@ -95,6 +97,20 @@ func (s *StatsServerTestHarness) Start() error {
 		return fmt.Errorf("failed to create endpoint: %s", err.Error())
 	}
 
+	exec := executor.NewRetryingExecutor(
+		executor.WithRetryDelayFunc(
+			executor.NewExponentialDelayFunc(100*time.Millisecond, 30*time.Second),
+		),
+		executor.WithMaxAttempts(8),
+		executor.WithMaxQueueDepth(runtime.NumCPU()*20),
+		executor.WithParallelism(runtime.NumCPU()*2),
+	)
+
+	statsClient, err := client.NewStats(endpoint, TestAPIKey, httpClient, exec)
+	if err != nil {
+		return fmt.Errorf("failed to create stats client: %s", err.Error())
+	}
+
 	s.mockWavefrontProxy, err = StartMockWavefrontProxy(s.MockWavefrontProxyPort)
 	if err != nil {
 		return fmt.Errorf("failed to start mock wavefront proxy: %s", err.Error())
@@ -135,15 +151,6 @@ func (s *StatsServerTestHarness) Start() error {
 		return fmt.Errorf("failed to detect stats server: %s", err.Error())
 	}
 
-	exec := executor.NewRetryingExecutor(
-		executor.WithRetryDelayFunc(
-			executor.NewExponentialDelayFunc(100*time.Millisecond, 30*time.Second),
-		),
-		executor.WithMaxAttempts(8),
-		executor.WithMaxQueueDepth(runtime.NumCPU()*20),
-		executor.WithParallelism(runtime.NumCPU()*2),
-	)
-
 	var accessLogParser logparser.LogParser
 	if s.AccessLog != "" {
 		parser, err := parser.NewPositionalDelimiter(
@@ -156,17 +163,12 @@ func (s *StatsServerTestHarness) Start() error {
 			return fmt.Errorf("failed to create access log parser: %s", err.Error())
 		}
 
-		forwarder, err := forwarder.NewAPIForwarder(
+		forwarder := forwarder.NewAPIForwarder(
 			log,
-			httpClient,
-			endpoint,
-			"IMOK",
+			statsClient,
+			TestAPIKey,
 			TestZoneName,
-			exec,
 		)
-		if err != nil {
-			return fmt.Errorf("failed to create access log forwarder: %s", err.Error())
-		}
 
 		accessLogParser = logparser.New(parser, forwarder)
 		go func() {
@@ -194,20 +196,12 @@ func (s *StatsServerTestHarness) Start() error {
 			return fmt.Errorf("failed to create upstream log parser: %s", err.Error())
 		}
 
-		forwarder, err := forwarder.NewAPIForwarderForUpstreams(
+		forwarder := forwarder.NewAPIForwarderForUpstreams(
 			log,
-			httpClient,
-			endpoint,
-			"IMOK",
+			statsClient,
+			TestAPIKey,
 			TestZoneName,
-			exec,
 		)
-		if err != nil {
-			return fmt.Errorf(
-				"failed to create upstream log forwarder: %s",
-				err.Error(),
-			)
-		}
 
 		upstreamLogParser = logparser.New(parser, forwarder)
 		go func() {
@@ -360,7 +354,7 @@ func (s *StatsServerTestHarness) Query(q *handler.StatsQuery) (*handler.StatsQue
 		fmt.Println("request error", err)
 		return nil, err
 	}
-	request.Header.Add(header.APIKey, "IMOK")
+	request.Header.Add(header.APIKey, TestAPIKey)
 
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {

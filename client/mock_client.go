@@ -4,8 +4,8 @@
 package client
 
 import (
-	context "context"
 	gomock "github.com/golang/mock/gomock"
+	executor "github.com/turbinelabs/nonstdlib/executor"
 	stats "github.com/turbinelabs/stats"
 )
 
@@ -30,13 +30,54 @@ func (_m *MockStats) EXPECT() *_MockStatsRecorder {
 	return _m.recorder
 }
 
-func (_m *MockStats) Forward(_param0 context.Context, _param1 stats.StatsPayload) (stats.Result, error) {
-	ret := _m.ctrl.Call(_m, "Forward", _param0, _param1)
-	ret0, _ := ret[0].(stats.Result)
+func (_m *MockStats) Forward(_param0 *stats.StatsPayload) (*stats.Result, error) {
+	ret := _m.ctrl.Call(_m, "Forward", _param0)
+	ret0, _ := ret[0].(*stats.Result)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockStatsRecorder) Forward(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Forward", arg0, arg1)
+func (_mr *_MockStatsRecorder) Forward(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Forward", arg0)
+}
+
+func (_m *MockStats) Close() error {
+	ret := _m.ctrl.Call(_m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockStatsRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
+// Mock of internalStats interface
+type MockinternalStats struct {
+	ctrl     *gomock.Controller
+	recorder *_MockinternalStatsRecorder
+}
+
+// Recorder for MockinternalStats (not exported)
+type _MockinternalStatsRecorder struct {
+	mock *MockinternalStats
+}
+
+func NewMockinternalStats(ctrl *gomock.Controller) *MockinternalStats {
+	mock := &MockinternalStats{ctrl: ctrl}
+	mock.recorder = &_MockinternalStatsRecorder{mock}
+	return mock
+}
+
+func (_m *MockinternalStats) EXPECT() *_MockinternalStatsRecorder {
+	return _m.recorder
+}
+
+func (_m *MockinternalStats) IssueRequest(_param0 *stats.StatsPayload, _param1 executor.CallbackFunc) error {
+	ret := _m.ctrl.Call(_m, "IssueRequest", _param0, _param1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockinternalStatsRecorder) IssueRequest(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IssueRequest", arg0, arg1)
 }

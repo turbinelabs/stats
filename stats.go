@@ -10,7 +10,7 @@ type Stat struct {
 	Name      string            `json:"name"`
 	Value     float64           `json:"value"`
 	Timestamp int64             `json:"timestamp"` // microseconds since the Unix epoch, UTC
-	Tags      map[string]string `json:"tags"`
+	Tags      map[string]string `json:"tags,omitempty"`
 }
 
 // Result is a JSON-encodable struct that encapsulates the result of
