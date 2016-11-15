@@ -259,7 +259,7 @@ var queryExprMap = map[QueryType]queryExpr{
 		},
 	},
 	SuccessRate: &defaultExpr{
-		0.0,
+		1.0,
 		div{
 			sum{
 				&alignExpr{

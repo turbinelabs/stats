@@ -409,7 +409,7 @@ func (tc queryExprTestCase) run(t *testing.T, ctxt *queryContext) {
 	assert.Equal(
 		t,
 		query,
-		fmt.Sprintf("default(0, %s)", tc.expectedQuery),
+		tc.expectedQuery,
 	)
 }
 
@@ -420,14 +420,14 @@ func TestQueryExprs(t *testing.T) {
 	successfulResponsesQuery :=
 		`rawsum(align(1s, sum, ts("o.z.*.*.*.responses.1*" or "o.z.*.*.*.responses.2*" or "o.z.*.*.*.responses.3*")))`
 	testCases := []queryExprTestCase{
-		{Requests, `rawsum(align(1s, sum, ts("o.z.*.*.*.requests")))`},
-		{Responses, `rawsum(align(1s, sum, ts("o.z.*.*.*.responses.*")))`},
-		{SuccessfulResponses, successfulResponsesQuery},
-		{ErrorResponses, `rawsum(align(1s, sum, ts("o.z.*.*.*.responses.4*")))`},
-		{FailureResponses, `rawsum(align(1s, sum, ts("o.z.*.*.*.responses.5*")))`},
-		{LatencyP50, `percentile(50, align(1s, mean, ts("o.z.*.*.*.latency")))`},
-		{LatencyP99, `percentile(99, align(1s, mean, ts("o.z.*.*.*.latency")))`},
-		{SuccessRate, `(` + successfulResponsesQuery + `/rawsum(align(1s, sum, ts("o.z.*.*.*.requests"))))`},
+		{Requests, `default(0, rawsum(align(1s, sum, ts("o.z.*.*.*.requests"))))`},
+		{Responses, `default(0, rawsum(align(1s, sum, ts("o.z.*.*.*.responses.*"))))`},
+		{SuccessfulResponses, fmt.Sprintf("default(0, %s)", successfulResponsesQuery)},
+		{ErrorResponses, `default(0, rawsum(align(1s, sum, ts("o.z.*.*.*.responses.4*"))))`},
+		{FailureResponses, `default(0, rawsum(align(1s, sum, ts("o.z.*.*.*.responses.5*"))))`},
+		{LatencyP50, `default(0, percentile(50, align(1s, mean, ts("o.z.*.*.*.latency"))))`},
+		{LatencyP99, `default(0, percentile(99, align(1s, mean, ts("o.z.*.*.*.latency"))))`},
+		{SuccessRate, `default(1, (` + successfulResponsesQuery + `/rawsum(align(1s, sum, ts("o.z.*.*.*.requests")))))`},
 	}
 
 	for _, tc := range testCases {
@@ -445,7 +445,7 @@ func TestQueryExprWithTags(t *testing.T) {
 	}
 	queryExprTestCase{
 		Requests,
-		`rawsum(align(1s, sum, ts("o.z.*.*.*.requests", upstream="c" and instance="i1")))`,
+		`default(0, rawsum(align(1s, sum, ts("o.z.*.*.*.requests", upstream="c" and instance="i1"))))`,
 	}.run(t, &queryContext{ok, zn, Seconds, &qts})
 }
 
