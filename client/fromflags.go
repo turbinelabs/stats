@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/turbinelabs/api/service/http/flags"
+	"github.com/turbinelabs/api/client/flags"
 	"github.com/turbinelabs/nonstdlib/executor"
 	"github.com/turbinelabs/nonstdlib/flag"
 )

@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/turbinelabs/api"
+	apiclient "github.com/turbinelabs/api/client"
 	"github.com/turbinelabs/api/service"
-	svchttp "github.com/turbinelabs/api/service/http"
 	clienthttp "github.com/turbinelabs/client/http"
 	tbnauth "github.com/turbinelabs/server/auth"
 	"github.com/turbinelabs/server/handler"
@@ -68,7 +68,7 @@ func (a *apiAuthorizerHandler) handler(rw http.ResponseWriter, r *http.Request) 
 // Validates the given API key again the API. Returns nil if the API
 // key is valid.
 func (a *apiAuthorizerHandler) validate(apiKey string) (api.OrgKey, *httperr.Error) {
-	svc, err := svchttp.NewAdmin(a.endpoint, apiKey, a.client)
+	svc, err := apiclient.NewAdmin(a.endpoint, apiKey, a.client)
 	if err != nil {
 		return "", httperr.New500(err.Error(), httperr.UnknownTransportCode)
 	}

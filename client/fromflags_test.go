@@ -9,7 +9,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 
-	"github.com/turbinelabs/api/service/http/flags"
+	"github.com/turbinelabs/api/client/flags"
 	tbnhttp "github.com/turbinelabs/client/http"
 	"github.com/turbinelabs/nonstdlib/executor"
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
