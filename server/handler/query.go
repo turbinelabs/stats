@@ -10,7 +10,6 @@ import (
 	"github.com/turbinelabs/api"
 	apihttp "github.com/turbinelabs/api/http"
 	httperr "github.com/turbinelabs/api/http/error"
-	clienthttp "github.com/turbinelabs/client/http"
 	"github.com/turbinelabs/nonstdlib/executor"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
@@ -164,7 +163,7 @@ func NewQueryHandler(
 
 	return &queryHandler{
 		wavefrontApiToken: wavefrontApiToken,
-		client:            clienthttp.HeaderPreserving(),
+		client:            apihttp.HeaderPreservingClient(),
 		formatQueryUrl:    queryBuilder.FormatWavefrontQueryUrl,
 		verboseLogging:    verboseLogging,
 		exec:              exec,

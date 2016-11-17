@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	tbnhttp "github.com/turbinelabs/client/http"
+	apihttp "github.com/turbinelabs/api/http"
 	"github.com/turbinelabs/nonstdlib/executor"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
 	"github.com/turbinelabs/stats"
@@ -37,7 +37,7 @@ type httpBatchingStatsV1 struct {
 func NewBatchingStatsClient(
 	maxDelay time.Duration,
 	maxSize int,
-	dest tbnhttp.Endpoint,
+	dest apihttp.Endpoint,
 	apiKey string,
 	client *http.Client,
 	exec executor.Executor,

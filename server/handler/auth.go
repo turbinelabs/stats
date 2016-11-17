@@ -9,7 +9,6 @@ import (
 	apihttp "github.com/turbinelabs/api/http"
 	httperr "github.com/turbinelabs/api/http/error"
 	"github.com/turbinelabs/api/service"
-	clienthttp "github.com/turbinelabs/client/http"
 	tbnauth "github.com/turbinelabs/server/auth"
 	"github.com/turbinelabs/server/handler"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
@@ -19,7 +18,7 @@ const NoAuthOrgKey = "test-org-key"
 
 type apiAuthorizer struct {
 	client   *http.Client
-	endpoint clienthttp.Endpoint
+	endpoint apihttp.Endpoint
 	log      *log.Logger
 }
 

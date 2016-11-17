@@ -10,7 +10,7 @@ import (
 	"github.com/golang/mock/gomock"
 
 	"github.com/turbinelabs/api/client/flags"
-	tbnhttp "github.com/turbinelabs/client/http"
+	apihttp "github.com/turbinelabs/api/http"
 	"github.com/turbinelabs/nonstdlib/executor"
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 	"github.com/turbinelabs/test/assert"
@@ -42,7 +42,7 @@ func TestFromFlagsDelegatesToAPIConfigFromFlags(t *testing.T) {
 	mockExec := executor.NewMockExecutor(ctrl)
 
 	httpClient := &http.Client{}
-	endpoint, err := tbnhttp.NewEndpoint(tbnhttp.HTTPS, "example.com", 538)
+	endpoint, err := apihttp.NewEndpoint(apihttp.HTTPS, "example.com", 538)
 	assert.Nil(t, err)
 	assert.NonNil(t, endpoint)
 
@@ -71,7 +71,7 @@ func TestFromFlagsDelegatesToAPIConfigFromFlags(t *testing.T) {
 	apiConfigFromFlags.EXPECT().MakeClient().Return(httpClient)
 	apiConfigFromFlags.EXPECT().
 		MakeEndpoint().
-		Return(tbnhttp.Endpoint{}, expectedErr)
+		Return(apihttp.Endpoint{}, expectedErr)
 
 	fs = flag.NewFlagSet("stats-client", flag.PanicOnError)
 	pfs = tbnflag.NewPrefixedFlagSet(fs, "pfix", "")
@@ -94,7 +94,7 @@ func TestFromFlagsCachesClient(t *testing.T) {
 	otherMockExec := executor.NewMockExecutor(ctrl)
 
 	httpClient := &http.Client{}
-	endpoint, err := tbnhttp.NewEndpoint(tbnhttp.HTTPS, "example.com", 538)
+	endpoint, err := apihttp.NewEndpoint(apihttp.HTTPS, "example.com", 538)
 	assert.Nil(t, err)
 	assert.NonNil(t, endpoint)
 
@@ -127,7 +127,7 @@ func TestFromFlagsCreatesBatchingClient(t *testing.T) {
 	mockExec := executor.NewMockExecutor(ctrl)
 
 	httpClient := &http.Client{}
-	endpoint, err := tbnhttp.NewEndpoint(tbnhttp.HTTPS, "example.com", 538)
+	endpoint, err := apihttp.NewEndpoint(apihttp.HTTPS, "example.com", 538)
 	assert.Nil(t, err)
 	assert.NonNil(t, endpoint)
 

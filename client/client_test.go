@@ -15,9 +15,9 @@ import (
 
 	"github.com/golang/mock/gomock"
 
+	apihttp "github.com/turbinelabs/api/http"
 	"github.com/turbinelabs/api/http/envelope"
 	httperr "github.com/turbinelabs/api/http/error"
-	tbnhttp "github.com/turbinelabs/client/http"
 	"github.com/turbinelabs/logparser/metric"
 	"github.com/turbinelabs/nonstdlib/executor"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
@@ -62,7 +62,7 @@ var (
 
 	apiKey = "i.am.a.key"
 
-	endpoint, _ = tbnhttp.NewEndpoint(tbnhttp.HTTP, "example.com", 8080)
+	endpoint, _ = apihttp.NewEndpoint(apihttp.HTTP, "example.com", 8080)
 )
 
 func TestEncodePayload(t *testing.T) {
@@ -97,7 +97,7 @@ type forwardResult struct {
 type resultFunc func() (*stats.Result, error)
 type requestFunc func(StatsClient) (*stats.Result, error)
 type newStatsFunc func(
-	tbnhttp.Endpoint,
+	apihttp.Endpoint,
 	string,
 	*http.Client,
 	executor.Executor,
@@ -105,7 +105,7 @@ type newStatsFunc func(
 
 func prepareStatsClientTest(
 	t *testing.T,
-	e tbnhttp.Endpoint,
+	e apihttp.Endpoint,
 	reqFunc requestFunc,
 ) (executor.Func, executor.CallbackFunc, resultFunc) {
 	ctrl := gomock.NewController(assert.Tracing(t))
@@ -214,7 +214,7 @@ func runStatsClientFuncTest(
 	host, portStr, _ := net.SplitHostPort(server.Listener.Addr().String())
 	port, _ := net.LookupPort(server.Listener.Addr().Network(), portStr)
 
-	endpoint, err := tbnhttp.NewEndpoint(tbnhttp.HTTP, host, port)
+	endpoint, err := apihttp.NewEndpoint(apihttp.HTTP, host, port)
 	assert.Nil(t, err)
 
 	f, cb, _ := prepareStatsClientTest(t, endpoint, payloadForward(requestPayload))

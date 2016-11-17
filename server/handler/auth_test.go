@@ -17,7 +17,6 @@ import (
 	"github.com/turbinelabs/api/http/envelope"
 	httperr "github.com/turbinelabs/api/http/error"
 	"github.com/turbinelabs/api/http/header"
-	tbnhttp "github.com/turbinelabs/client/http"
 	"github.com/turbinelabs/stats"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
 	"github.com/turbinelabs/test/assert"
@@ -46,7 +45,7 @@ func mkAuthorizer(t *testing.T, server *httptest.Server) apiAuthorizer {
 }
 
 func mkAuthorizerFromHostPort(t *testing.T, host string, port int) apiAuthorizer {
-	e, err := tbnhttp.NewEndpoint(tbnhttp.HTTP, host, port)
+	e, err := apihttp.NewEndpoint(apihttp.HTTP, host, port)
 	if err != nil {
 		t.Fatal(err)
 	}

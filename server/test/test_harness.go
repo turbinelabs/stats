@@ -16,9 +16,9 @@ import (
 	"text/template"
 	"time"
 
+	apihttp "github.com/turbinelabs/api/http"
 	"github.com/turbinelabs/api/http/envelope"
 	"github.com/turbinelabs/api/http/header"
-	clienthttp "github.com/turbinelabs/client/http"
 	"github.com/turbinelabs/logparser"
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
@@ -91,8 +91,8 @@ func (s *StatsServerTestHarness) Start() error {
 		return fmt.Errorf("failed to create metric source: %s", err.Error())
 	}
 
-	httpClient := clienthttp.HeaderPreserving()
-	endpoint, err := clienthttp.NewEndpoint(clienthttp.HTTP, "127.0.0.1", s.StatsServerPort)
+	httpClient := apihttp.HeaderPreservingClient()
+	endpoint, err := apihttp.NewEndpoint(apihttp.HTTP, "127.0.0.1", s.StatsServerPort)
 	if err != nil {
 		return fmt.Errorf("failed to create endpoint: %s", err.Error())
 	}
@@ -227,7 +227,7 @@ func waitForHttp(name string, port int) error {
 		KeepAlive: 1 * time.Second,
 	}
 
-	client := clienthttp.HeaderPreserving()
+	client := apihttp.HeaderPreservingClient()
 	client.Transport = &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           dialer.DialContext,

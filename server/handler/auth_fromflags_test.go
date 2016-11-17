@@ -10,7 +10,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 
-	clienthttp "github.com/turbinelabs/client/http"
+	apihttp "github.com/turbinelabs/api/http"
 	"github.com/turbinelabs/test/assert"
 )
 
@@ -28,9 +28,9 @@ func TestAPIAuthFromFlagsMake(t *testing.T) {
 	defer ctrl.Finish()
 
 	httpClient := &http.Client{}
-	endpoint := clienthttp.Endpoint{}
+	endpoint := apihttp.Endpoint{}
 
-	clientFromFlags := clienthttp.NewMockFromFlags(ctrl)
+	clientFromFlags := apihttp.NewMockFromFlags(ctrl)
 	clientFromFlags.EXPECT().MakeClient().Return(httpClient)
 	clientFromFlags.EXPECT().MakeEndpoint().Return(endpoint, nil)
 
@@ -47,10 +47,10 @@ func TestAPIAuthFromFlagsMakeError(t *testing.T) {
 	defer ctrl.Finish()
 
 	httpClient := &http.Client{}
-	endpoint := clienthttp.Endpoint{}
+	endpoint := apihttp.Endpoint{}
 	makeErr := errors.New("")
 
-	clientFromFlags := clienthttp.NewMockFromFlags(ctrl)
+	clientFromFlags := apihttp.NewMockFromFlags(ctrl)
 	clientFromFlags.EXPECT().MakeClient().Return(httpClient)
 	clientFromFlags.EXPECT().MakeEndpoint().Return(endpoint, makeErr)
 

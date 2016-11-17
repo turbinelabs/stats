@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"strings"
 
+	apihttp "github.com/turbinelabs/api/http"
 	httperr "github.com/turbinelabs/api/http/error"
-	tbnhttp "github.com/turbinelabs/client/http"
 	"github.com/turbinelabs/nonstdlib/executor"
 	"github.com/turbinelabs/stats"
 )
@@ -43,8 +43,8 @@ type internalStatsClient interface {
 }
 
 type httpStatsV1 struct {
-	dest           tbnhttp.Endpoint
-	requestHandler tbnhttp.RequestHandler
+	dest           apihttp.Endpoint
+	requestHandler apihttp.RequestHandler
 	exec           executor.Executor
 }
 
@@ -55,7 +55,7 @@ var _ internalStatsClient = &httpStatsV1{}
 // invocation of Forward accepts a single Payload, issues a forwarding
 // request to a remote stats-server and awaits a response.
 func NewStatsClient(
-	dest tbnhttp.Endpoint,
+	dest apihttp.Endpoint,
 	apiKey string,
 	client *http.Client,
 	exec executor.Executor,
@@ -64,7 +64,7 @@ func NewStatsClient(
 }
 
 func newInternalStatsClient(
-	dest tbnhttp.Endpoint,
+	dest apihttp.Endpoint,
 	apiKey string,
 	client *http.Client,
 	exec executor.Executor,
@@ -73,7 +73,7 @@ func newInternalStatsClient(
 		return nil, fmt.Errorf("Attempting to configure StatsClient with nil *http.Client")
 	}
 
-	return &httpStatsV1{dest, tbnhttp.NewRequestHandler(client, apiKey, clientID), exec}, nil
+	return &httpStatsV1{dest, apihttp.NewRequestHandler(client, apiKey, clientID), exec}, nil
 }
 
 func encodePayload(payload *stats.StatsPayload) (string, error) {
@@ -99,7 +99,7 @@ func (hs *httpStatsV1) IssueRequest(payload *stats.StatsPayload, cb executor.Cal
 					rdr := strings.NewReader(encoded)
 					req, err := http.NewRequest(
 						"POST",
-						hs.dest.Url(forwardPath, tbnhttp.Params{}),
+						hs.dest.Url(forwardPath, apihttp.Params{}),
 						rdr)
 					if err != nil {
 						return nil, err

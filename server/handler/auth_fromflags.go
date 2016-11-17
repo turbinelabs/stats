@@ -6,7 +6,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/turbinelabs/client/http"
+	apihttp "github.com/turbinelabs/api/http"
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 	"github.com/turbinelabs/server/handler"
 )
@@ -31,13 +31,13 @@ func NewAPIAuthorizerFromFlags(flagset *flag.FlagSet) AuthorizerFromFlags {
 
 	ff := &apiAuthFromFlags{}
 
-	ff.clientFromFlags = http.NewFromFlags("api.turbinelabs.io", prefixedFlagSet)
+	ff.clientFromFlags = apihttp.NewFromFlags("api.turbinelabs.io", prefixedFlagSet)
 
 	return ff
 }
 
 type apiAuthFromFlags struct {
-	clientFromFlags http.FromFlags
+	clientFromFlags apihttp.FromFlags
 }
 
 func (ff *apiAuthFromFlags) Make(log *log.Logger) (handler.Authorizer, error) {
