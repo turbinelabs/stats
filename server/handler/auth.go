@@ -6,6 +6,7 @@ import (
 
 	"github.com/turbinelabs/api"
 	apiclient "github.com/turbinelabs/api/client"
+	apihttp "github.com/turbinelabs/api/http"
 	"github.com/turbinelabs/api/service"
 	clienthttp "github.com/turbinelabs/client/http"
 	tbnauth "github.com/turbinelabs/server/auth"
@@ -39,7 +40,7 @@ func (a *apiAuthorizer) wrap(underlying http.HandlerFunc) http.HandlerFunc {
 // Otherwise, the underlying handler is invoked.
 func (a *apiAuthorizerHandler) handler(rw http.ResponseWriter, r *http.Request) {
 	writeError := func(err *httperr.Error) {
-		rw := handler.RichResponseWriter{ResponseWriter: rw}
+		rw := apihttp.RichResponseWriter{ResponseWriter: rw}
 		rw.WriteEnvelope(err, nil)
 	}
 	apiKey, err := tbnauth.NewAPIAuthKeyFromRequest(r)

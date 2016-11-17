@@ -13,8 +13,8 @@ import (
 
 	"github.com/turbinelabs/api"
 	"github.com/turbinelabs/api/fixture"
+	apihttp "github.com/turbinelabs/api/http"
 	tbnhttp "github.com/turbinelabs/client/http"
-	"github.com/turbinelabs/server/handler"
 	"github.com/turbinelabs/server/header"
 	"github.com/turbinelabs/server/http/envelope"
 	httperr "github.com/turbinelabs/server/http/error"
@@ -96,7 +96,7 @@ type mockHandler struct {
 
 func (m *mockHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	m.requests = append(m.requests, r)
-	handler.RichResponseWriter{rw}.WriteEnvelope(m.responseErr, m.responsePayload)
+	apihttp.RichResponseWriter{rw}.WriteEnvelope(m.responseErr, m.responsePayload)
 }
 
 func TestAPIAuthorizerHandlerValidateSuccess(t *testing.T) {

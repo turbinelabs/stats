@@ -9,12 +9,12 @@ import (
 	"strings"
 
 	"github.com/turbinelabs/api"
+	apihttp "github.com/turbinelabs/api/http"
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
 	"github.com/turbinelabs/nonstdlib/ptr"
 	"github.com/turbinelabs/nonstdlib/time"
 	"github.com/turbinelabs/server"
-	"github.com/turbinelabs/server/handler"
 	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
@@ -99,7 +99,7 @@ func (f *metricsCollector) Forward(orgKey api.OrgKey, payload *stats.StatsPayloa
 
 func asHandler(f MetricsCollector) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		rrw := handler.RichResponseWriter{rw}
+		rrw := apihttp.RichResponseWriter{rw}
 
 		requestContext := requestcontext.New(r)
 		if orgKey, ok := requestContext.GetOrgKey(); ok {

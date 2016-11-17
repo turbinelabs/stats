@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/turbinelabs/api"
+	apihttp "github.com/turbinelabs/api/http"
 	clienthttp "github.com/turbinelabs/client/http"
 	"github.com/turbinelabs/nonstdlib/executor"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
-	"github.com/turbinelabs/server/handler"
 	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
 )
@@ -242,8 +242,8 @@ func validateQuery(q *StatsQuery) *httperr.Error {
 
 func mkHandlerFunc(qh QueryHandler) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		rrw := handler.RichResponseWriter{rw}
-		rr := handler.NewRichRequest(r)
+		rrw := apihttp.RichResponseWriter{rw}
+		rr := apihttp.NewRichRequest(r)
 
 		var result *StatsQueryResult
 		var err *httperr.Error
