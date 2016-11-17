@@ -9,10 +9,10 @@ import (
 
 	"github.com/turbinelabs/api"
 	apihttp "github.com/turbinelabs/api/http"
+	httperr "github.com/turbinelabs/api/http/error"
 	clienthttp "github.com/turbinelabs/client/http"
 	"github.com/turbinelabs/nonstdlib/executor"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
-	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
 )
 

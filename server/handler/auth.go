@@ -7,11 +7,11 @@ import (
 	"github.com/turbinelabs/api"
 	apiclient "github.com/turbinelabs/api/client"
 	apihttp "github.com/turbinelabs/api/http"
+	httperr "github.com/turbinelabs/api/http/error"
 	"github.com/turbinelabs/api/service"
 	clienthttp "github.com/turbinelabs/client/http"
 	tbnauth "github.com/turbinelabs/server/auth"
 	"github.com/turbinelabs/server/handler"
-	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
 )
 

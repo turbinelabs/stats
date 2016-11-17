@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"strings"
 
+	httperr "github.com/turbinelabs/api/http/error"
 	tbnhttp "github.com/turbinelabs/client/http"
 	"github.com/turbinelabs/nonstdlib/executor"
-	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats"
 )
 

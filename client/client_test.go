@@ -15,12 +15,12 @@ import (
 
 	"github.com/golang/mock/gomock"
 
+	"github.com/turbinelabs/api/http/envelope"
+	httperr "github.com/turbinelabs/api/http/error"
 	tbnhttp "github.com/turbinelabs/client/http"
 	"github.com/turbinelabs/logparser/metric"
 	"github.com/turbinelabs/nonstdlib/executor"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
-	"github.com/turbinelabs/server/http/envelope"
-	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats"
 	"github.com/turbinelabs/test/assert"
 )

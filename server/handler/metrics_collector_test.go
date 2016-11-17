@@ -14,11 +14,11 @@ import (
 	"github.com/golang/mock/gomock"
 
 	"github.com/turbinelabs/api"
+	"github.com/turbinelabs/api/http/envelope"
+	httperr "github.com/turbinelabs/api/http/error"
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
-	"github.com/turbinelabs/server/http/envelope"
-	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
 	"github.com/turbinelabs/test/assert"

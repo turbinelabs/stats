@@ -10,12 +10,12 @@ import (
 
 	"github.com/turbinelabs/api"
 	apihttp "github.com/turbinelabs/api/http"
+	httperr "github.com/turbinelabs/api/http/error"
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
 	"github.com/turbinelabs/nonstdlib/ptr"
 	"github.com/turbinelabs/nonstdlib/time"
 	"github.com/turbinelabs/server"
-	httperr "github.com/turbinelabs/server/http/error"
 	"github.com/turbinelabs/stats"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
 )

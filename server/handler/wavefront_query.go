@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/turbinelabs/api"
+	httperr "github.com/turbinelabs/api/http/error"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
-	httperr "github.com/turbinelabs/server/http/error"
 )
 
 var (
