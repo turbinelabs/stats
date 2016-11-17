@@ -14,7 +14,7 @@ import (
 )
 
 type httpBatchingStatsV1 struct {
-	internalStats
+	internalStatsClient
 
 	maxDelay time.Duration
 	maxSize  int
@@ -25,16 +25,16 @@ type httpBatchingStatsV1 struct {
 	logger *log.Logger
 }
 
-// NewBatchingStats returns a non-blocking implementation of
-// Stats. Each invocation of Forward accepts a single Payload. The
-// client will return immediately, reporting that all stats were
-// successfully sent. Internally, the stats are buffered until the
-// buffer contains at least maxSize stats or maxDelay time has elapsed
-// since the oldest stats in the buffer were added. At that point the
-// buffered stats are forwarded. Failures are logged, but not reported
-// to the caller. Separate buffers and deadlines are maintained for
-// each unique source.
-func NewBatchingStats(
+// NewBatchingStatsClient returns a non-blocking implementation of
+// StatsClient. Each invocation of Forward accepts a single
+// Payload. The client will return immediately, reporting that all
+// stats were successfully sent. Internally, the stats are buffered
+// until the buffer contains at least maxSize stats or maxDelay time
+// has elapsed since the oldest stats in the buffer were added. At
+// that point the buffered stats are forwarded. Failures are logged,
+// but not reported to the caller. Separate buffers and deadlines are
+// maintained for each unique source.
+func NewBatchingStatsClient(
 	maxDelay time.Duration,
 	maxSize int,
 	dest tbnhttp.Endpoint,
@@ -42,7 +42,7 @@ func NewBatchingStats(
 	client *http.Client,
 	exec executor.Executor,
 	logger *log.Logger,
-) (Stats, error) {
+) (StatsClient, error) {
 	if maxDelay < time.Second {
 		return nil, errors.New("max delay must be at least 1 second")
 	}
@@ -51,18 +51,18 @@ func NewBatchingStats(
 		return nil, errors.New("max size must be at least 1")
 	}
 
-	underlyingStats, err := newInternalStats(dest, apiKey, client, exec)
+	underlyingStatsClient, err := newInternalStatsClient(dest, apiKey, client, exec)
 	if err != nil {
 		return nil, err
 	}
 
 	return &httpBatchingStatsV1{
-		internalStats: underlyingStats,
-		maxDelay:      maxDelay,
-		maxSize:       maxSize,
-		batchers:      map[string]*payloadBatcher{},
-		mutex:         &sync.RWMutex{},
-		logger:        logger,
+		internalStatsClient: underlyingStatsClient,
+		maxDelay:            maxDelay,
+		maxSize:             maxSize,
+		batchers:            map[string]*payloadBatcher{},
+		mutex:               &sync.RWMutex{},
+		logger:              logger,
 	}, nil
 }
 
@@ -112,6 +112,10 @@ func (hs *httpBatchingStatsV1) Close() error {
 	}
 	hs.batchers = map[string]*payloadBatcher{}
 	return nil
+}
+
+func (hs *httpBatchingStatsV1) Stats(source string, scope ...string) stats.Stats {
+	return newStats(hs, source, scope...)
 }
 
 type payloadBatcher struct {

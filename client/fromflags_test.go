@@ -157,7 +157,7 @@ func TestFromFlagsCreatesBatchingClient(t *testing.T) {
 	statsClientImpl, ok := statsClient.(*httpBatchingStatsV1)
 	assert.True(t, ok)
 
-	underlyingStatsClientImpl, ok := statsClientImpl.internalStats.(*httpStatsV1)
+	underlyingStatsClientImpl, ok := statsClientImpl.internalStatsClient.(*httpStatsV1)
 	assert.True(t, ok)
 	assert.SameInstance(t, underlyingStatsClientImpl.exec, mockExec)
 }

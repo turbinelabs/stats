@@ -17,15 +17,15 @@ const (
 	DefaultMaxBatchSize  = 100
 )
 
-// FromFlags validates and constructs a client.Stats from command line
+// FromFlags validates and constructs a client.StatsClient from command line
 // flags.
 type FromFlags interface {
 	Validate() error
 
-	// Constructs a client.Stats using the given Executor and Logger.
-	Make(executor.Executor, *log.Logger) (Stats, error)
+	// Constructs a client.StatsClient using the given Executor and Logger.
+	Make(executor.Executor, *log.Logger) (StatsClient, error)
 
-	// Returns the API Key used to construct the client.Stats.
+	// Returns the API Key used to construct the client.StatsClient.
 	APIKey() string
 }
 
@@ -79,7 +79,7 @@ type fromFlags struct {
 	maxBatchDelay      time.Duration
 	maxBatchSize       int
 
-	cachedClient Stats
+	cachedClient StatsClient
 }
 
 func (ff *fromFlags) Validate() error {
@@ -100,7 +100,7 @@ func (ff *fromFlags) Validate() error {
 	return nil
 }
 
-func (ff *fromFlags) Make(exec executor.Executor, logger *log.Logger) (Stats, error) {
+func (ff *fromFlags) Make(exec executor.Executor, logger *log.Logger) (StatsClient, error) {
 	if ff.cachedClient != nil {
 		return ff.cachedClient, nil
 	}
@@ -112,9 +112,9 @@ func (ff *fromFlags) Make(exec executor.Executor, logger *log.Logger) (Stats, er
 		return nil, err
 	}
 
-	var stats Stats
+	var stats StatsClient
 	if ff.useBatching {
-		stats, err = NewBatchingStats(
+		stats, err = NewBatchingStatsClient(
 			ff.maxBatchDelay,
 			ff.maxBatchSize,
 			endpoint,
@@ -124,7 +124,7 @@ func (ff *fromFlags) Make(exec executor.Executor, logger *log.Logger) (Stats, er
 			logger,
 		)
 	} else {
-		stats, err = NewStats(endpoint, ff.apiConfigFromFlags.APIKey(), client, exec)
+		stats, err = NewStatsClient(endpoint, ff.apiConfigFromFlags.APIKey(), client, exec)
 	}
 
 	if err != nil {

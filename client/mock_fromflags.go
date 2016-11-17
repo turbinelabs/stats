@@ -40,9 +40,9 @@ func (_mr *_MockFromFlagsRecorder) Validate() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
 }
 
-func (_m *MockFromFlags) Make(_param0 executor.Executor, _param1 *log.Logger) (Stats, error) {
+func (_m *MockFromFlags) Make(_param0 executor.Executor, _param1 *log.Logger) (StatsClient, error) {
 	ret := _m.ctrl.Call(_m, "Make", _param0, _param1)
-	ret0, _ := ret[0].(Stats)
+	ret0, _ := ret[0].(StatsClient)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -9,75 +9,90 @@ import (
 	stats "github.com/turbinelabs/stats"
 )
 
-// Mock of Stats interface
-type MockStats struct {
+// Mock of StatsClient interface
+type MockStatsClient struct {
 	ctrl     *gomock.Controller
-	recorder *_MockStatsRecorder
+	recorder *_MockStatsClientRecorder
 }
 
-// Recorder for MockStats (not exported)
-type _MockStatsRecorder struct {
-	mock *MockStats
+// Recorder for MockStatsClient (not exported)
+type _MockStatsClientRecorder struct {
+	mock *MockStatsClient
 }
 
-func NewMockStats(ctrl *gomock.Controller) *MockStats {
-	mock := &MockStats{ctrl: ctrl}
-	mock.recorder = &_MockStatsRecorder{mock}
+func NewMockStatsClient(ctrl *gomock.Controller) *MockStatsClient {
+	mock := &MockStatsClient{ctrl: ctrl}
+	mock.recorder = &_MockStatsClientRecorder{mock}
 	return mock
 }
 
-func (_m *MockStats) EXPECT() *_MockStatsRecorder {
+func (_m *MockStatsClient) EXPECT() *_MockStatsClientRecorder {
 	return _m.recorder
 }
 
-func (_m *MockStats) Forward(_param0 *stats.StatsPayload) (*stats.Result, error) {
+func (_m *MockStatsClient) Forward(_param0 *stats.StatsPayload) (*stats.Result, error) {
 	ret := _m.ctrl.Call(_m, "Forward", _param0)
 	ret0, _ := ret[0].(*stats.Result)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockStatsRecorder) Forward(arg0 interface{}) *gomock.Call {
+func (_mr *_MockStatsClientRecorder) Forward(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Forward", arg0)
 }
 
-func (_m *MockStats) Close() error {
+func (_m *MockStatsClient) Close() error {
 	ret := _m.ctrl.Call(_m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockStatsRecorder) Close() *gomock.Call {
+func (_mr *_MockStatsClientRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-// Mock of internalStats interface
-type MockinternalStats struct {
+func (_m *MockStatsClient) Stats(source string, scope ...string) stats.Stats {
+	_s := []interface{}{source}
+	for _, _x := range scope {
+		_s = append(_s, _x)
+	}
+	ret := _m.ctrl.Call(_m, "Stats", _s...)
+	ret0, _ := ret[0].(stats.Stats)
+	return ret0
+}
+
+func (_mr *_MockStatsClientRecorder) Stats(arg0 interface{}, arg1 ...interface{}) *gomock.Call {
+	_s := append([]interface{}{arg0}, arg1...)
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stats", _s...)
+}
+
+// Mock of internalStatsClient interface
+type MockinternalStatsClient struct {
 	ctrl     *gomock.Controller
-	recorder *_MockinternalStatsRecorder
+	recorder *_MockinternalStatsClientRecorder
 }
 
-// Recorder for MockinternalStats (not exported)
-type _MockinternalStatsRecorder struct {
-	mock *MockinternalStats
+// Recorder for MockinternalStatsClient (not exported)
+type _MockinternalStatsClientRecorder struct {
+	mock *MockinternalStatsClient
 }
 
-func NewMockinternalStats(ctrl *gomock.Controller) *MockinternalStats {
-	mock := &MockinternalStats{ctrl: ctrl}
-	mock.recorder = &_MockinternalStatsRecorder{mock}
+func NewMockinternalStatsClient(ctrl *gomock.Controller) *MockinternalStatsClient {
+	mock := &MockinternalStatsClient{ctrl: ctrl}
+	mock.recorder = &_MockinternalStatsClientRecorder{mock}
 	return mock
 }
 
-func (_m *MockinternalStats) EXPECT() *_MockinternalStatsRecorder {
+func (_m *MockinternalStatsClient) EXPECT() *_MockinternalStatsClientRecorder {
 	return _m.recorder
 }
 
-func (_m *MockinternalStats) IssueRequest(_param0 *stats.StatsPayload, _param1 executor.CallbackFunc) error {
+func (_m *MockinternalStatsClient) IssueRequest(_param0 *stats.StatsPayload, _param1 executor.CallbackFunc) error {
 	ret := _m.ctrl.Call(_m, "IssueRequest", _param0, _param1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockinternalStatsRecorder) IssueRequest(arg0, arg1 interface{}) *gomock.Call {
+func (_mr *_MockinternalStatsClientRecorder) IssueRequest(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IssueRequest", arg0, arg1)
 }

@@ -95,12 +95,18 @@ type forwardResult struct {
 }
 
 type resultFunc func() (*stats.Result, error)
+type requestFunc func(StatsClient) (*stats.Result, error)
+type newStatsFunc func(
+	tbnhttp.Endpoint,
+	string,
+	*http.Client,
+	executor.Executor,
+) (StatsClient, error)
 
-func prepareStatsTest(
+func prepareStatsClientTest(
 	t *testing.T,
 	e tbnhttp.Endpoint,
-	newStatsFunc func(tbnhttp.Endpoint, string, *http.Client, executor.Executor) (Stats, error),
-	reqFunc func(Stats) (*stats.Result, error),
+	reqFunc requestFunc,
 ) (executor.Func, executor.CallbackFunc, resultFunc) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 
@@ -117,7 +123,7 @@ func prepareStatsTest(
 			},
 		)
 
-	client, err := newStatsFunc(e, apiKey, &http.Client{}, mockExec)
+	client, err := NewStatsClient(e, apiKey, &http.Client{}, mockExec)
 	assert.Nil(t, err)
 
 	rvChan := make(chan forwardResult, 1)
@@ -137,16 +143,16 @@ func prepareStatsTest(
 	}
 }
 
-func payloadForward(p *stats.StatsPayload) func(client Stats) (*stats.Result, error) {
-	return func(client Stats) (*stats.Result, error) {
+func payloadForward(p *stats.StatsPayload) func(client StatsClient) (*stats.Result, error) {
+	return func(client StatsClient) (*stats.Result, error) {
 		return client.Forward(p)
 	}
 }
 
 var simpleForward = payloadForward(payload)
 
-func TestStatsForward(t *testing.T) {
-	_, cb, getResult := prepareStatsTest(t, endpoint, NewStats, simpleForward)
+func TestStatsClientForward(t *testing.T) {
+	_, cb, getResult := prepareStatsClientTest(t, endpoint, simpleForward)
 
 	expectedResult := &stats.Result{NumAccepted: 1}
 	cb(executor.NewReturn(expectedResult))
@@ -156,8 +162,8 @@ func TestStatsForward(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestStatsForwardFailure(t *testing.T) {
-	_, cb, getResult := prepareStatsTest(t, endpoint, NewStats, simpleForward)
+func TestStatsClientForwardFailure(t *testing.T) {
+	_, cb, getResult := prepareStatsClientTest(t, endpoint, simpleForward)
 
 	expectedErr := errors.New("failure")
 	cb(executor.NewError(expectedErr))
@@ -195,7 +201,7 @@ func (h *testHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	resp.Write(bytes)
 }
 
-func runStatsFuncTest(
+func runStatsClientFuncTest(
 	t *testing.T,
 	requestPayload *stats.StatsPayload,
 	responsePayload *stats.Result,
@@ -211,7 +217,7 @@ func runStatsFuncTest(
 	endpoint, err := tbnhttp.NewEndpoint(tbnhttp.HTTP, host, port)
 	assert.Nil(t, err)
 
-	f, cb, _ := prepareStatsTest(t, endpoint, NewStats, payloadForward(requestPayload))
+	f, cb, _ := prepareStatsClientTest(t, endpoint, payloadForward(requestPayload))
 	cb(executor.NewError(errors.New("don't care about this")))
 
 	ctxt := context.Background()
@@ -223,20 +229,44 @@ func runStatsFuncTest(
 	return handler.requestPayload, response.(*stats.Result), err
 }
 
-func TestStatsForwardExecFunc(t *testing.T) {
+func TestStatsClientForwardExecFunc(t *testing.T) {
 	expectedResult := &stats.Result{NumAccepted: 12}
 
-	gotPayload, result, err := runStatsFuncTest(t, payload, expectedResult, nil)
+	gotPayload, result, err := runStatsClientFuncTest(t, payload, expectedResult, nil)
 	assert.DeepEqual(t, gotPayload, payload)
 	assert.DeepEqual(t, result, expectedResult)
 	assert.Nil(t, err)
 }
 
-func TestStatsForwardExecFuncFailure(t *testing.T) {
+func TestStatsClientForwardExecFuncFailure(t *testing.T) {
 	expectedErr := httperr.AuthorizationError()
 
-	gotPayload, result, err := runStatsFuncTest(t, payload, nil, expectedErr)
+	gotPayload, result, err := runStatsClientFuncTest(t, payload, nil, expectedErr)
 	assert.DeepEqual(t, gotPayload, payload)
 	assert.Nil(t, result)
 	assert.Equal(t, err.Error(), expectedErr.Error())
+}
+
+func TestStatsClientStats(t *testing.T) {
+	client, err := NewStatsClient(endpoint, apiKey, &http.Client{}, nil)
+	assert.NonNil(t, client)
+	assert.Nil(t, err)
+
+	s := client.Stats("source")
+	sImpl, ok := s.(*statsT)
+	assert.NonNil(t, sImpl)
+	assert.True(t, ok)
+
+	assert.SameInstance(t, sImpl.client, client)
+	assert.Equal(t, sImpl.source, "source")
+	assert.Equal(t, sImpl.scope, "")
+
+	s = client.Stats("source", "a", "b", "c")
+	sImpl, ok = s.(*statsT)
+	assert.NonNil(t, sImpl)
+	assert.True(t, ok)
+
+	assert.SameInstance(t, sImpl.client, client)
+	assert.Equal(t, sImpl.source, "source")
+	assert.Equal(t, sImpl.scope, "a/b/c")
 }

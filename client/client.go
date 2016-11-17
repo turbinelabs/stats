@@ -21,18 +21,22 @@ const (
 	forwardPath = "/v1.0/stats/forward"
 )
 
-// Stats forwards stats data to a remote stats-server.
-type Stats interface {
+// StatsClient forwards stats data to a remote stats-server.
+type StatsClient interface {
 	// Forward the given stats payload.
 	Forward(*stats.StatsPayload) (*stats.Result, error)
 
 	// Closes the client and releases any resources it created.
 	Close() error
+
+	// Creates a stats.Stats that uses this StatsClient to forward
+	// stats with the given source and optional scope.
+	Stats(source string, scope ...string) stats.Stats
 }
 
-// internalStats is an internal interface for issuing forwarding
+// internalStatsClient is an internal interface for issuing forwarding
 // requests.
-type internalStats interface {
+type internalStatsClient interface {
 	// Issues a forwarding request for the given payload with the
 	// given executor.CallbackFunc.
 	IssueRequest(*stats.StatsPayload, executor.CallbackFunc) error
@@ -44,29 +48,29 @@ type httpStatsV1 struct {
 	exec           executor.Executor
 }
 
-var _ Stats = &httpStatsV1{}
-var _ internalStats = &httpStatsV1{}
+var _ StatsClient = &httpStatsV1{}
+var _ internalStatsClient = &httpStatsV1{}
 
-// NewStats returns a blocking implementation of Stats. Each
+// NewStatsClient returns a blocking implementation of Stats. Each
 // invocation of Forward accepts a single Payload, issues a forwarding
 // request to a remote stats-server and awaits a response.
-func NewStats(
+func NewStatsClient(
 	dest tbnhttp.Endpoint,
 	apiKey string,
 	client *http.Client,
 	exec executor.Executor,
-) (Stats, error) {
-	return newInternalStats(dest, apiKey, client, exec)
+) (StatsClient, error) {
+	return newInternalStatsClient(dest, apiKey, client, exec)
 }
 
-func newInternalStats(
+func newInternalStatsClient(
 	dest tbnhttp.Endpoint,
 	apiKey string,
 	client *http.Client,
 	exec executor.Executor,
 ) (*httpStatsV1, error) {
 	if client == nil {
-		return nil, fmt.Errorf("Attempting to configure Stats with nil *http.Client")
+		return nil, fmt.Errorf("Attempting to configure StatsClient with nil *http.Client")
 	}
 
 	return &httpStatsV1{dest, tbnhttp.NewRequestHandler(client, apiKey, clientID), exec}, nil
@@ -138,4 +142,8 @@ func (hs *httpStatsV1) Forward(payload *stats.StatsPayload) (*stats.Result, erro
 
 func (hs *httpStatsV1) Close() error {
 	return nil
+}
+
+func (hs *httpStatsV1) Stats(source string, scope ...string) stats.Stats {
+	return newStats(hs, source, scope...)
 }

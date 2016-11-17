@@ -50,11 +50,11 @@ func (bt batcherTest) run(t *testing.T) {
 
 	cbfChan := make(chan executor.CallbackFunc, 2)
 
-	mockUnderlyingStats := NewMockinternalStats(ctrl)
+	mockUnderlyingStatsClient := NewMockinternalStatsClient(ctrl)
 
 	for _, payloadSize := range bt.expectedPayloadSizes {
 		expectedPayload := payloadOfSize(payloadSize)
-		mockUnderlyingStats.EXPECT().
+		mockUnderlyingStatsClient.EXPECT().
 			IssueRequest(expectedPayload, gomock.Any()).
 			Do(func(_ *stats.StatsPayload, cb executor.CallbackFunc) { cbfChan <- cb }).
 			Return(nil)
@@ -62,9 +62,9 @@ func (bt batcherTest) run(t *testing.T) {
 
 	batcher := &payloadBatcher{
 		client: &httpBatchingStatsV1{
-			internalStats: mockUnderlyingStats,
-			maxDelay:      bt.maxDelay,
-			maxSize:       bt.maxSize,
+			internalStatsClient: mockUnderlyingStatsClient,
+			maxDelay:            bt.maxDelay,
+			maxSize:             bt.maxSize,
 		},
 		source: sourceString1,
 		ch:     make(chan *stats.StatsPayload, 2*bt.maxSize),
@@ -98,13 +98,13 @@ func (bt batcherTest) run(t *testing.T) {
 	}
 }
 
-func TestNewBatchingStats(t *testing.T) {
+func TestNewBatchingStatsClient(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
 	httpClient := &http.Client{}
 	exec := executor.NewMockExecutor(ctrl)
-	client, err := NewBatchingStats(
+	client, err := NewBatchingStatsClient(
 		time.Second,
 		100,
 		endpoint,
@@ -119,8 +119,8 @@ func TestNewBatchingStats(t *testing.T) {
 	clientImpl, ok := client.(*httpBatchingStatsV1)
 	assert.True(t, ok)
 
-	assert.NonNil(t, clientImpl.internalStats)
-	underlyingImpl, ok := clientImpl.internalStats.(*httpStatsV1)
+	assert.NonNil(t, clientImpl.internalStatsClient)
+	underlyingImpl, ok := clientImpl.internalStatsClient.(*httpStatsV1)
 	assert.True(t, ok)
 	assert.DeepEqual(t, underlyingImpl.dest, endpoint)
 	assert.SameInstance(t, underlyingImpl.exec, exec)
@@ -132,7 +132,7 @@ func TestNewBatchingStats(t *testing.T) {
 	assert.NonNil(t, clientImpl.mutex)
 }
 
-func TestNewBatchingStatsValidation(t *testing.T) {
+func TestNewBatchingStatsClientValidation(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
@@ -140,11 +140,11 @@ func TestNewBatchingStatsValidation(t *testing.T) {
 	exec := executor.NewMockExecutor(ctrl)
 	log := log.NewNoopLogger()
 
-	client, err := NewBatchingStats(time.Second, 100, endpoint, apiKey, nil, exec, log)
+	client, err := NewBatchingStatsClient(time.Second, 100, endpoint, apiKey, nil, exec, log)
 	assert.Nil(t, client)
 	assert.NonNil(t, err)
 
-	client, err = NewBatchingStats(
+	client, err = NewBatchingStatsClient(
 		999*time.Millisecond,
 		1,
 		endpoint,
@@ -156,7 +156,15 @@ func TestNewBatchingStatsValidation(t *testing.T) {
 	assert.Nil(t, client)
 	assert.ErrorContains(t, err, "max delay must be at least 1 second")
 
-	client, err = NewBatchingStats(time.Second, 0, endpoint, apiKey, httpClient, exec, log)
+	client, err = NewBatchingStatsClient(
+		time.Second,
+		0,
+		endpoint,
+		apiKey,
+		httpClient,
+		exec,
+		log,
+	)
 	assert.Nil(t, client)
 	assert.ErrorContains(t, err, "max size must be at least 1")
 }
@@ -365,4 +373,36 @@ func TestPayloadBatcherRunSendsOnClose(t *testing.T) {
 			)
 		},
 	}.run(t)
+}
+
+func TestBatchingStatsClientStats(t *testing.T) {
+	client, err := NewBatchingStatsClient(
+		time.Second,
+		100,
+		endpoint,
+		apiKey,
+		&http.Client{},
+		nil,
+		log.NewNoopLogger(),
+	)
+	assert.NonNil(t, client)
+	assert.Nil(t, err)
+
+	s := client.Stats("source")
+	sImpl, ok := s.(*statsT)
+	assert.NonNil(t, sImpl)
+	assert.True(t, ok)
+
+	assert.SameInstance(t, sImpl.client, client)
+	assert.Equal(t, sImpl.source, "source")
+	assert.Equal(t, sImpl.scope, "")
+
+	s = client.Stats("source", "a", "b", "c")
+	sImpl, ok = s.(*statsT)
+	assert.NonNil(t, sImpl)
+	assert.True(t, ok)
+
+	assert.SameInstance(t, sImpl.client, client)
+	assert.Equal(t, sImpl.source, "source")
+	assert.Equal(t, sImpl.scope, "a/b/c")
 }

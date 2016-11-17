@@ -106,7 +106,7 @@ func (s *StatsServerTestHarness) Start() error {
 		executor.WithParallelism(runtime.NumCPU()*2),
 	)
 
-	statsClient, err := client.NewStats(endpoint, TestAPIKey, httpClient, exec)
+	statsClient, err := client.NewStatsClient(endpoint, TestAPIKey, httpClient, exec)
 	if err != nil {
 		return fmt.Errorf("failed to create stats client: %s", err.Error())
 	}
