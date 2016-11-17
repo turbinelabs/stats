@@ -36,7 +36,7 @@ func MkRoutes(
 		),
 	}
 
-	addCORSOrigin := serverhandler.CORSOriginAnnotator(allowedOrigins)
+	addCORSOrigin := cors.OriginAnnotator(allowedOrigins)
 
 	for _, r := range routes {
 		r.SetCORSFilter(addCORSOrigin)

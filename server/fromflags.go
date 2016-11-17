@@ -6,12 +6,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/turbinelabs/api/http/header"
 	"github.com/turbinelabs/nonstdlib/arrays/indexof"
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 	"github.com/turbinelabs/server"
 	"github.com/turbinelabs/server/cors"
 	serverhandler "github.com/turbinelabs/server/handler"
-	"github.com/turbinelabs/server/header"
 	"github.com/turbinelabs/stats/server/handler"
 	"github.com/turbinelabs/stats/server/route"
 	"github.com/turbinelabs/statsd"
