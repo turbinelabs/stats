@@ -135,7 +135,7 @@ func TestAPIAuthorizerHandlerValidateTransportError(t *testing.T) {
 	orgKey, err := auth.validate("123")
 	assert.Equal(t, orgKey, api.OrgKey(""))
 	assert.NonNil(t, err)
-	assert.Equal(t, err.Status, 400) // you'd expect a 500: see api/server/http.requestHandler
+	assert.Equal(t, err.Status, 400) // you'd expect a 500: see apiserver/http.requestHandler
 	assert.Equal(t, err.Code, httperr.UnknownTransportCode)
 	assert.NotEqual(t, err.Message, "")
 }
