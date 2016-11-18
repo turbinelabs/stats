@@ -51,7 +51,7 @@ func NewFromFlags(pfs *flag.PrefixedFlagSet, options ...ClientOption) FromFlags 
 	pfs.BoolVar(
 		&ff.useBatching,
 		"batch",
-		false,
+		true,
 		"If true, {{NAME}} requests are batched together for performance.",
 	)
 

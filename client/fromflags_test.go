@@ -54,6 +54,10 @@ func TestFromFlagsDelegatesToAPIConfigFromFlags(t *testing.T) {
 	ff := NewFromFlags(pfs, WithAPIConfigFromFlags(apiConfigFromFlags))
 	assert.NonNil(t, ff)
 
+	fs.Parse([]string{
+		"-pfix.batch=false",
+	})
+
 	ffImpl := ff.(*fromFlags)
 	assert.False(t, ffImpl.useBatching)
 	assert.Equal(t, ffImpl.maxBatchDelay, DefaultMaxBatchDelay)
@@ -140,7 +144,6 @@ func TestFromFlagsCreatesBatchingClient(t *testing.T) {
 	assert.NonNil(t, ff)
 
 	fs.Parse([]string{
-		"-pfix.batch=true",
 		"-pfix.max-batch-delay=5s",
 		"-pfix.max-batch-size=99",
 	})
