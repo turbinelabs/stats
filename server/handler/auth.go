@@ -48,7 +48,7 @@ func (a *apiAuthorizerHandler) handler(rw http.ResponseWriter, r *http.Request) 
 		writeError(httperr.AuthorizationError())
 		return
 	}
-	if apiKey.AuthSystem() != tbnauth.InternalAuthSystem {
+	if tbnauth.AuthSystemForAuthKey(apiKey) != tbnauth.InternalAuthSystem {
 		log.Println("Only internal authorization is supported")
 		writeError(httperr.AuthorizationMethodDeniedError())
 		return
@@ -73,7 +73,7 @@ func (a *apiAuthorizerHandler) validate(apiKey string) (api.OrgKey, *httperr.Err
 		return "", httperr.New500(err.Error(), httperr.UnknownTransportCode)
 	}
 
-	filter := service.UserFilter{APIAuthKey: tbnauth.APIAuthKey(apiKey)}
+	filter := service.UserFilter{APIAuthKey: api.APIAuthKey(apiKey)}
 	users, err := svc.User().Index(filter)
 	if err != nil {
 		return "", httperr.FromError(err, httperr.UnknownTransportCode)
