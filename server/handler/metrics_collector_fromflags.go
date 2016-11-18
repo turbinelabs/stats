@@ -3,6 +3,7 @@ package handler
 //go:generate mockgen -source $GOFILE -destination mock_$GOFILE -package $GOPACKAGE
 
 import (
+	"errors"
 	"flag"
 	"log"
 
@@ -38,14 +39,26 @@ func NewMetricsCollectorFromFlags(flagset *flag.FlagSet) MetricsCollectorFromFla
 		forwarder.DisableTurbineAPIForwarding(),
 	)
 
+	pfs.IntVar(
+		&ff.bufferSize,
+		"buffer-size",
+		0,
+		"Sets the size of the buffer used when forwarding stats. If 0, stats forwarding requests will not complete until metrics have been forwarded. If non-zero and the buffer is full, forwarding requests will fail.",
+	)
+
 	return ff
 }
 
 type metricsCollectorFromFlags struct {
 	forwarderFromFlags forwarder.FromFlags
+	bufferSize         int
 }
 
 func (ff *metricsCollectorFromFlags) Validate() error {
+	if ff.bufferSize < 0 {
+		return errors.New("buffer-size must not be negative")
+	}
+
 	return ff.forwarderFromFlags.Validate()
 }
 
@@ -53,6 +66,10 @@ func (ff *metricsCollectorFromFlags) Make(log *log.Logger) (MetricsCollector, er
 	fwd, err := ff.forwarderFromFlags.Make(log)
 	if err != nil {
 		return nil, err
+	}
+
+	if ff.bufferSize > 0 {
+		fwd = forwarder.NewAsyncForwarder(log, fwd, ff.bufferSize)
 	}
 
 	return NewMetricsCollector(fwd), nil
