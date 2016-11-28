@@ -9,8 +9,9 @@ import (
 
 	apihttp "github.com/turbinelabs/api/http"
 	"github.com/turbinelabs/nonstdlib/executor"
+	"github.com/turbinelabs/nonstdlib/stats"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
-	"github.com/turbinelabs/stats"
+	statsapi "github.com/turbinelabs/stats"
 )
 
 type httpBatchingStatsV1 struct {
@@ -82,7 +83,7 @@ func (hs *httpBatchingStatsV1) newBatcher(source string) *payloadBatcher {
 		batcher = &payloadBatcher{
 			client: hs,
 			source: source,
-			ch:     make(chan *stats.StatsPayload, 10),
+			ch:     make(chan *statsapi.StatsPayload, 10),
 		}
 
 		hs.batchers[source] = batcher
@@ -92,7 +93,7 @@ func (hs *httpBatchingStatsV1) newBatcher(source string) *payloadBatcher {
 	return batcher
 }
 
-func (hs *httpBatchingStatsV1) Forward(payload *stats.StatsPayload) (*stats.Result, error) {
+func (hs *httpBatchingStatsV1) Forward(payload *statsapi.StatsPayload) (*statsapi.Result, error) {
 	batcher := hs.getBatcher(payload.Source)
 	if batcher == nil {
 		batcher = hs.newBatcher(payload.Source)
@@ -100,7 +101,7 @@ func (hs *httpBatchingStatsV1) Forward(payload *stats.StatsPayload) (*stats.Resu
 
 	batcher.ch <- payload
 
-	return &stats.Result{NumAccepted: len(payload.Stats)}, nil
+	return &statsapi.Result{NumAccepted: len(payload.Stats)}, nil
 }
 
 func (hs *httpBatchingStatsV1) Close() error {
@@ -121,7 +122,7 @@ func (hs *httpBatchingStatsV1) Stats(source string, scope ...string) stats.Stats
 type payloadBatcher struct {
 	client *httpBatchingStatsV1
 	source string
-	ch     chan *stats.StatsPayload
+	ch     chan *statsapi.StatsPayload
 }
 
 func (b *payloadBatcher) start() {
@@ -129,7 +130,7 @@ func (b *payloadBatcher) start() {
 }
 
 func (b *payloadBatcher) run(timer tbntime.Timer) {
-	buffer := make([]stats.Stat, 0, b.client.maxSize)
+	buffer := make([]statsapi.Stat, 0, b.client.maxSize)
 
 	if !timer.Stop() {
 		<-timer.C()
@@ -168,8 +169,8 @@ func (b *payloadBatcher) run(timer tbntime.Timer) {
 	}
 }
 
-func (b *payloadBatcher) forward(s []stats.Stat) {
-	payload := &stats.StatsPayload{
+func (b *payloadBatcher) forward(s []statsapi.Stat) {
+	payload := &statsapi.StatsPayload{
 		Source: b.source,
 		Stats:  s,
 	}

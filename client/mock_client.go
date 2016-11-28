@@ -6,6 +6,7 @@ package client
 import (
 	gomock "github.com/golang/mock/gomock"
 	executor "github.com/turbinelabs/nonstdlib/executor"
+	stats0 "github.com/turbinelabs/nonstdlib/stats"
 	stats "github.com/turbinelabs/stats"
 )
 
@@ -51,13 +52,13 @@ func (_mr *_MockStatsClientRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockStatsClient) Stats(source string, scope ...string) stats.Stats {
+func (_m *MockStatsClient) Stats(source string, scope ...string) stats0.Stats {
 	_s := []interface{}{source}
 	for _, _x := range scope {
 		_s = append(_s, _x)
 	}
 	ret := _m.ctrl.Call(_m, "Stats", _s...)
-	ret0, _ := ret[0].(stats.Stats)
+	ret0, _ := ret[0].(stats0.Stats)
 	return ret0
 }
 

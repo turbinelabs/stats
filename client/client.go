@@ -12,7 +12,8 @@ import (
 	apihttp "github.com/turbinelabs/api/http"
 	httperr "github.com/turbinelabs/api/http/error"
 	"github.com/turbinelabs/nonstdlib/executor"
-	"github.com/turbinelabs/stats"
+	"github.com/turbinelabs/nonstdlib/stats"
+	statsapi "github.com/turbinelabs/stats"
 )
 
 const (
@@ -24,7 +25,7 @@ const (
 // StatsClient forwards stats data to a remote stats-server.
 type StatsClient interface {
 	// Forward the given stats payload.
-	Forward(*stats.StatsPayload) (*stats.Result, error)
+	Forward(*statsapi.StatsPayload) (*statsapi.Result, error)
 
 	// Closes the client and releases any resources it created.
 	Close() error
@@ -39,7 +40,7 @@ type StatsClient interface {
 type internalStatsClient interface {
 	// Issues a forwarding request for the given payload with the
 	// given executor.CallbackFunc.
-	IssueRequest(*stats.StatsPayload, executor.CallbackFunc) error
+	IssueRequest(*statsapi.StatsPayload, executor.CallbackFunc) error
 }
 
 type httpStatsV1 struct {
@@ -76,7 +77,7 @@ func newInternalStatsClient(
 	return &httpStatsV1{dest, apihttp.NewRequestHandler(client, apiKey, clientID), exec}, nil
 }
 
-func encodePayload(payload *stats.StatsPayload) (string, error) {
+func encodePayload(payload *statsapi.StatsPayload) (string, error) {
 	if b, err := json.Marshal(payload); err == nil {
 		return string(b), nil
 	} else {
@@ -85,7 +86,7 @@ func encodePayload(payload *stats.StatsPayload) (string, error) {
 	}
 }
 
-func (hs *httpStatsV1) IssueRequest(payload *stats.StatsPayload, cb executor.CallbackFunc) error {
+func (hs *httpStatsV1) IssueRequest(payload *statsapi.StatsPayload, cb executor.CallbackFunc) error {
 	encoded, err := encodePayload(payload)
 	if err != nil {
 		return err
@@ -93,7 +94,7 @@ func (hs *httpStatsV1) IssueRequest(payload *stats.StatsPayload, cb executor.Cal
 
 	hs.exec.Exec(
 		func(ctxt context.Context) (interface{}, error) {
-			response := &stats.Result{}
+			response := &statsapi.Result{}
 			if err := hs.requestHandler.Do(
 				func() (*http.Request, error) {
 					rdr := strings.NewReader(encoded)
@@ -118,7 +119,7 @@ func (hs *httpStatsV1) IssueRequest(payload *stats.StatsPayload, cb executor.Cal
 	return nil
 }
 
-func (hs *httpStatsV1) Forward(payload *stats.StatsPayload) (*stats.Result, error) {
+func (hs *httpStatsV1) Forward(payload *statsapi.StatsPayload) (*statsapi.Result, error) {
 	responseChan := make(chan executor.Try, 1)
 	defer close(responseChan)
 
@@ -136,7 +137,7 @@ func (hs *httpStatsV1) Forward(payload *stats.StatsPayload) (*stats.Result, erro
 	if try.IsError() {
 		return nil, try.Error()
 	} else {
-		return try.Get().(*stats.Result), nil
+		return try.Get().(*statsapi.Result), nil
 	}
 }
 

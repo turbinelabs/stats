@@ -4,8 +4,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/turbinelabs/nonstdlib/stats"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
-	"github.com/turbinelabs/stats"
+	statsapi "github.com/turbinelabs/stats"
 )
 
 func newStats(client StatsClient, source string, scope ...string) stats.Stats {
@@ -30,9 +31,9 @@ func (s *statsT) stat(name string, value float64) error {
 		name = s.scope + "/" + name
 	}
 
-	payload := &stats.StatsPayload{
+	payload := &statsapi.StatsPayload{
 		Source: s.source,
-		Stats: []stats.Stat{
+		Stats: []statsapi.Stat{
 			{
 				Name:      name,
 				Value:     value,
