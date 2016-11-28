@@ -12,6 +12,9 @@ import (
 	"time"
 
 	"github.com/turbinelabs/api"
+	statsapi "github.com/turbinelabs/api/service/stats"
+	"github.com/turbinelabs/api/service/stats/querytype"
+	"github.com/turbinelabs/api/service/stats/timegranularity"
 	"github.com/turbinelabs/nonstdlib/executor"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
@@ -248,11 +251,11 @@ func testRuleKeyValidation(
 	valid bool,
 ) {
 	ruleKey := api.RuleKey("some-rule-key")
-	query := &StatsQuery{
+	query := &statsapi.Query{
 		ZoneName: "zone_name",
-		TimeSeries: []StatsQueryTimeSeries{
+		TimeSeries: []statsapi.QueryTimeSeries{
 			{
-				QueryType:      Requests,
+				QueryType:      querytype.Requests,
 				RouteKey:       routeKey,
 				SharedRuleName: sharedRuleName,
 				RuleKey:        &ruleKey,
@@ -272,12 +275,12 @@ func testRuleKeyValidation(
 		)
 	}
 
-	query = &StatsQuery{
+	query = &statsapi.Query{
 		ZoneName: "zone_name",
-		TimeSeries: []StatsQueryTimeSeries{
+		TimeSeries: []statsapi.QueryTimeSeries{
 			{
 				Name:           "this query",
-				QueryType:      Requests,
+				QueryType:      querytype.Requests,
 				RouteKey:       routeKey,
 				SharedRuleName: sharedRuleName,
 				RuleKey:        &ruleKey,
@@ -330,10 +333,10 @@ func testRunQuery(t *testing.T, useHumaneEncoding bool) {
 	formatTestQueryUrl :=
 		func(
 			start, end int64,
-			granularity TimeGranularity,
+			granularity timegranularity.TimeGranularity,
 			orgKey api.OrgKey,
 			zoneName string,
-			qts *StatsQueryTimeSeries,
+			qts *statsapi.QueryTimeSeries,
 		) string {
 			return server.URL
 		}
@@ -361,7 +364,7 @@ func testRunQuery(t *testing.T, useHumaneEncoding bool) {
 
 	assert.Equal(t, rw.Code, 200)
 
-	err := json.Unmarshal(rw.Body.Bytes(), &StatsQueryResult{})
+	err := json.Unmarshal(rw.Body.Bytes(), &statsapi.QueryResult{})
 	assert.Nil(t, err)
 }
 
@@ -386,7 +389,7 @@ func boundedTest(truncateTo time.Duration, f func(assertTimeWithinBoundsFunc)) {
 
 func TestNormalizeTimeRangeDefault(t *testing.T) {
 	boundedTest(time.Second, func(assertTimeWithinBounds assertTimeWithinBoundsFunc) {
-		start, end, err := normalizeTimeRange(StatsTimeRange{})
+		start, end, err := normalizeTimeRange(statsapi.TimeRange{})
 
 		assertTimeWithinBounds(t, tbntime.FromUnixMicro(end))
 		assert.Equal(t, start, end-3600000000)
@@ -396,23 +399,23 @@ func TestNormalizeTimeRangeDefault(t *testing.T) {
 
 func TestNormalizeTimeRangeErrors(t *testing.T) {
 	when := tbntime.ToUnixMicro(time.Now())
-	start, end, err := normalizeTimeRange(StatsTimeRange{End: &when})
+	start, end, err := normalizeTimeRange(statsapi.TimeRange{End: &when})
 	assert.Equal(t, start, int64(0))
 	assert.Equal(t, end, int64(0))
 	assert.ErrorContains(t, err, "time range start is not set")
 
-	start, end, err = normalizeTimeRange(StatsTimeRange{Start: &when, End: &when})
+	start, end, err = normalizeTimeRange(statsapi.TimeRange{Start: &when, End: &when})
 	assert.Equal(t, start, int64(0))
 	assert.Equal(t, end, int64(0))
 	assert.ErrorContains(t, err, "empty time range: start equals end")
 
 	zeroDuration := int64(0)
-	start, end, err = normalizeTimeRange(StatsTimeRange{Start: &when, Duration: &zeroDuration})
+	start, end, err = normalizeTimeRange(statsapi.TimeRange{Start: &when, Duration: &zeroDuration})
 	assert.Equal(t, start, int64(0))
 	assert.Equal(t, end, int64(0))
 	assert.ErrorContains(t, err, "empty time range: duration is zero")
 
-	start, end, err = normalizeTimeRange(StatsTimeRange{Start: &when})
+	start, end, err = normalizeTimeRange(statsapi.TimeRange{Start: &when})
 	assert.Equal(t, start, int64(0))
 	assert.Equal(t, end, int64(0))
 	assert.ErrorContains(t, err, "time range start is set, but not end or duration")
@@ -423,7 +426,7 @@ func TestNormalizeTimeRangeStartEnd(t *testing.T) {
 	start := end - 180000000
 
 	normalizedStart, normalizedEnd, err := normalizeTimeRange(
-		StatsTimeRange{Start: &start, End: &end},
+		statsapi.TimeRange{Start: &start, End: &end},
 	)
 
 	assert.Equal(t, normalizedStart, start)
@@ -432,7 +435,7 @@ func TestNormalizeTimeRangeStartEnd(t *testing.T) {
 
 	// reversed start/end
 	normalizedStart, normalizedEnd, err = normalizeTimeRange(
-		StatsTimeRange{Start: &end, End: &start},
+		statsapi.TimeRange{Start: &end, End: &start},
 	)
 
 	assert.Equal(t, normalizedStart, start)
@@ -443,7 +446,7 @@ func TestNormalizeTimeRangeStartEnd(t *testing.T) {
 func TestNormalizeTimeRangeDuration(t *testing.T) {
 	boundedTest(time.Second, func(assertTimeWithinBounds assertTimeWithinBoundsFunc) {
 		duration := int64(7200000000)
-		start, end, err := normalizeTimeRange(StatsTimeRange{Duration: &duration})
+		start, end, err := normalizeTimeRange(statsapi.TimeRange{Duration: &duration})
 
 		assertTimeWithinBounds(t, tbntime.FromUnixMicro(end))
 		assert.Equal(t, start, end-7200000000)
@@ -457,7 +460,7 @@ func TestNormalizeTimeRangeStartDuration(t *testing.T) {
 	start := end - duration
 
 	normalizedStart, normalizedEnd, err := normalizeTimeRange(
-		StatsTimeRange{Start: &start, Duration: &duration},
+		statsapi.TimeRange{Start: &start, Duration: &duration},
 	)
 
 	assert.Equal(t, normalizedStart, start)
@@ -620,24 +623,24 @@ func TestMakeQueryResult(t *testing.T) {
 	end := tbntime.ToUnixMicro(time.Now().Truncate(time.Second))
 	start := end - duration
 
-	queries := []StatsQueryTimeSeries{
-		{Name: "this one", QueryType: Responses},
-		{Name: "that one", QueryType: Requests},
+	queries := []statsapi.QueryTimeSeries{
+		{Name: "this one", QueryType: querytype.Responses},
+		{Name: "that one", QueryType: querytype.Requests},
 	}
 
-	results := []StatsTimeSeries{
-		{Points: []StatsPoint{{Value: 1.0, Timestamp: start}}},
-		{Points: []StatsPoint{{Value: 2.0, Timestamp: start}}},
+	results := []statsapi.TimeSeries{
+		{Points: []statsapi.Point{{Value: 1.0, Timestamp: start}}},
+		{Points: []statsapi.Point{{Value: 2.0, Timestamp: start}}},
 	}
 
-	r, err := makeQueryResult(start, end, Minutes, queries, results)
+	r, err := makeQueryResult(start, end, timegranularity.Minutes, queries, results)
 
 	assert.Nil(t, err)
 
 	assert.Equal(t, *r.TimeRange.Start, start)
 	assert.Equal(t, *r.TimeRange.End, end)
 	assert.Equal(t, *r.TimeRange.Duration, duration)
-	assert.Equal(t, r.TimeRange.Granularity, Minutes)
+	assert.Equal(t, r.TimeRange.Granularity, timegranularity.Minutes)
 
 	assert.Equal(t, len(r.TimeSeries), len(queries))
 	assert.DeepEqual(t, r.TimeSeries[0].Query, queries[0])
@@ -649,9 +652,9 @@ func TestMakeQueryResultMismatchedInput(t *testing.T) {
 	r, err := makeQueryResult(
 		0,
 		0,
-		Hours,
-		[]StatsQueryTimeSeries{{Name: "name"}},
-		[]StatsTimeSeries{},
+		timegranularity.Hours,
+		[]statsapi.QueryTimeSeries{{Name: "name"}},
+		[]statsapi.TimeSeries{},
 	)
 
 	assert.Nil(t, r)
@@ -689,5 +692,5 @@ func testJsonAndFormTagsMatch(t testing.TB, typeRef reflect.Type) {
 }
 
 func TestJsonAndFormTagsMatch(t *testing.T) {
-	testJsonAndFormTagsMatch(t, reflect.TypeOf(StatsQuery{}))
+	testJsonAndFormTagsMatch(t, reflect.TypeOf(statsapi.Query{}))
 }

@@ -10,11 +10,14 @@ import (
 
 	"github.com/turbinelabs/api"
 	httperr "github.com/turbinelabs/api/http/error"
+	statsapi "github.com/turbinelabs/api/service/stats"
+	"github.com/turbinelabs/api/service/stats/querytype"
+	"github.com/turbinelabs/api/service/stats/timegranularity"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
 )
 
 var (
-	emptyTimeSeries   = StatsTimeSeries{}
+	emptyTimeSeries   = statsapi.TimeSeries{}
 	emptyResponseErr  = httperr.New500("empty response", httperr.UnknownTransportCode)
 	unexpectedDataErr = httperr.New500(
 		"unexpected data beyond query response",
@@ -55,8 +58,8 @@ type wavefrontPoint [2]float64
 type queryContext struct {
 	orgKey      api.OrgKey
 	zoneName    string
-	granularity TimeGranularity
-	qts         *StatsQueryTimeSeries
+	granularity timegranularity.TimeGranularity
+	qts         *statsapi.QueryTimeSeries
 }
 
 type queryExpr interface {
@@ -85,7 +88,7 @@ func (e *simpleQueryExpr) Metrics(ctxt *queryContext) []string {
 }
 
 type suffixedQueryExpr struct {
-	queryType QueryType
+	queryType querytype.QueryType
 	suffix    string
 }
 
@@ -204,41 +207,41 @@ var _ queryExpr = &defaultExpr{}
 var _ queryExpr = &percentileExpr{}
 var _ queryExpr = &alignExpr{}
 
-var queryExprMap = map[QueryType]queryExpr{
-	Requests:  &defaultExpr{0.0, &sum{&alignExpr{"sum", &simpleQueryExpr{}}}},
-	Responses: &defaultExpr{0.0, &sum{&alignExpr{"sum", &suffixedQueryExpr{Responses, "*"}}}},
-	SuccessfulResponses: &defaultExpr{
+var queryExprMap = map[querytype.QueryType]queryExpr{
+	querytype.Requests:  &defaultExpr{0.0, &sum{&alignExpr{"sum", &simpleQueryExpr{}}}},
+	querytype.Responses: &defaultExpr{0.0, &sum{&alignExpr{"sum", &suffixedQueryExpr{querytype.Responses, "*"}}}},
+	querytype.SuccessfulResponses: &defaultExpr{
 		0.0,
 		&sum{
 			&alignExpr{
 				"sum",
 				or{
-					&suffixedQueryExpr{Responses, "1*"},
-					&suffixedQueryExpr{Responses, "2*"},
-					&suffixedQueryExpr{Responses, "3*"},
+					&suffixedQueryExpr{querytype.Responses, "1*"},
+					&suffixedQueryExpr{querytype.Responses, "2*"},
+					&suffixedQueryExpr{querytype.Responses, "3*"},
 				},
 			},
 		},
 	},
-	ErrorResponses: &defaultExpr{
+	querytype.ErrorResponses: &defaultExpr{
 		0.0,
 		&sum{
 			&alignExpr{
 				"sum",
-				&suffixedQueryExpr{Responses, "4*"},
+				&suffixedQueryExpr{querytype.Responses, "4*"},
 			},
 		},
 	},
-	FailureResponses: &defaultExpr{
+	querytype.FailureResponses: &defaultExpr{
 		0.0,
 		&sum{
 			&alignExpr{
 				"sum",
-				&suffixedQueryExpr{Responses, "5*"},
+				&suffixedQueryExpr{querytype.Responses, "5*"},
 			},
 		},
 	},
-	LatencyP50: &defaultExpr{
+	querytype.LatencyP50: &defaultExpr{
 		0.0,
 		&percentileExpr{
 			50.0,
@@ -248,7 +251,7 @@ var queryExprMap = map[QueryType]queryExpr{
 			},
 		},
 	},
-	LatencyP99: &defaultExpr{
+	querytype.LatencyP99: &defaultExpr{
 		0.0,
 		&percentileExpr{
 			99.0,
@@ -258,23 +261,23 @@ var queryExprMap = map[QueryType]queryExpr{
 			},
 		},
 	},
-	SuccessRate: &defaultExpr{
+	querytype.SuccessRate: &defaultExpr{
 		1.0,
 		div{
 			sum{
 				&alignExpr{
 					"sum",
 					or{
-						&suffixedQueryExpr{Responses, "1*"},
-						&suffixedQueryExpr{Responses, "2*"},
-						&suffixedQueryExpr{Responses, "3*"},
+						&suffixedQueryExpr{querytype.Responses, "1*"},
+						&suffixedQueryExpr{querytype.Responses, "2*"},
+						&suffixedQueryExpr{querytype.Responses, "3*"},
 					},
 				},
 			},
 			sum{
 				&alignExpr{
 					"sum",
-					&suffixedQueryExpr{Requests, ""},
+					&suffixedQueryExpr{querytype.Requests, ""},
 				},
 			},
 		},
@@ -298,7 +301,7 @@ func escape(s string) string {
 	}, s)
 }
 
-// Given org and zone keys and a StatsQueryTimeSeries, produce a
+// Given org and zone keys and a QueryTimeSeries, produce a
 // string containing the appropriate metric name.
 func formatMetric(
 	orgKey api.OrgKey,
@@ -306,10 +309,10 @@ func formatMetric(
 	domainHost *string,
 	routeKey *api.RouteKey,
 	method *string,
-	queryType QueryType,
+	queryType querytype.QueryType,
 ) string {
 	metricName := queryType.String()
-	if queryType == LatencyP50 || queryType == LatencyP99 {
+	if queryType == querytype.LatencyP50 || queryType == querytype.LatencyP99 {
 		metricName = "latency"
 	}
 
@@ -340,10 +343,10 @@ func formatMetric(
 	return strings.Join(parts, ".")
 }
 
-// Given a metric name and a StatsQueryTimeSeries, produces a
+// Given a metric name and a QueryTimeSeries, produces a
 // wavefront query with source tag filters for instances and/or
 // clusters.
-func formatQuery(metrics []string, qts *StatsQueryTimeSeries) string {
+func formatQuery(metrics []string, qts *statsapi.QueryTimeSeries) string {
 	tagExprs := make([]string, 0, 4)
 
 	if qts.RuleKey != nil {
@@ -382,13 +385,13 @@ func formatQuery(metrics []string, qts *StatsQueryTimeSeries) string {
 	}
 }
 
-func granularityToUnit(g TimeGranularity) string {
+func granularityToUnit(g timegranularity.TimeGranularity) string {
 	switch g {
-	case Seconds:
+	case timegranularity.Seconds:
 		return "s"
-	case Minutes:
+	case timegranularity.Minutes:
 		return "m"
-	case Hours:
+	case timegranularity.Hours:
 		return "h"
 	default:
 		return "s"
@@ -399,10 +402,10 @@ func granularityToUnit(g TimeGranularity) string {
 func (builder wavefrontQueryBuilder) FormatWavefrontQueryUrl(
 	startMicros int64,
 	endMicros int64,
-	granularity TimeGranularity,
+	granularity timegranularity.TimeGranularity,
 	orgKey api.OrgKey,
 	zoneName string,
-	qts *StatsQueryTimeSeries,
+	qts *statsapi.QueryTimeSeries,
 ) string {
 	startSeconds := tbntime.FromUnixMicro(startMicros).Unix()
 	endSeconds := tbntime.FromUnixMicro(endMicros).Unix()
@@ -421,7 +424,7 @@ func (builder wavefrontQueryBuilder) FormatWavefrontQueryUrl(
 
 	var summarization string
 	switch qts.QueryType {
-	case LatencyP50, LatencyP99:
+	case querytype.LatencyP50, querytype.LatencyP99:
 		summarization = "MEAN"
 	default:
 		summarization = "SUM"
@@ -438,8 +441,8 @@ func (builder wavefrontQueryBuilder) FormatWavefrontQueryUrl(
 	)
 }
 
-// Decodes a wavefront response into a StatsTimeSeries object.
-func decodeWavefrontResponse(response *http.Response) (StatsTimeSeries, *httperr.Error) {
+// Decodes a wavefront response into a TimeSeries object.
+func decodeWavefrontResponse(response *http.Response) (statsapi.TimeSeries, *httperr.Error) {
 	body := response.Body
 	if body == nil {
 		return emptyTimeSeries, emptyResponseErr
@@ -456,14 +459,14 @@ func decodeWavefrontResponse(response *http.Response) (StatsTimeSeries, *httperr
 		return emptyTimeSeries, unexpectedDataErr
 	}
 
-	resultTs := StatsTimeSeries{}
+	resultTs := statsapi.TimeSeries{}
 	if len(ts.TimeSeries) > 0 {
 		wavefrontPoints := ts.TimeSeries[0].Data
-		resultTs.Points = make([]StatsPoint, len(wavefrontPoints))
+		resultTs.Points = make([]statsapi.Point, len(wavefrontPoints))
 		for idx, wavefrontPoint := range wavefrontPoints {
 			ts := time.Duration(wavefrontPoint[0])
 			pointTs := int64(ts * time.Second / time.Microsecond)
-			resultTs.Points[idx] = StatsPoint{
+			resultTs.Points[idx] = statsapi.Point{
 				Value:     wavefrontPoint[1],
 				Timestamp: pointTs,
 			}

@@ -4,8 +4,9 @@
 package handler
 
 import (
-	gomock "github.com/golang/mock/gomock"
 	log "log"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of QueryHandlerFromFlags interface

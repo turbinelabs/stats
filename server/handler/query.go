@@ -10,6 +10,9 @@ import (
 	"github.com/turbinelabs/api"
 	apihttp "github.com/turbinelabs/api/http"
 	httperr "github.com/turbinelabs/api/http/error"
+	statsapi "github.com/turbinelabs/api/service/stats"
+	"github.com/turbinelabs/api/service/stats/querytype"
+	"github.com/turbinelabs/api/service/stats/timegranularity"
 	"github.com/turbinelabs/nonstdlib/executor"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
@@ -21,128 +24,8 @@ const (
 	wavefrontAuthTokenHeader = "X-Auth-Token"
 )
 
-type StatsTimeRange struct {
-	// Start and End represent the start and end of a time range,
-	// specified in microseconds since the Unix epoch, UTC. End
-	// takes precedence over Duration.
-	Start *int64 `json:"start,omitempty" form:"start"`
-	End   *int64 `json:"end,omitempty" form:"end"`
-
-	// Duration specifies how long a time span of stats data to
-	// return in microseconds. End takes precedence over
-	// Duration. If Start is specified, Duration sets the end of
-	// the time span (e.g. from Start for Duration
-	// microseconds). If Start is not specified, Duration sets the
-	// start of the time span that many microseconds into the past
-	// (e.g., Duration microseconds ago, until now).
-	Duration *int64 `json:"duration,omitempty" form:"duration"`
-
-	// Granularity specifies how much time each data point
-	// represents. If absent, it defaults to "seconds". Valid
-	// values are "seconds", "minutes", or "hours".
-	Granularity TimeGranularity `json:"granularity" form:"granularity"`
-}
-
-type StatsQueryTimeSeries struct {
-	// Specifies a name for this timeseries query. It may be used
-	// to assist in identifying the corresponding data in the
-	// response object.
-	Name string `json:"name,omitempty" form:"name"`
-
-	// Specifies the type of data returned. Required.
-	QueryType QueryType `json:"query_type" form:"query_type"`
-
-	// Specifies the domain host for which stats are returned. The
-	// host may be just a domain name (e.g., "example.com"), or a
-	// domain name and port (e.g., "example.com:443"). The former
-	// aggregates stats across all ports serving the domain. If
-	// DomainHost is not specified, stats are aggregated across
-	// all domains.
-	DomainHost *string `json:"domain_host,omitempty" form:"domain_host"`
-
-	// Specifies the RouteKey for which stats are returned. If
-	// not specified, stats are aggregated across routes.
-	RouteKey *api.RouteKey `json:"route_key,omitempty" form:"route_key"`
-
-	// Specifies the SharedRule name for which stats are
-	// returned. If not specified, stats are aggregated across
-	// shared rules.
-	SharedRuleName *string `json:"shared_rule_name,omitempty" form:"shared_rule_name"`
-
-	// Specifies the RuleKey for which stats are returned.
-	// Requires that a RouteKey or SharedRuleName is given. If not
-	// specified, stats are aggregated across rules.
-	RuleKey *api.RuleKey `json:"rule_key,omitempty" form:"rule_key"`
-
-	// Specifies the HTTP method for which stats are returned. If
-	// not specified, stats are aggregated across methods.
-	Method *string `json:"method,omitempty" form:"method"`
-
-	// Specifies the Cluster name for which stats are returned. If
-	// not specified, stats are aggregated across clusters.
-	ClusterName *string `json:"cluster_name,omitempty" form:"cluster_name"`
-
-	// Specifies the Instance keys (host:port) for which stats are
-	// returned. If empty, stats are aggregated across all
-	// instances. If one ore more instances are given, stats are
-	// aggregated across only those instances.
-	InstanceKeys []string `json:"instance_keys,omitempty" form:"instance_keys"`
-}
-
-type StatsQuery struct {
-	// Specifies the zone name for which stats are
-	// queried. Required.
-	ZoneName string `json:"zone_name" form:"zone_name"`
-
-	// Specifies the time range of the query. Defaults to the last
-	// hour.
-	TimeRange StatsTimeRange `json:"time_range" form:"time_range"`
-
-	// Specifies one or more queries to execute against the given
-	// zone and time range.
-	TimeSeries []StatsQueryTimeSeries `json:"timeseries" form:"timeseries"`
-}
-
-type StatsPoint struct {
-	// A data point.
-	Value float64 `json:"value"`
-
-	// Collection timestamp in microseconds since the Unix epoch,
-	// UTC. N.B. that the actual resolution of the timestamp may
-	// be less granular than microseconds.
-	//
-	// Microsecond resolution timestamps with an epoch of
-	// 1970-01-01 00:00:00 reach 2^53 - 1, the maximum integer
-	// exactly representable in Javascript, some time in 2255:
-	// (2^53 - 1) / (86400 * 1000 * 1000)
-	//     = 10249.99 days / 365.24
-	//     = 285.42 years
-	Timestamp int64 `json:"timestamp"`
-}
-
-type StatsTimeSeries struct {
-	// The StatsQueryTimeSeries object corresponding to the data
-	// points.
-	Query StatsQueryTimeSeries `json:"query"`
-
-	// The data points that represent the time series.
-	Points []StatsPoint `json:"points"`
-}
-
-type StatsQueryResult struct {
-	// The StatsTimeRange used to issue this query. The object is
-	// normalized such that all of its fields are set and
-	// consistent.
-	TimeRange StatsTimeRange `json:"time_range"`
-
-	// Represents the timeseries returned by the query. The order
-	// of returned TimeSeries values matches the order of the
-	// original StatsQueryTimeSeries values in the request.
-	TimeSeries []StatsTimeSeries `json:"timeseries"`
-}
-
 type QueryHandler interface {
-	RunQuery(api.OrgKey, StatsQuery) (*StatsQueryResult, *httperr.Error)
+	RunQuery(api.OrgKey, statsapi.Query) (*statsapi.QueryResult, *httperr.Error)
 
 	AsHandler() http.HandlerFunc
 }
@@ -173,10 +56,10 @@ func NewQueryHandler(
 type queryFormatter func(
 	int64,
 	int64,
-	TimeGranularity,
+	timegranularity.TimeGranularity,
 	api.OrgKey,
 	string,
-	*StatsQueryTimeSeries,
+	*statsapi.QueryTimeSeries,
 ) string
 
 type queryHandler struct {
@@ -187,7 +70,7 @@ type queryHandler struct {
 	exec              executor.Executor
 }
 
-func validateQuery(q *StatsQuery) *httperr.Error {
+func validateQuery(q *statsapi.Query) *httperr.Error {
 	if q.ZoneName == "" {
 		return httperr.New400(
 			"query requires zone_name",
@@ -195,7 +78,7 @@ func validateQuery(q *StatsQuery) *httperr.Error {
 		)
 	}
 
-	if !IsValidTimeGranularity(q.TimeRange.Granularity) {
+	if !timegranularity.IsValid(q.TimeRange.Granularity) {
 		return httperr.New400(
 			fmt.Sprintf(
 				"query contains invalid time granularity %s",
@@ -214,7 +97,7 @@ func validateQuery(q *StatsQuery) *httperr.Error {
 	}
 
 	for idx, tsq := range q.TimeSeries {
-		if !IsValidQueryType(tsq.QueryType) {
+		if !querytype.IsValid(tsq.QueryType) {
 			return httperr.New400(
 				fmt.Sprintf(
 					"query%s contains invalid query type %s",
@@ -244,12 +127,12 @@ func mkHandlerFunc(qh QueryHandler) http.HandlerFunc {
 		rrw := apihttp.RichResponseWriter{rw}
 		rr := apihttp.NewRichRequest(r)
 
-		var result *StatsQueryResult
+		var result *statsapi.QueryResult
 		var err *httperr.Error
 
 		requestContext := requestcontext.New(r)
 		if orgKey, ok := requestContext.GetOrgKey(); ok {
-			statsQuery := StatsQuery{}
+			statsQuery := statsapi.Query{}
 			err = QueryDecoder.DecodeQuery(rr, &statsQuery)
 			if err == nil {
 				result, err = qh.RunQuery(orgKey, statsQuery)
@@ -262,7 +145,7 @@ func mkHandlerFunc(qh QueryHandler) http.HandlerFunc {
 	}
 }
 
-func normalizeTimeRange(tr StatsTimeRange) (int64, int64, *httperr.Error) {
+func normalizeTimeRange(tr statsapi.TimeRange) (int64, int64, *httperr.Error) {
 	if tr.End != nil {
 		if tr.Start != nil {
 			start, end := *tr.Start, *tr.End
@@ -311,7 +194,7 @@ func normalizeTimeRange(tr StatsTimeRange) (int64, int64, *httperr.Error) {
 	}
 }
 
-func (qh *queryHandler) runQueries(urls []string) ([]StatsTimeSeries, *httperr.Error) {
+func (qh *queryHandler) runQueries(urls []string) ([]statsapi.TimeSeries, *httperr.Error) {
 	requestFuncs := make([]executor.Func, len(urls))
 	for i, url := range urls {
 		request, err := http.NewRequest(http.MethodGet, url, nil)
@@ -338,7 +221,7 @@ func (qh *queryHandler) runQueries(urls []string) ([]StatsTimeSeries, *httperr.E
 	}
 
 	responses := try.Get().([]interface{})
-	results := make([]StatsTimeSeries, len(responses))
+	results := make([]statsapi.TimeSeries, len(responses))
 	for idx, riface := range responses {
 		r := riface.(*http.Response)
 
@@ -373,10 +256,10 @@ func (qh *queryHandler) runQueries(urls []string) ([]StatsTimeSeries, *httperr.E
 
 func makeQueryResult(
 	start, end int64,
-	granularity TimeGranularity,
-	queryTimeSeries []StatsQueryTimeSeries,
-	resultTimeSeries []StatsTimeSeries,
-) (*StatsQueryResult, *httperr.Error) {
+	granularity timegranularity.TimeGranularity,
+	queryTimeSeries []statsapi.QueryTimeSeries,
+	resultTimeSeries []statsapi.TimeSeries,
+) (*statsapi.QueryResult, *httperr.Error) {
 	if len(queryTimeSeries) != len(resultTimeSeries) {
 		return nil, httperr.New500(
 			"Mismatched query and response",
@@ -389,20 +272,20 @@ func makeQueryResult(
 	}
 
 	duration := end - start
-	responseTimeRange := StatsTimeRange{
+	responseTimeRange := statsapi.TimeRange{
 		Start:       &start,
 		End:         &end,
 		Duration:    &duration,
 		Granularity: granularity,
 	}
 
-	return &StatsQueryResult{TimeRange: responseTimeRange, TimeSeries: resultTimeSeries}, nil
+	return &statsapi.QueryResult{TimeRange: responseTimeRange, TimeSeries: resultTimeSeries}, nil
 }
 
 func (qh *queryHandler) RunQuery(
 	orgKey api.OrgKey,
-	q StatsQuery,
-) (*StatsQueryResult, *httperr.Error) {
+	q statsapi.Query,
+) (*statsapi.QueryResult, *httperr.Error) {
 	if err := validateQuery(&q); err != nil {
 		return nil, err
 	}

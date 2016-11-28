@@ -9,6 +9,9 @@ import (
 
 	"github.com/turbinelabs/api"
 	httperr "github.com/turbinelabs/api/http/error"
+	statsapi "github.com/turbinelabs/api/service/stats"
+	"github.com/turbinelabs/api/service/stats/querytype"
+	"github.com/turbinelabs/api/service/stats/timegranularity"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
 )
 
@@ -162,20 +165,20 @@ func numErrors(ts int64) float64 {
 	return math.Floor(mockErrorRates[idx]*r + 0.5)
 }
 
-func roundBack(start, end int64, g TimeGranularity) (int64, int64) {
+func roundBack(start, end int64, g timegranularity.TimeGranularity) (int64, int64) {
 	// Wavefront rounds the start time down to the nearest even
 	// unit of granularity For example, 21:15:22 becomes 21:15:00
 	// for minutely and 21:00:00 for hourly.
 	switch g {
-	case Seconds:
+	case timegranularity.Seconds:
 		return start, end
 
-	case Minutes:
+	case timegranularity.Minutes:
 		t := tbntime.FromUnixMicro(start).Truncate(time.Minute)
 		newStart := tbntime.ToUnixMicro(t)
 		return newStart, end - (start - newStart)
 
-	case Hours:
+	case timegranularity.Hours:
 		t := tbntime.FromUnixMicro(start).Truncate(time.Hour)
 		newStart := tbntime.ToUnixMicro(t)
 		return newStart, end - (start - newStart)
@@ -187,18 +190,18 @@ func roundBack(start, end int64, g TimeGranularity) (int64, int64) {
 
 func mockCountTimeSeries(
 	start, end int64,
-	g TimeGranularity,
-	qts StatsQueryTimeSeries,
-) StatsTimeSeries {
+	g timegranularity.TimeGranularity,
+	qts statsapi.QueryTimeSeries,
+) statsapi.TimeSeries {
 	start, end = roundBack(start, end, g)
 
 	var microsPerUnit int64
 	switch g {
-	case Seconds:
+	case timegranularity.Seconds:
 		microsPerUnit = microsPerSecond
-	case Minutes:
+	case timegranularity.Minutes:
 		microsPerUnit = microsPerMinute
-	case Hours:
+	case timegranularity.Hours:
 		microsPerUnit = microsPerHour
 	default:
 		panic(fmt.Sprintf("unhandled granularity %s", g.String()))
@@ -207,7 +210,7 @@ func mockCountTimeSeries(
 	secondsPerUnit := int(microsPerUnit / microsPerSecond)
 
 	numPoints := (end - start) / microsPerUnit
-	points := make([]StatsPoint, numPoints)
+	points := make([]statsapi.Point, numPoints)
 	for idx := int64(0); idx < numPoints; idx++ {
 		ts := start + (idx * microsPerUnit)
 
@@ -216,22 +219,22 @@ func mockCountTimeSeries(
 		var numerator, denominator float64
 		for sec := 0; sec < secondsPerUnit; sec++ {
 			switch qts.QueryType {
-			case Requests:
+			case querytype.Requests:
 				numerator += numRequests(ts)
 
-			case Responses:
+			case querytype.Responses:
 				numerator += numRequests(ts) - numFailures(ts)
 
-			case SuccessfulResponses:
+			case querytype.SuccessfulResponses:
 				numerator += numSuccesses(ts)
 
-			case ErrorResponses:
+			case querytype.ErrorResponses:
 				numerator += numErrors(ts)
 
-			case FailureResponses:
+			case querytype.FailureResponses:
 				numerator += numFailures(ts)
 
-			case SuccessRate:
+			case querytype.SuccessRate:
 				numerator += numSuccesses(ts)
 				denominator += numRequests(ts)
 
@@ -242,14 +245,14 @@ func mockCountTimeSeries(
 			ts += microsPerSecond
 		}
 
-		if qts.QueryType == SuccessRate {
+		if qts.QueryType == querytype.SuccessRate {
 			points[idx].Value = numerator / denominator
 		} else {
 			points[idx].Value = numerator
 		}
 	}
 
-	return StatsTimeSeries{Query: qts, Points: points}
+	return statsapi.TimeSeries{Query: qts, Points: points}
 }
 
 func pickLatency(ts int64, percentile float64) float64 {
@@ -261,25 +264,25 @@ func pickLatency(ts int64, percentile float64) float64 {
 
 func mockLatencyTimeSeries(
 	start, end int64,
-	g TimeGranularity,
-	qts StatsQueryTimeSeries,
-) StatsTimeSeries {
+	g timegranularity.TimeGranularity,
+	qts statsapi.QueryTimeSeries,
+) statsapi.TimeSeries {
 	start, end = roundBack(start, end, g)
 
 	var microsPerUnit int64
 	switch g {
-	case Seconds:
+	case timegranularity.Seconds:
 		microsPerUnit = microsPerSecond
-	case Minutes:
+	case timegranularity.Minutes:
 		microsPerUnit = microsPerMinute
-	case Hours:
+	case timegranularity.Hours:
 		microsPerUnit = microsPerHour
 	default:
 		panic(fmt.Sprintf("unhandled granularity %s", g.String()))
 	}
 
 	numPoints := (end - start) / microsPerUnit
-	points := make([]StatsPoint, numPoints)
+	points := make([]statsapi.Point, numPoints)
 
 	for idx := int64(0); idx < numPoints; idx++ {
 		ts := start + (idx * microsPerUnit)
@@ -288,10 +291,10 @@ func mockLatencyTimeSeries(
 
 		var value float64
 		switch qts.QueryType {
-		case LatencyP50:
+		case querytype.LatencyP50:
 			value = pickLatency(ts, .5)
 
-		case LatencyP99:
+		case querytype.LatencyP99:
 			value = pickLatency(ts, .99)
 
 		default:
@@ -301,13 +304,13 @@ func mockLatencyTimeSeries(
 		points[idx].Value = value / microsPerSecond
 	}
 
-	return StatsTimeSeries{Query: qts, Points: points}
+	return statsapi.TimeSeries{Query: qts, Points: points}
 }
 
 func (mqh *mockQueryHandler) RunQuery(
 	orgKey api.OrgKey,
-	q StatsQuery,
-) (*StatsQueryResult, *httperr.Error) {
+	q statsapi.Query,
+) (*statsapi.QueryResult, *httperr.Error) {
 	if err := validateQuery(&q); err != nil {
 		return nil, err
 	}
@@ -318,23 +321,27 @@ func (mqh *mockQueryHandler) RunQuery(
 	}
 
 	duration := end - start
-	result := StatsQueryResult{
-		TimeRange: StatsTimeRange{
+	result := statsapi.QueryResult{
+		TimeRange: statsapi.TimeRange{
 			Start:       &start,
 			End:         &end,
 			Duration:    &duration,
 			Granularity: q.TimeRange.Granularity,
 		},
-		TimeSeries: make([]StatsTimeSeries, len(q.TimeSeries)),
+		TimeSeries: make([]statsapi.TimeSeries, len(q.TimeSeries)),
 	}
 
 	for idx, qts := range q.TimeSeries {
 		switch qts.QueryType {
-		case Requests, Responses, SuccessfulResponses, ErrorResponses, FailureResponses,
-			SuccessRate:
+		case querytype.Requests,
+			querytype.Responses,
+			querytype.SuccessfulResponses,
+			querytype.ErrorResponses,
+			querytype.FailureResponses,
+			querytype.SuccessRate:
 			result.TimeSeries[idx] =
 				mockCountTimeSeries(start, end, q.TimeRange.Granularity, qts)
-		case LatencyP50, LatencyP99:
+		case querytype.LatencyP50, querytype.LatencyP99:
 			result.TimeSeries[idx] =
 				mockLatencyTimeSeries(start, end, q.TimeRange.Granularity, qts)
 

@@ -9,6 +9,9 @@ import (
 	"testing"
 
 	"github.com/turbinelabs/api"
+	statsapi "github.com/turbinelabs/api/service/stats"
+	"github.com/turbinelabs/api/service/stats/querytype"
+	"github.com/turbinelabs/api/service/stats/timegranularity"
 	"github.com/turbinelabs/test/assert"
 )
 
@@ -18,7 +21,7 @@ type formatMetricTestCase struct {
 	domainHost *string
 	routeKey   *api.RouteKey
 	method     *string
-	queryType  QueryType
+	queryType  querytype.QueryType
 
 	expectedMetric string
 }
@@ -43,20 +46,20 @@ func TestFormatMetric(t *testing.T) {
 	rk := api.RouteKey("r")
 	md := "POST"
 	testCases := []formatMetricTestCase{
-		{ok, zn, nil, nil, nil, Requests, "o.z.*.*.*.requests"},
-		{ok, zn, &dh, nil, nil, Requests, "o.z.d_*.*.*.requests"},
-		{ok, zn, nil, &rk, nil, Requests, "o.z.*.r.*.requests"},
-		{ok, zn, nil, nil, &md, Requests, "o.z.*.*.POST.requests"},
-		{ok, zn, &dh, &rk, nil, Requests, "o.z.d_*.r.*.requests"},
-		{ok, zn, &dh, nil, &md, Requests, "o.z.d_*.*.POST.requests"},
-		{ok, zn, nil, &rk, &md, Requests, "o.z.*.r.POST.requests"},
-		{ok, zn, &dh, &rk, &md, Requests, "o.z.d_*.r.POST.requests"},
-		{ok, zn, nil, nil, nil, Responses, "o.z.*.*.*.responses"},
+		{ok, zn, nil, nil, nil, querytype.Requests, "o.z.*.*.*.requests"},
+		{ok, zn, &dh, nil, nil, querytype.Requests, "o.z.d_*.*.*.requests"},
+		{ok, zn, nil, &rk, nil, querytype.Requests, "o.z.*.r.*.requests"},
+		{ok, zn, nil, nil, &md, querytype.Requests, "o.z.*.*.POST.requests"},
+		{ok, zn, &dh, &rk, nil, querytype.Requests, "o.z.d_*.r.*.requests"},
+		{ok, zn, &dh, nil, &md, querytype.Requests, "o.z.d_*.*.POST.requests"},
+		{ok, zn, nil, &rk, &md, querytype.Requests, "o.z.*.r.POST.requests"},
+		{ok, zn, &dh, &rk, &md, querytype.Requests, "o.z.d_*.r.POST.requests"},
+		{ok, zn, nil, nil, nil, querytype.Responses, "o.z.*.*.*.responses"},
 
-		{ok, zn, &dp, nil, nil, Requests, "o.z.d_443.*.*.requests"},
-		{ok, zn, &dp, &rk, nil, Requests, "o.z.d_443.r.*.requests"},
-		{ok, zn, &dp, nil, &md, Requests, "o.z.d_443.*.POST.requests"},
-		{ok, zn, &dp, &rk, &md, Requests, "o.z.d_443.r.POST.requests"},
+		{ok, zn, &dp, nil, nil, querytype.Requests, "o.z.d_443.*.*.requests"},
+		{ok, zn, &dp, &rk, nil, querytype.Requests, "o.z.d_443.r.*.requests"},
+		{ok, zn, &dp, nil, &md, querytype.Requests, "o.z.d_443.*.POST.requests"},
+		{ok, zn, &dp, &rk, &md, querytype.Requests, "o.z.d_443.r.POST.requests"},
 	}
 
 	for _, tc := range testCases {
@@ -75,7 +78,7 @@ type formatQueryTestCase struct {
 }
 
 func (tc formatQueryTestCase) run(t *testing.T) {
-	qts := StatsQueryTimeSeries{
+	qts := statsapi.QueryTimeSeries{
 		RuleKey:        tc.ruleKey,
 		SharedRuleName: tc.sharedRuleName,
 		ClusterName:    tc.clusterName,
@@ -164,8 +167,8 @@ func TestWavefrontQueryBuilder(t *testing.T) {
 	routeKey := api.RouteKey("r")
 	method := "GET"
 
-	qts := StatsQueryTimeSeries{
-		QueryType:  Requests,
+	qts := statsapi.QueryTimeSeries{
+		QueryType:  querytype.Requests,
 		DomainHost: &domainHost,
 		RouteKey:   &routeKey,
 		Method:     &method,
@@ -176,7 +179,7 @@ func TestWavefrontQueryBuilder(t *testing.T) {
 	u := builder.FormatWavefrontQueryUrl(
 		start*1000000,
 		end*1000000,
-		Seconds,
+		timegranularity.Seconds,
 		orgKey,
 		zoneName,
 		&qts,
@@ -213,7 +216,7 @@ func TestWavefrontQueryBuilder(t *testing.T) {
 						&domainHost,
 						&routeKey,
 						&method,
-						Requests,
+						querytype.Requests,
 					),
 				},
 				&qts,
@@ -231,8 +234,8 @@ func TestWavefrontQueryBuilderLatencyP50(t *testing.T) {
 	routeKey := api.RouteKey("r")
 	method := "GET"
 
-	qts := StatsQueryTimeSeries{
-		QueryType:  LatencyP50,
+	qts := statsapi.QueryTimeSeries{
+		QueryType:  querytype.LatencyP50,
 		DomainHost: &domainHost,
 		RouteKey:   &routeKey,
 		Method:     &method,
@@ -243,7 +246,7 @@ func TestWavefrontQueryBuilderLatencyP50(t *testing.T) {
 	u := builder.FormatWavefrontQueryUrl(
 		start*1000000,
 		end*1000000,
-		Seconds,
+		timegranularity.Seconds,
 		orgKey,
 		zoneName,
 		&qts,
@@ -280,7 +283,7 @@ func TestWavefrontQueryBuilderLatencyP50(t *testing.T) {
 						&domainHost,
 						&routeKey,
 						&method,
-						LatencyP50,
+						querytype.LatencyP50,
 					),
 				},
 				&qts,
@@ -298,8 +301,8 @@ func TestWavefrontQueryBuilderSuccessRate(t *testing.T) {
 	routeKey := api.RouteKey("r")
 	method := "GET"
 
-	qts := StatsQueryTimeSeries{
-		QueryType:  SuccessRate,
+	qts := statsapi.QueryTimeSeries{
+		QueryType:  querytype.SuccessRate,
 		DomainHost: &domainHost,
 		RouteKey:   &routeKey,
 		Method:     &method,
@@ -309,7 +312,7 @@ func TestWavefrontQueryBuilderSuccessRate(t *testing.T) {
 	u := builder.FormatWavefrontQueryUrl(
 		start*1000000,
 		end*1000000,
-		Seconds,
+		timegranularity.Seconds,
 		orgKey,
 		zoneName,
 		&qts,
@@ -331,7 +334,7 @@ func TestWavefrontQueryBuilderSuccessRate(t *testing.T) {
 	ctxt := &queryContext{
 		orgKey:      orgKey,
 		zoneName:    zoneName,
-		granularity: Seconds,
+		granularity: timegranularity.Seconds,
 		qts:         &qts,
 	}
 
@@ -340,7 +343,7 @@ func TestWavefrontQueryBuilderSuccessRate(t *testing.T) {
 	assert.Equal(t, queryParams.Get("strict"), "true")
 	assert.Equal(t, queryParams.Get("s"), fmt.Sprintf("%d", start))
 	assert.Equal(t, queryParams.Get("e"), fmt.Sprintf("%d", end))
-	assert.Equal(t, queryParams.Get("q"), queryExprMap[SuccessRate].Query(ctxt))
+	assert.Equal(t, queryParams.Get("q"), queryExprMap[querytype.SuccessRate].Query(ctxt))
 }
 
 func TestWavefrontQueryUrlGranularities(t *testing.T) {
@@ -352,14 +355,14 @@ func TestWavefrontQueryUrlGranularities(t *testing.T) {
 	routeKey := api.RouteKey("r")
 	method := "GET"
 
-	qts := StatsQueryTimeSeries{
-		QueryType:  SuccessRate,
+	qts := statsapi.QueryTimeSeries{
+		QueryType:  querytype.SuccessRate,
 		DomainHost: &domainHost,
 		RouteKey:   &routeKey,
 		Method:     &method,
 	}
 
-	forEachTimeGranularity(func(tg TimeGranularity) {
+	timegranularity.ForEach(func(tg timegranularity.TimeGranularity) {
 		firstLetter := strings.ToLower(tg.String()[0:1])
 
 		builder := wavefrontQueryBuilder{"https://wavefront.example.com"}
@@ -398,7 +401,7 @@ func TestEscape(t *testing.T) {
 }
 
 type queryExprTestCase struct {
-	queryType     QueryType
+	queryType     querytype.QueryType
 	expectedQuery string
 }
 
@@ -420,18 +423,18 @@ func TestQueryExprs(t *testing.T) {
 	successfulResponsesQuery :=
 		`rawsum(align(1s, sum, ts("o.z.*.*.*.responses.1*" or "o.z.*.*.*.responses.2*" or "o.z.*.*.*.responses.3*")))`
 	testCases := []queryExprTestCase{
-		{Requests, `default(0, rawsum(align(1s, sum, ts("o.z.*.*.*.requests"))))`},
-		{Responses, `default(0, rawsum(align(1s, sum, ts("o.z.*.*.*.responses.*"))))`},
-		{SuccessfulResponses, fmt.Sprintf("default(0, %s)", successfulResponsesQuery)},
-		{ErrorResponses, `default(0, rawsum(align(1s, sum, ts("o.z.*.*.*.responses.4*"))))`},
-		{FailureResponses, `default(0, rawsum(align(1s, sum, ts("o.z.*.*.*.responses.5*"))))`},
-		{LatencyP50, `default(0, percentile(50, align(1s, mean, ts("o.z.*.*.*.latency"))))`},
-		{LatencyP99, `default(0, percentile(99, align(1s, mean, ts("o.z.*.*.*.latency"))))`},
-		{SuccessRate, `default(1, (` + successfulResponsesQuery + `/rawsum(align(1s, sum, ts("o.z.*.*.*.requests")))))`},
+		{querytype.Requests, `default(0, rawsum(align(1s, sum, ts("o.z.*.*.*.requests"))))`},
+		{querytype.Responses, `default(0, rawsum(align(1s, sum, ts("o.z.*.*.*.responses.*"))))`},
+		{querytype.SuccessfulResponses, fmt.Sprintf("default(0, %s)", successfulResponsesQuery)},
+		{querytype.ErrorResponses, `default(0, rawsum(align(1s, sum, ts("o.z.*.*.*.responses.4*"))))`},
+		{querytype.FailureResponses, `default(0, rawsum(align(1s, sum, ts("o.z.*.*.*.responses.5*"))))`},
+		{querytype.LatencyP50, `default(0, percentile(50, align(1s, mean, ts("o.z.*.*.*.latency"))))`},
+		{querytype.LatencyP99, `default(0, percentile(99, align(1s, mean, ts("o.z.*.*.*.latency"))))`},
+		{querytype.SuccessRate, `default(1, (` + successfulResponsesQuery + `/rawsum(align(1s, sum, ts("o.z.*.*.*.requests")))))`},
 	}
 
 	for _, tc := range testCases {
-		tc.run(t, &queryContext{ok, zn, Seconds, &StatsQueryTimeSeries{}})
+		tc.run(t, &queryContext{ok, zn, timegranularity.Seconds, &statsapi.QueryTimeSeries{}})
 	}
 }
 
@@ -439,14 +442,14 @@ func TestQueryExprWithTags(t *testing.T) {
 	ok := api.OrgKey("o")
 	zn := "z"
 	cn := "c"
-	qts := StatsQueryTimeSeries{
+	qts := statsapi.QueryTimeSeries{
 		ClusterName:  &cn,
 		InstanceKeys: []string{"i1"},
 	}
 	queryExprTestCase{
-		Requests,
+		querytype.Requests,
 		`default(0, rawsum(align(1s, sum, ts("o.z.*.*.*.requests", upstream="c" and instance="i1"))))`,
-	}.run(t, &queryContext{ok, zn, Seconds, &qts})
+	}.run(t, &queryContext{ok, zn, timegranularity.Seconds, &qts})
 }
 
 const wavefrontResponse = `{

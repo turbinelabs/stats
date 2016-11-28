@@ -19,6 +19,7 @@ import (
 	apihttp "github.com/turbinelabs/api/http"
 	"github.com/turbinelabs/api/http/envelope"
 	"github.com/turbinelabs/api/http/header"
+	statsapi "github.com/turbinelabs/api/service/stats"
 	"github.com/turbinelabs/logparser"
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
@@ -336,7 +337,7 @@ func (s *StatsServerTestHarness) writeLogFile(
 	return file
 }
 
-func (s *StatsServerTestHarness) Query(q *handler.StatsQuery) (*handler.StatsQueryResult, error) {
+func (s *StatsServerTestHarness) Query(q *statsapi.Query) (*statsapi.QueryResult, error) {
 	queryJson, err := json.Marshal(q)
 	if err != nil {
 		fmt.Println("marshal error", err)
@@ -369,7 +370,7 @@ func (s *StatsServerTestHarness) Query(q *handler.StatsQuery) (*handler.StatsQue
 		return nil, err
 	}
 
-	envelope := &envelope.Response{Payload: &handler.StatsQueryResult{}}
+	envelope := &envelope.Response{Payload: &statsapi.QueryResult{}}
 	if err := json.Unmarshal(content, envelope); err != nil {
 		fmt.Println("unmarshal error", err)
 		return nil, err
@@ -379,7 +380,7 @@ func (s *StatsServerTestHarness) Query(q *handler.StatsQuery) (*handler.StatsQue
 		return nil, envelope.Error
 	}
 
-	result, ok := envelope.Payload.(*handler.StatsQueryResult)
+	result, ok := envelope.Payload.(*statsapi.QueryResult)
 	if !ok {
 		return nil, fmt.Errorf("got unexpected payload type %T", envelope.Payload)
 	}

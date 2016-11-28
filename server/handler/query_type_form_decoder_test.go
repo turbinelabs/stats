@@ -3,6 +3,7 @@ package handler
 import (
 	"testing"
 
+	"github.com/turbinelabs/api/service/stats/querytype"
 	"github.com/turbinelabs/test/assert"
 )
 
@@ -17,5 +18,5 @@ func TestUnmarshalQueryTypeFromForm(t *testing.T) {
 
 	qt, err = unmarshalQueryTypeFromForm([]string{"requests"})
 	assert.Nil(t, err)
-	assert.Equal(t, qt, Requests)
+	assert.Equal(t, qt, querytype.Requests)
 }

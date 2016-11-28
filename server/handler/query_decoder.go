@@ -3,6 +3,8 @@ package handler
 import (
 	"errors"
 
+	"github.com/turbinelabs/api/service/stats/querytype"
+	"github.com/turbinelabs/api/service/stats/timegranularity"
 	"github.com/turbinelabs/server/handler"
 )
 
@@ -13,8 +15,8 @@ var QueryDecoder handler.QueryDecoder
 
 func init() {
 	QueryDecoder = handler.NewQueryDecoder("form", "query", "query")
-	QueryDecoder.RegisterCustomTypeFunc(unmarshalQueryTypeFromForm, UnknownQueryType)
-	QueryDecoder.RegisterCustomTypeFunc(unmarshalTimeGranularityFromForm, UnknownTimeGranularity)
+	QueryDecoder.RegisterCustomTypeFunc(unmarshalQueryTypeFromForm, querytype.Unknown)
+	QueryDecoder.RegisterCustomTypeFunc(unmarshalTimeGranularityFromForm, timegranularity.Unknown)
 }
 
 func unmarshalQueryTypeFromForm(vals []string) (interface{}, error) {
@@ -22,7 +24,7 @@ func unmarshalQueryTypeFromForm(vals []string) (interface{}, error) {
 		return nil, noQueryTypeDecodeError
 	}
 
-	var qt QueryType
+	var qt querytype.QueryType
 
 	err := qt.UnmarshalForm(vals[0])
 	if err != nil {
@@ -37,7 +39,7 @@ func unmarshalTimeGranularityFromForm(vals []string) (interface{}, error) {
 		return nil, noTimeGranularityDecodeError
 	}
 
-	var tg TimeGranularity
+	var tg timegranularity.TimeGranularity
 
 	err := tg.UnmarshalForm(vals[0])
 	if err != nil {

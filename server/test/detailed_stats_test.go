@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/turbinelabs/api"
+	statsapi "github.com/turbinelabs/api/service/stats"
+	"github.com/turbinelabs/api/service/stats/querytype"
+	"github.com/turbinelabs/api/service/stats/timegranularity"
 	"github.com/turbinelabs/nonstdlib/ptr"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
-	"github.com/turbinelabs/stats/server/handler"
 	"github.com/turbinelabs/test/assert"
 	"github.com/turbinelabs/test/category"
 )
@@ -100,22 +102,22 @@ func TestUnfilteredDetailedStats(t *testing.T) {
 	start := tbntime.ToUnixMicro(harness.LogStartTime)
 	duration := (19 * time.Second).Nanoseconds() / 1000
 
-	query := handler.StatsQuery{
+	query := statsapi.Query{
 		ZoneName: TestZoneName,
-		TimeRange: handler.StatsTimeRange{
+		TimeRange: statsapi.TimeRange{
 			Start:       &start,
 			Duration:    &duration,
-			Granularity: handler.Seconds,
+			Granularity: timegranularity.Seconds,
 		},
-		TimeSeries: []handler.StatsQueryTimeSeries{
-			{Name: "req", QueryType: handler.Requests},
-			{Name: "resp", QueryType: handler.Responses},
-			{Name: "ok", QueryType: handler.SuccessfulResponses},
-			{Name: "err", QueryType: handler.ErrorResponses},
-			{Name: "fail", QueryType: handler.FailureResponses},
-			{Name: "sr", QueryType: handler.SuccessRate},
-			//			{Name: "p50", QueryType: handler.LatencyP50}, // pending #1403
-			//			{Name: "p99", QueryType: handler.LatencyP99},
+		TimeSeries: []statsapi.QueryTimeSeries{
+			{Name: "req", QueryType: querytype.Requests},
+			{Name: "resp", QueryType: querytype.Responses},
+			{Name: "ok", QueryType: querytype.SuccessfulResponses},
+			{Name: "err", QueryType: querytype.ErrorResponses},
+			{Name: "fail", QueryType: querytype.FailureResponses},
+			{Name: "sr", QueryType: querytype.SuccessRate},
+			// {Name: "p50", QueryType: querytype.LatencyP50}, // FIXME #1811
+			// {Name: "p99", QueryType: querytype.LatencyP99},
 		},
 	}
 
@@ -133,8 +135,8 @@ func TestUnfilteredDetailedStats(t *testing.T) {
 		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},   // err
 		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},   // fail
 		{0.6, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // sr
-		//{}, // p50
-		//{}, // p99
+		// {}, // p50 FIXME #1811
+		// {}, // p99
 	}
 
 	for idx, result := range result.TimeSeries {
@@ -176,74 +178,74 @@ func TestFilteredDetailedStats(t *testing.T) {
 	start := tbntime.ToUnixMicro(harness.LogStartTime)
 	duration := (19 * time.Second).Nanoseconds() / 1000
 
-	query := handler.StatsQuery{
+	query := statsapi.Query{
 		ZoneName: TestZoneName,
-		TimeRange: handler.StatsTimeRange{
+		TimeRange: statsapi.TimeRange{
 			Start:       &start,
 			Duration:    &duration,
-			Granularity: handler.Seconds,
+			Granularity: timegranularity.Seconds,
 		},
-		TimeSeries: []handler.StatsQueryTimeSeries{
+		TimeSeries: []statsapi.QueryTimeSeries{
 			{
 				Name:       "d1",
-				QueryType:  handler.Requests,
+				QueryType:  querytype.Requests,
 				DomainHost: &domain1,
 			},
 			{
 				Name:       "d2",
-				QueryType:  handler.Requests,
+				QueryType:  querytype.Requests,
 				DomainHost: &domain2,
 			},
 			{
 				Name:      "rte1",
-				QueryType: handler.Requests,
+				QueryType: querytype.Requests,
 				RouteKey:  &rte1,
 			},
 			{
 				Name:       "d1-rte1",
-				QueryType:  handler.Requests,
+				QueryType:  querytype.Requests,
 				DomainHost: &domain1,
 				RouteKey:   &rte1,
 			},
 			{
 				Name:         "p1",
-				QueryType:    handler.Requests,
+				QueryType:    querytype.Requests,
 				InstanceKeys: []string{fmt.Sprintf("localhost:%d", p1)},
 			},
 			{
 				Name:         "p2",
-				QueryType:    handler.Requests,
+				QueryType:    querytype.Requests,
 				InstanceKeys: []string{fmt.Sprintf("localhost:%d", p2)},
 			},
 			{
 				Name:        "u1",
-				QueryType:   handler.Requests,
+				QueryType:   querytype.Requests,
 				ClusterName: &u1,
 			},
 			{
 				Name:      "method",
-				QueryType: handler.Requests,
+				QueryType: querytype.Requests,
 				Method:    ptr.String("POST"),
 			},
 			{
 				Name:           "r1",
-				QueryType:      handler.Requests,
+				QueryType:      querytype.Requests,
 				SharedRuleName: ptr.String("sharing-is-caring"),
 				RuleKey:        &r1,
 			},
 			{
 				Name:           "shared-rule-yup",
-				QueryType:      handler.Requests,
+				QueryType:      querytype.Requests,
 				SharedRuleName: ptr.String("sharing-is-caring"),
 			},
 			{
 				Name:           "shared-rule-nope",
-				QueryType:      handler.Requests,
+				QueryType:      querytype.Requests,
 				SharedRuleName: ptr.String("NOPE"),
 			},
 			{
 				Name:         "combo-move",
-				QueryType:    handler.Requests,
+				QueryType:    querytype.Requests,
 				DomainHost:   &domain1,
 				RouteKey:     &rte1,
 				Method:       ptr.String("GET"),
