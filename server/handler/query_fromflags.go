@@ -5,17 +5,25 @@ package handler
 import (
 	"errors"
 	"log"
+	"time"
 
 	"github.com/turbinelabs/nonstdlib/executor"
 	"github.com/turbinelabs/nonstdlib/flag"
+	"github.com/turbinelabs/nonstdlib/stats"
 )
 
 // QueryHandlerFromFlags constructs a QueryHandler from command line flags.
 type QueryHandlerFromFlags interface {
 	Validate(useMockData bool) error
 
-	// Constructs a new QueryHandler with the given log.Logger.
-	Make(log *log.Logger, verboseLogging bool, useMockData bool) (QueryHandler, error)
+	// Constructs a new QueryHandler with the given log.Logger and
+	// stats.Stats.
+	Make(
+		log *log.Logger,
+		stats stats.Stats,
+		verboseLogging bool,
+		useMockData bool,
+	) (QueryHandler, error)
 }
 
 func NewQueryHandlerFromFlags(flagset *flag.PrefixedFlagSet) QueryHandlerFromFlags {
@@ -35,7 +43,14 @@ func NewQueryHandlerFromFlags(flagset *flag.PrefixedFlagSet) QueryHandlerFromFla
 		"Authentication token for {{NAME}}. Required unless developer mode is used to generate mock data.",
 	)
 
-	ff.executorFromFlags = executor.NewFromFlags(flagset.Scope("exec", "executor"))
+	ff.executorFromFlags =
+		executor.NewFromFlagsWithDefaults(
+			flagset.Scope("exec", "executor"),
+			executor.FromFlagsDefaults{
+				AttemptTimeout: 5 * time.Second,
+				Timeout:        30 * time.Second,
+			},
+		)
 
 	return ff
 }
@@ -56,17 +71,21 @@ func (ff *queryHandlerFromFlags) Validate(useMockData bool) error {
 
 func (ff *queryHandlerFromFlags) Make(
 	log *log.Logger,
+	stats stats.Stats,
 	verboseLogging bool,
 	useMockData bool,
 ) (QueryHandler, error) {
 	if useMockData {
 		return NewMockQueryHandler(), nil
 	} else {
+		exec := ff.executorFromFlags.Make(log)
+		exec.SetStats(stats)
+
 		return NewQueryHandler(
 			ff.wavefrontServerUrl,
 			ff.wavefrontApiToken,
 			verboseLogging,
-			ff.executorFromFlags.Make(log),
+			exec,
 		)
 	}
 }

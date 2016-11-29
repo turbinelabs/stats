@@ -175,18 +175,20 @@ func (tc makeTestCase) run(t *testing.T) {
 	auth := func(http.HandlerFunc) http.HandlerFunc {
 		return nil
 	}
+
 	authFromFlags.EXPECT().Make(gomock.Any()).Return(auth, nil)
+	stats.EXPECT().Scope("executor").Return(stats)
 
 	if tc.makeQueryHandlerError != nil {
 		queryHandlerFromFlags.EXPECT().
-			Make(gomock.Any(), gomock.Any(), gomock.Any()).
+			Make(gomock.Any(), stats, gomock.Any(), gomock.Any()).
 			Return(nil, tc.makeQueryHandlerError)
 		return
 	}
 
 	queryHandler := handler.NewMockQueryHandler()
 	queryHandlerFromFlags.EXPECT().
-		Make(gomock.Any(), gomock.Any(), gomock.Any()).
+		Make(gomock.Any(), stats, gomock.Any(), gomock.Any()).
 		Return(queryHandler, nil)
 
 	if tc.makeMetricsCollectorError != nil {

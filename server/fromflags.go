@@ -127,6 +127,7 @@ func (ff *fromFlags) Make() (server.Server, error) {
 
 	queryHandler, err := ff.QueryHandlerFromFlags.Make(
 		logger,
+		stats.Scope("executor"),
 		ff.devModeVerbose(),
 		ff.devModeMockData(),
 	)

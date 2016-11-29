@@ -4,9 +4,9 @@
 package handler
 
 import (
-	log "log"
-
 	gomock "github.com/golang/mock/gomock"
+	stats "github.com/turbinelabs/nonstdlib/stats"
+	log "log"
 )
 
 // Mock of QueryHandlerFromFlags interface
@@ -40,13 +40,13 @@ func (_mr *_MockQueryHandlerFromFlagsRecorder) Validate(arg0 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate", arg0)
 }
 
-func (_m *MockQueryHandlerFromFlags) Make(log *log.Logger, verboseLogging bool, useMockData bool) (QueryHandler, error) {
-	ret := _m.ctrl.Call(_m, "Make", log, verboseLogging, useMockData)
+func (_m *MockQueryHandlerFromFlags) Make(log *log.Logger, stats stats.Stats, verboseLogging bool, useMockData bool) (QueryHandler, error) {
+	ret := _m.ctrl.Call(_m, "Make", log, stats, verboseLogging, useMockData)
 	ret0, _ := ret[0].(QueryHandler)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockQueryHandlerFromFlagsRecorder) Make(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Make", arg0, arg1, arg2)
+func (_mr *_MockQueryHandlerFromFlagsRecorder) Make(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Make", arg0, arg1, arg2, arg3)
 }
