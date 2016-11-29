@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/turbinelabs/api/client/flags"
+	statsapi "github.com/turbinelabs/api/service/stats"
 	"github.com/turbinelabs/nonstdlib/executor"
 	"github.com/turbinelabs/nonstdlib/flag"
 )
@@ -17,15 +18,15 @@ const (
 	DefaultMaxBatchSize  = 100
 )
 
-// FromFlags validates and constructs a client.StatsClient from command line
+// FromFlags validates and constructs a a statsapi.StatsService from command line
 // flags.
 type FromFlags interface {
 	Validate() error
 
-	// Constructs a client.StatsClient using the given Executor and Logger.
-	Make(executor.Executor, *log.Logger) (StatsClient, error)
+	// Constructs a statsapi.StatsService using the given Executor and Logger.
+	Make(executor.Executor, *log.Logger) (statsapi.StatsService, error)
 
-	// Returns the API Key used to construct the client.StatsClient.
+	// Returns the API Key used to construct the statsapi.StatsService.
 	APIKey() string
 }
 
@@ -79,7 +80,7 @@ type fromFlags struct {
 	maxBatchDelay      time.Duration
 	maxBatchSize       int
 
-	cachedClient StatsClient
+	cachedClient statsapi.StatsService
 }
 
 func (ff *fromFlags) Validate() error {
@@ -100,7 +101,10 @@ func (ff *fromFlags) Validate() error {
 	return nil
 }
 
-func (ff *fromFlags) Make(exec executor.Executor, logger *log.Logger) (StatsClient, error) {
+func (ff *fromFlags) Make(
+	exec executor.Executor,
+	logger *log.Logger,
+) (statsapi.StatsService, error) {
 	if ff.cachedClient != nil {
 		return ff.cachedClient, nil
 	}
@@ -112,7 +116,7 @@ func (ff *fromFlags) Make(exec executor.Executor, logger *log.Logger) (StatsClie
 		return nil, err
 	}
 
-	var stats StatsClient
+	var stats statsapi.StatsService
 	if ff.useBatching {
 		stats, err = NewBatchingStatsClient(
 			ff.maxBatchDelay,

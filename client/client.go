@@ -11,9 +11,8 @@ import (
 
 	apihttp "github.com/turbinelabs/api/http"
 	httperr "github.com/turbinelabs/api/http/error"
+	statsapi "github.com/turbinelabs/api/service/stats"
 	"github.com/turbinelabs/nonstdlib/executor"
-	"github.com/turbinelabs/nonstdlib/stats"
-	statsapi "github.com/turbinelabs/stats"
 )
 
 const (
@@ -22,25 +21,12 @@ const (
 	forwardPath = "/v1.0/stats/forward"
 )
 
-// StatsClient forwards stats data to a remote stats-server.
-type StatsClient interface {
-	// Forward the given stats payload.
-	Forward(*statsapi.StatsPayload) (*statsapi.Result, error)
-
-	// Closes the client and releases any resources it created.
-	Close() error
-
-	// Creates a stats.Stats that uses this StatsClient to forward
-	// stats with the given source and optional scope.
-	Stats(source string, scope ...string) stats.Stats
-}
-
 // internalStatsClient is an internal interface for issuing forwarding
 // requests.
 type internalStatsClient interface {
 	// Issues a forwarding request for the given payload with the
 	// given executor.CallbackFunc.
-	IssueRequest(*statsapi.StatsPayload, executor.CallbackFunc) error
+	IssueRequest(*statsapi.Payload, executor.CallbackFunc) error
 }
 
 type httpStatsV1 struct {
@@ -49,7 +35,7 @@ type httpStatsV1 struct {
 	exec           executor.Executor
 }
 
-var _ StatsClient = &httpStatsV1{}
+var _ statsapi.StatsService = &httpStatsV1{}
 var _ internalStatsClient = &httpStatsV1{}
 
 // NewStatsClient returns a blocking implementation of Stats. Each
@@ -60,7 +46,7 @@ func NewStatsClient(
 	apiKey string,
 	client *http.Client,
 	exec executor.Executor,
-) (StatsClient, error) {
+) (statsapi.StatsService, error) {
 	return newInternalStatsClient(dest, apiKey, client, exec)
 }
 
@@ -77,7 +63,7 @@ func newInternalStatsClient(
 	return &httpStatsV1{dest, apihttp.NewRequestHandler(client, apiKey, clientID), exec}, nil
 }
 
-func encodePayload(payload *statsapi.StatsPayload) (string, error) {
+func encodePayload(payload *statsapi.Payload) (string, error) {
 	if b, err := json.Marshal(payload); err == nil {
 		return string(b), nil
 	} else {
@@ -86,7 +72,7 @@ func encodePayload(payload *statsapi.StatsPayload) (string, error) {
 	}
 }
 
-func (hs *httpStatsV1) IssueRequest(payload *statsapi.StatsPayload, cb executor.CallbackFunc) error {
+func (hs *httpStatsV1) IssueRequest(payload *statsapi.Payload, cb executor.CallbackFunc) error {
 	encoded, err := encodePayload(payload)
 	if err != nil {
 		return err
@@ -94,7 +80,7 @@ func (hs *httpStatsV1) IssueRequest(payload *statsapi.StatsPayload, cb executor.
 
 	hs.exec.Exec(
 		func(ctxt context.Context) (interface{}, error) {
-			response := &statsapi.Result{}
+			response := &statsapi.ForwardResult{}
 			if err := hs.requestHandler.Do(
 				func() (*http.Request, error) {
 					rdr := strings.NewReader(encoded)
@@ -119,7 +105,7 @@ func (hs *httpStatsV1) IssueRequest(payload *statsapi.StatsPayload, cb executor.
 	return nil
 }
 
-func (hs *httpStatsV1) Forward(payload *statsapi.StatsPayload) (*statsapi.Result, error) {
+func (hs *httpStatsV1) Forward(payload *statsapi.Payload) (*statsapi.ForwardResult, error) {
 	responseChan := make(chan executor.Try, 1)
 	defer close(responseChan)
 
@@ -137,7 +123,7 @@ func (hs *httpStatsV1) Forward(payload *statsapi.StatsPayload) (*statsapi.Result
 	if try.IsError() {
 		return nil, try.Error()
 	} else {
-		return try.Get().(*statsapi.Result), nil
+		return try.Get().(*statsapi.ForwardResult), nil
 	}
 }
 
@@ -145,6 +131,6 @@ func (hs *httpStatsV1) Close() error {
 	return nil
 }
 
-func (hs *httpStatsV1) Stats(source string, scope ...string) stats.Stats {
-	return newStats(hs, source, scope...)
+func (hs *httpStatsV1) Query(*statsapi.Query) (*statsapi.QueryResult, error) {
+	panic("NOT IMPLEMENTED YET")
 }

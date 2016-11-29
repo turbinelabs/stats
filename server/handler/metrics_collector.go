@@ -11,12 +11,12 @@ import (
 	"github.com/turbinelabs/api"
 	apihttp "github.com/turbinelabs/api/http"
 	httperr "github.com/turbinelabs/api/http/error"
+	statsapi "github.com/turbinelabs/api/service/stats"
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
 	"github.com/turbinelabs/nonstdlib/ptr"
 	"github.com/turbinelabs/nonstdlib/time"
 	"github.com/turbinelabs/server"
-	"github.com/turbinelabs/stats"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
 )
 
@@ -28,7 +28,7 @@ type MetricsCollector interface {
 	// external service and the first error encountered. Errors
 	// may occur while encoding metrics for forwarding or during
 	// forwarding itself.
-	Forward(api.OrgKey, *stats.StatsPayload) (int, error)
+	Forward(api.OrgKey, *statsapi.Payload) (int, error)
 
 	// Closes any resources associated with the external service.
 	Close() error
@@ -50,7 +50,7 @@ type metricsCollector struct {
 
 var _ server.Closer = &metricsCollector{}
 
-func (f *metricsCollector) Forward(orgKey api.OrgKey, payload *stats.StatsPayload) (int, error) {
+func (f *metricsCollector) Forward(orgKey api.OrgKey, payload *statsapi.Payload) (int, error) {
 	source, err := metric.NewSource(payload.Source, "")
 	if err != nil {
 		return 0, err
@@ -113,7 +113,7 @@ func asHandler(f MetricsCollector) http.HandlerFunc {
 
 			num, err := f.Forward(orgKey, payload)
 
-			rrw.WriteEnvelope(err, &stats.Result{NumAccepted: num})
+			rrw.WriteEnvelope(err, &statsapi.ForwardResult{NumAccepted: num})
 		} else {
 			rrw.WriteEnvelope(
 				httperr.New500("authorization config error", httperr.MiscErrorCode),
@@ -132,12 +132,12 @@ func (f *metricsCollector) AsHandler() http.HandlerFunc {
 }
 
 // An http.Request wrapper that encapsulates conversion of the request
-// Body into a stats.StatsPayload.
+// Body into a statsapi.Payload.
 type metricsCollectorRequest struct {
 	*http.Request
 }
 
-func (f *metricsCollectorRequest) getPayload() (*stats.StatsPayload, error) {
+func (f *metricsCollectorRequest) getPayload() (*statsapi.Payload, error) {
 	body := f.Request.Body
 	if body == nil {
 		return nil, httperr.New400("no body available", httperr.UnknownNoBodyCode)
@@ -150,7 +150,7 @@ func (f *metricsCollectorRequest) getPayload() (*stats.StatsPayload, error) {
 			httperr.New500("could not read request body", httperr.UnknownTransportCode)
 	}
 
-	stats := &stats.StatsPayload{}
+	stats := &statsapi.Payload{}
 	err = json.Unmarshal(b, stats)
 	if err != nil {
 		return nil,

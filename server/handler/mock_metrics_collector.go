@@ -6,7 +6,7 @@ package handler
 import (
 	gomock "github.com/golang/mock/gomock"
 	api "github.com/turbinelabs/api"
-	stats "github.com/turbinelabs/stats"
+	stats "github.com/turbinelabs/api/service/stats"
 	http "net/http"
 )
 
@@ -31,7 +31,7 @@ func (_m *MockMetricsCollector) EXPECT() *_MockMetricsCollectorRecorder {
 	return _m.recorder
 }
 
-func (_m *MockMetricsCollector) Forward(_param0 api.OrgKey, _param1 *stats.StatsPayload) (int, error) {
+func (_m *MockMetricsCollector) Forward(_param0 api.OrgKey, _param1 *stats.Payload) (int, error) {
 	ret := _m.ctrl.Call(_m, "Forward", _param0, _param1)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)

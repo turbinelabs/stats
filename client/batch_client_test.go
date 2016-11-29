@@ -8,27 +8,27 @@ import (
 
 	"github.com/golang/mock/gomock"
 
+	statsapi "github.com/turbinelabs/api/service/stats"
 	"github.com/turbinelabs/nonstdlib/executor"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
-	"github.com/turbinelabs/stats"
 	"github.com/turbinelabs/test/assert"
 	"github.com/turbinelabs/test/log"
 )
 
-func payloadOfSize(s int) *stats.StatsPayload {
+func payloadOfSize(s int) *statsapi.Payload {
 	switch s {
 	case 0:
-		return &stats.StatsPayload{Source: sourceString1}
+		return &statsapi.Payload{Source: sourceString1}
 
 	case 1:
 		return payload
 
 	default:
-		a := make([]stats.Stat, s)
+		a := make([]statsapi.Stat, s)
 		for i := 0; i < s; i++ {
 			a[i] = payload.Stats[0]
 		}
-		return &stats.StatsPayload{Source: sourceString1, Stats: a}
+		return &statsapi.Payload{Source: sourceString1, Stats: a}
 	}
 }
 
@@ -56,7 +56,7 @@ func (bt batcherTest) run(t *testing.T) {
 		expectedPayload := payloadOfSize(payloadSize)
 		mockUnderlyingStatsClient.EXPECT().
 			IssueRequest(expectedPayload, gomock.Any()).
-			Do(func(_ *stats.StatsPayload, cb executor.CallbackFunc) { cbfChan <- cb }).
+			Do(func(_ *statsapi.Payload, cb executor.CallbackFunc) { cbfChan <- cb }).
 			Return(nil)
 	}
 
@@ -67,7 +67,7 @@ func (bt batcherTest) run(t *testing.T) {
 			maxSize:             bt.maxSize,
 		},
 		source: sourceString1,
-		ch:     make(chan *stats.StatsPayload, 2*bt.maxSize),
+		ch:     make(chan *statsapi.Payload, 2*bt.maxSize),
 	}
 
 	mockTimer := tbntime.NewMockTimer(ctrl)
@@ -373,36 +373,4 @@ func TestPayloadBatcherRunSendsOnClose(t *testing.T) {
 			)
 		},
 	}.run(t)
-}
-
-func TestBatchingStatsClientStats(t *testing.T) {
-	client, err := NewBatchingStatsClient(
-		time.Second,
-		100,
-		endpoint,
-		apiKey,
-		&http.Client{},
-		nil,
-		log.NewNoopLogger(),
-	)
-	assert.NonNil(t, client)
-	assert.Nil(t, err)
-
-	s := client.Stats("source")
-	sImpl, ok := s.(*statsT)
-	assert.NonNil(t, sImpl)
-	assert.True(t, ok)
-
-	assert.SameInstance(t, sImpl.client, client)
-	assert.Equal(t, sImpl.source, "source")
-	assert.Equal(t, sImpl.scope, "")
-
-	s = client.Stats("source", "a", "b", "c")
-	sImpl, ok = s.(*statsT)
-	assert.NonNil(t, sImpl)
-	assert.True(t, ok)
-
-	assert.SameInstance(t, sImpl.client, client)
-	assert.Equal(t, sImpl.source, "source")
-	assert.Equal(t, sImpl.scope, "a/b/c")
 }

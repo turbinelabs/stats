@@ -16,10 +16,10 @@ import (
 	"github.com/turbinelabs/api"
 	"github.com/turbinelabs/api/http/envelope"
 	httperr "github.com/turbinelabs/api/http/error"
+	statsapi "github.com/turbinelabs/api/service/stats"
 	"github.com/turbinelabs/logparser/forwarder"
 	"github.com/turbinelabs/logparser/metric"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
-	"github.com/turbinelabs/stats"
 	"github.com/turbinelabs/stats/server/handler/requestcontext"
 	"github.com/turbinelabs/test/assert"
 	testio "github.com/turbinelabs/test/io"
@@ -35,18 +35,18 @@ var (
 	testEpochTime = tbntime.FromUnixMicro(testEpoch)
 )
 
-func makePayload(numStats int) *stats.StatsPayload {
+func makePayload(numStats int) *statsapi.Payload {
 	return makeFormattedPayload(numStats, "s/%d")
 }
 
-func makeFormattedPayload(numStats int, metricNameFmt string) *stats.StatsPayload {
-	s := []stats.Stat{}
+func makeFormattedPayload(numStats int, metricNameFmt string) *statsapi.Payload {
+	s := []statsapi.Stat{}
 	for i := 0; i < numStats; i++ {
 		tags := map[string]string{
 			fmt.Sprintf("t%dk", i): fmt.Sprintf("t%dv", i),
 		}
 
-		stat := stats.Stat{
+		stat := statsapi.Stat{
 			Name:      fmt.Sprintf(metricNameFmt, i),
 			Value:     float64(i) + 0.25,
 			Timestamp: testEpoch + int64(i),
@@ -56,7 +56,7 @@ func makeFormattedPayload(numStats int, metricNameFmt string) *stats.StatsPayloa
 		s = append(s, stat)
 	}
 
-	return &stats.StatsPayload{
+	return &statsapi.Payload{
 		Source: "sourcery",
 		Stats:  s,
 	}
@@ -90,7 +90,7 @@ func makeExpectedFormattedMetricValues(numStats int, metricNameFmt string) []met
 	return v
 }
 
-func makeBytes(t *testing.T, payload *stats.StatsPayload) []byte {
+func makeBytes(t *testing.T, payload *statsapi.Payload) []byte {
 	str, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("json marshal error: %v", err)
@@ -180,7 +180,7 @@ func TestAsHandler(t *testing.T) {
 
 	assert.Equal(t, recorder.Code, 200)
 
-	expectedResult := envelope.Response{Payload: &stats.Result{NumAccepted: 1}}
+	expectedResult := envelope.Response{Payload: &statsapi.ForwardResult{NumAccepted: 1}}
 	expectedBody, err := json.Marshal(expectedResult)
 	assert.Nil(t, err)
 
@@ -212,7 +212,7 @@ func TestAsHandlerForwardingError(t *testing.T) {
 
 	assert.Equal(t, recorder.Code, 500)
 
-	expectedResult := envelope.Response{Error: httpErr, Payload: &stats.Result{NumAccepted: 1}}
+	expectedResult := envelope.Response{Error: httpErr, Payload: &statsapi.ForwardResult{NumAccepted: 1}}
 	expectedBody, err := json.Marshal(expectedResult)
 	assert.Nil(t, err)
 
@@ -278,7 +278,7 @@ func TestMetricsCollectorForwardInvalidSource(t *testing.T) {
 
 	collector := metricsCollector{forwarder: mockForwarder}
 
-	payload := &stats.StatsPayload{Source: "a bird in the hand"}
+	payload := &statsapi.Payload{Source: "a bird in the hand"}
 
 	sent, err := collector.Forward(orgKey, payload)
 	assert.Equal(t, sent, 0)
@@ -287,7 +287,7 @@ func TestMetricsCollectorForwardInvalidSource(t *testing.T) {
 
 type forwardTestCase struct {
 	orgKey               api.OrgKey
-	payload              *stats.StatsPayload
+	payload              *statsapi.Payload
 	expectedMetricValues []metric.MetricValue
 
 	numSent         int

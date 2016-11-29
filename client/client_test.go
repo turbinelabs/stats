@@ -18,10 +18,10 @@ import (
 	apihttp "github.com/turbinelabs/api/http"
 	"github.com/turbinelabs/api/http/envelope"
 	httperr "github.com/turbinelabs/api/http/error"
+	statsapi "github.com/turbinelabs/api/service/stats"
 	"github.com/turbinelabs/logparser/metric"
 	"github.com/turbinelabs/nonstdlib/executor"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
-	"github.com/turbinelabs/stats"
 	"github.com/turbinelabs/test/assert"
 )
 
@@ -36,9 +36,9 @@ var (
 	when1       = time.Now()
 	when1Micros = tbntime.ToUnixMicro(when1)
 
-	payload = &stats.StatsPayload{
+	payload = &statsapi.Payload{
 		Source: sourceString1,
-		Stats: []stats.Stat{
+		Stats: []statsapi.Stat{
 			{
 				Name:      metric1.Name(),
 				Value:     1.41421,
@@ -48,9 +48,9 @@ var (
 		},
 	}
 
-	badPayload = &stats.StatsPayload{
+	badPayload = &statsapi.Payload{
 		Source: sourceString1,
-		Stats: []stats.Stat{
+		Stats: []statsapi.Stat{
 			{
 				Name:      metric1.Name(),
 				Value:     math.Inf(1),
@@ -90,18 +90,18 @@ func TestEncodePayloadError(t *testing.T) {
 }
 
 type forwardResult struct {
-	result *stats.Result
+	result *statsapi.ForwardResult
 	err    error
 }
 
-type resultFunc func() (*stats.Result, error)
-type requestFunc func(StatsClient) (*stats.Result, error)
+type resultFunc func() (*statsapi.ForwardResult, error)
+type requestFunc func(statsapi.StatsService) (*statsapi.ForwardResult, error)
 type newStatsFunc func(
 	apihttp.Endpoint,
 	string,
 	*http.Client,
 	executor.Executor,
-) (StatsClient, error)
+) (statsapi.StatsService, error)
 
 func prepareStatsClientTest(
 	t *testing.T,
@@ -136,15 +136,15 @@ func prepareStatsClientTest(
 	f := <-funcChan
 	cb := <-callbackFuncChan
 
-	return f, cb, func() (*stats.Result, error) {
+	return f, cb, func() (*statsapi.ForwardResult, error) {
 		defer ctrl.Finish()
 		rv := <-rvChan
 		return rv.result, rv.err
 	}
 }
 
-func payloadForward(p *stats.StatsPayload) func(client StatsClient) (*stats.Result, error) {
-	return func(client StatsClient) (*stats.Result, error) {
+func payloadForward(p *statsapi.Payload) func(client statsapi.StatsService) (*statsapi.ForwardResult, error) {
+	return func(client statsapi.StatsService) (*statsapi.ForwardResult, error) {
 		return client.Forward(p)
 	}
 }
@@ -154,7 +154,7 @@ var simpleForward = payloadForward(payload)
 func TestStatsClientForward(t *testing.T) {
 	_, cb, getResult := prepareStatsClientTest(t, endpoint, simpleForward)
 
-	expectedResult := &stats.Result{NumAccepted: 1}
+	expectedResult := &statsapi.ForwardResult{NumAccepted: 1}
 	cb(executor.NewReturn(expectedResult))
 
 	result, err := getResult()
@@ -175,8 +175,8 @@ func TestStatsClientForwardFailure(t *testing.T) {
 
 type testHandler struct {
 	t               *testing.T
-	requestPayload  *stats.StatsPayload
-	responsePayload *stats.Result
+	requestPayload  *statsapi.Payload
+	responsePayload *statsapi.ForwardResult
 	responseError   *httperr.Error
 }
 
@@ -188,7 +188,7 @@ func (h *testHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	defer body.Close()
 	assert.Nil(h.t, err)
 
-	stats := &stats.StatsPayload{}
+	stats := &statsapi.Payload{}
 	err = json.Unmarshal(bytes, stats)
 	assert.Nil(h.t, err)
 	h.requestPayload = stats
@@ -203,10 +203,10 @@ func (h *testHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 
 func runStatsClientFuncTest(
 	t *testing.T,
-	requestPayload *stats.StatsPayload,
-	responsePayload *stats.Result,
+	requestPayload *statsapi.Payload,
+	responsePayload *statsapi.ForwardResult,
 	httpErr *httperr.Error,
-) (*stats.StatsPayload, *stats.Result, error) {
+) (*statsapi.Payload, *statsapi.ForwardResult, error) {
 	handler := &testHandler{responsePayload: responsePayload, responseError: httpErr}
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -226,11 +226,11 @@ func runStatsClientFuncTest(
 	if response == nil {
 		return handler.requestPayload, nil, err
 	}
-	return handler.requestPayload, response.(*stats.Result), err
+	return handler.requestPayload, response.(*statsapi.ForwardResult), err
 }
 
 func TestStatsClientForwardExecFunc(t *testing.T) {
-	expectedResult := &stats.Result{NumAccepted: 12}
+	expectedResult := &statsapi.ForwardResult{NumAccepted: 12}
 
 	gotPayload, result, err := runStatsClientFuncTest(t, payload, expectedResult, nil)
 	assert.DeepEqual(t, gotPayload, payload)
@@ -245,28 +245,4 @@ func TestStatsClientForwardExecFuncFailure(t *testing.T) {
 	assert.DeepEqual(t, gotPayload, payload)
 	assert.Nil(t, result)
 	assert.Equal(t, err.Error(), expectedErr.Error())
-}
-
-func TestStatsClientStats(t *testing.T) {
-	client, err := NewStatsClient(endpoint, apiKey, &http.Client{}, nil)
-	assert.NonNil(t, client)
-	assert.Nil(t, err)
-
-	s := client.Stats("source")
-	sImpl, ok := s.(*statsT)
-	assert.NonNil(t, sImpl)
-	assert.True(t, ok)
-
-	assert.SameInstance(t, sImpl.client, client)
-	assert.Equal(t, sImpl.source, "source")
-	assert.Equal(t, sImpl.scope, "")
-
-	s = client.Stats("source", "a", "b", "c")
-	sImpl, ok = s.(*statsT)
-	assert.NonNil(t, sImpl)
-	assert.True(t, ok)
-
-	assert.SameInstance(t, sImpl.client, client)
-	assert.Equal(t, sImpl.source, "source")
-	assert.Equal(t, sImpl.scope, "a/b/c")
 }

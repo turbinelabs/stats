@@ -8,10 +8,9 @@ import (
 	"time"
 
 	apihttp "github.com/turbinelabs/api/http"
+	statsapi "github.com/turbinelabs/api/service/stats"
 	"github.com/turbinelabs/nonstdlib/executor"
-	"github.com/turbinelabs/nonstdlib/stats"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
-	statsapi "github.com/turbinelabs/stats"
 )
 
 type httpBatchingStatsV1 struct {
@@ -43,7 +42,7 @@ func NewBatchingStatsClient(
 	client *http.Client,
 	exec executor.Executor,
 	logger *log.Logger,
-) (StatsClient, error) {
+) (statsapi.StatsService, error) {
 	if maxDelay < time.Second {
 		return nil, errors.New("max delay must be at least 1 second")
 	}
@@ -83,7 +82,7 @@ func (hs *httpBatchingStatsV1) newBatcher(source string) *payloadBatcher {
 		batcher = &payloadBatcher{
 			client: hs,
 			source: source,
-			ch:     make(chan *statsapi.StatsPayload, 10),
+			ch:     make(chan *statsapi.Payload, 10),
 		}
 
 		hs.batchers[source] = batcher
@@ -93,7 +92,7 @@ func (hs *httpBatchingStatsV1) newBatcher(source string) *payloadBatcher {
 	return batcher
 }
 
-func (hs *httpBatchingStatsV1) Forward(payload *statsapi.StatsPayload) (*statsapi.Result, error) {
+func (hs *httpBatchingStatsV1) Forward(payload *statsapi.Payload) (*statsapi.ForwardResult, error) {
 	batcher := hs.getBatcher(payload.Source)
 	if batcher == nil {
 		batcher = hs.newBatcher(payload.Source)
@@ -101,7 +100,7 @@ func (hs *httpBatchingStatsV1) Forward(payload *statsapi.StatsPayload) (*statsap
 
 	batcher.ch <- payload
 
-	return &statsapi.Result{NumAccepted: len(payload.Stats)}, nil
+	return &statsapi.ForwardResult{NumAccepted: len(payload.Stats)}, nil
 }
 
 func (hs *httpBatchingStatsV1) Close() error {
@@ -115,14 +114,14 @@ func (hs *httpBatchingStatsV1) Close() error {
 	return nil
 }
 
-func (hs *httpBatchingStatsV1) Stats(source string, scope ...string) stats.Stats {
-	return newStats(hs, source, scope...)
+func (hs *httpBatchingStatsV1) Query(*statsapi.Query) (*statsapi.QueryResult, error) {
+	panic("NOT IMPLEMENTED YET")
 }
 
 type payloadBatcher struct {
 	client *httpBatchingStatsV1
 	source string
-	ch     chan *statsapi.StatsPayload
+	ch     chan *statsapi.Payload
 }
 
 func (b *payloadBatcher) start() {
@@ -170,7 +169,7 @@ func (b *payloadBatcher) run(timer tbntime.Timer) {
 }
 
 func (b *payloadBatcher) forward(s []statsapi.Stat) {
-	payload := &statsapi.StatsPayload{
+	payload := &statsapi.Payload{
 		Source: b.source,
 		Stats:  s,
 	}
