@@ -18,6 +18,7 @@ import (
 	apihttp "github.com/turbinelabs/api/http"
 	"github.com/turbinelabs/api/http/envelope"
 	httperr "github.com/turbinelabs/api/http/error"
+	apiheader "github.com/turbinelabs/api/http/header"
 	statsapi "github.com/turbinelabs/api/service/stats"
 	"github.com/turbinelabs/logparser/metric"
 	"github.com/turbinelabs/nonstdlib/executor"
@@ -60,7 +61,7 @@ var (
 		},
 	}
 
-	apiKey = "i.am.a.key"
+	testApiKey = "i.am.a.key"
 
 	endpoint, _ = apihttp.NewEndpoint(apihttp.HTTP, "example.com", 8080)
 )
@@ -99,7 +100,6 @@ type requestFunc func(statsapi.StatsService) (*statsapi.ForwardResult, error)
 type newStatsFunc func(
 	apihttp.Endpoint,
 	string,
-	*http.Client,
 	executor.Executor,
 ) (statsapi.StatsService, error)
 
@@ -123,7 +123,7 @@ func prepareStatsClientTest(
 			},
 		)
 
-	client, err := NewStatsClient(e, apiKey, &http.Client{}, mockExec)
+	client, err := NewStatsClient(e, testApiKey, mockExec)
 	assert.Nil(t, err)
 
 	rvChan := make(chan forwardResult, 1)
@@ -181,6 +181,32 @@ type testHandler struct {
 }
 
 func (h *testHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+	apiKey := req.Header.Get(http.CanonicalHeaderKey(apiheader.APIKey))
+	if apiKey != testApiKey {
+		resp.WriteHeader(400)
+		resp.Write([]byte(
+			fmt.Sprintf(
+				"wrong api key header, got %s, want %s",
+				apiKey,
+				testApiKey,
+			),
+		))
+		return
+	}
+
+	clientId := req.Header.Get(http.CanonicalHeaderKey(apiheader.ClientID))
+	if clientId != statsClientID {
+		resp.WriteHeader(400)
+		resp.Write([]byte(
+			fmt.Sprintf(
+				"wrong client id header: got %s, want %s",
+				clientId,
+				statsClientID,
+			),
+		))
+		return
+	}
+
 	body := req.Body
 	assert.NonNil(h.t, body)
 

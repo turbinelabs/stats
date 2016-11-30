@@ -91,6 +91,12 @@ func (ff *fromFlags) Validate() error {
 		return err
 	}
 
+	if !ff.devModeNoAuth() {
+		if err := ff.AuthorizerFromFlags.Validate(); err != nil {
+			return err
+		}
+	}
+
 	if err := ff.QueryHandlerFromFlags.Validate(ff.devModeMockData()); err != nil {
 		return err
 	}

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"log"
-	"net/http"
 	"os"
 	"testing"
 
@@ -27,11 +26,9 @@ func TestAPIAuthFromFlagsMake(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	httpClient := &http.Client{}
 	endpoint := apihttp.Endpoint{}
 
 	clientFromFlags := apihttp.NewMockFromFlags(ctrl)
-	clientFromFlags.EXPECT().MakeClient().Return(httpClient)
 	clientFromFlags.EXPECT().MakeEndpoint().Return(endpoint, nil)
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
@@ -46,12 +43,10 @@ func TestAPIAuthFromFlagsMakeError(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	httpClient := &http.Client{}
 	endpoint := apihttp.Endpoint{}
 	makeErr := errors.New("")
 
 	clientFromFlags := apihttp.NewMockFromFlags(ctrl)
-	clientFromFlags.EXPECT().MakeClient().Return(httpClient)
 	clientFromFlags.EXPECT().MakeEndpoint().Return(endpoint, makeErr)
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)

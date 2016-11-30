@@ -17,7 +17,6 @@ import (
 const NoAuthOrgKey = "test-org-key"
 
 type apiAuthorizer struct {
-	client   *http.Client
 	endpoint apihttp.Endpoint
 	log      *log.Logger
 }
@@ -68,7 +67,7 @@ func (a *apiAuthorizerHandler) handler(rw http.ResponseWriter, r *http.Request) 
 // Validates the given API key again the API. Returns nil if the API
 // key is valid.
 func (a *apiAuthorizerHandler) validate(apiKey string) (api.OrgKey, *httperr.Error) {
-	svc, err := apiclient.NewAdmin(a.endpoint, apiKey, a.client)
+	svc, err := apiclient.NewAdmin(a.endpoint, apiKey)
 	if err != nil {
 		return "", httperr.New500(err.Error(), httperr.UnknownTransportCode)
 	}

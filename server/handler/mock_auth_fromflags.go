@@ -30,6 +30,16 @@ func (_m *MockAuthorizerFromFlags) EXPECT() *_MockAuthorizerFromFlagsRecorder {
 	return _m.recorder
 }
 
+func (_m *MockAuthorizerFromFlags) Validate() error {
+	ret := _m.ctrl.Call(_m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockAuthorizerFromFlagsRecorder) Validate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
+}
+
 func (_m *MockAuthorizerFromFlags) Make(_param0 *log.Logger) (handler.Authorizer, error) {
 	ret := _m.ctrl.Call(_m, "Make", _param0)
 	ret0, _ := ret[0].(handler.Authorizer)

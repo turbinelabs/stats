@@ -3,7 +3,6 @@ package client
 import (
 	"errors"
 	"flag"
-	"net/http"
 	"testing"
 	"time"
 
@@ -28,8 +27,14 @@ func TestFromFlagsValidatesNormalClient(t *testing.T) {
 
 	ff := NewFromFlags(pfs, WithAPIConfigFromFlags(apiConfigFromFlags))
 	assert.NonNil(t, ff)
+	assert.SameInstance(t, apiConfigFromFlags, ff.(*fromFlags).apiConfigFromFlags)
 
+	apiConfigFromFlags.EXPECT().Validate().Return(nil)
 	assert.Nil(t, ff.Validate())
+
+	expectedErr := errors.New("boom")
+	apiConfigFromFlags.EXPECT().Validate().Return(expectedErr)
+	assert.Equal(t, ff.Validate(), expectedErr)
 }
 
 func TestFromFlagsDelegatesToAPIConfigFromFlags(t *testing.T) {
@@ -41,13 +46,11 @@ func TestFromFlagsDelegatesToAPIConfigFromFlags(t *testing.T) {
 
 	mockExec := executor.NewMockExecutor(ctrl)
 
-	httpClient := &http.Client{}
 	endpoint, err := apihttp.NewEndpoint(apihttp.HTTPS, "example.com", 538)
 	assert.Nil(t, err)
 	assert.NonNil(t, endpoint)
 
 	apiConfigFromFlags := flags.NewMockAPIConfigFromFlags(ctrl)
-	apiConfigFromFlags.EXPECT().MakeClient().Return(httpClient)
 	apiConfigFromFlags.EXPECT().MakeEndpoint().Return(endpoint, nil)
 	apiConfigFromFlags.EXPECT().APIKey().Return("OTAY")
 
@@ -72,7 +75,6 @@ func TestFromFlagsDelegatesToAPIConfigFromFlags(t *testing.T) {
 	assert.SameInstance(t, statsClientImpl.exec, mockExec)
 
 	expectedErr := errors.New("no endpoints for you!")
-	apiConfigFromFlags.EXPECT().MakeClient().Return(httpClient)
 	apiConfigFromFlags.EXPECT().
 		MakeEndpoint().
 		Return(apihttp.Endpoint{}, expectedErr)
@@ -97,13 +99,11 @@ func TestFromFlagsCachesClient(t *testing.T) {
 	mockExec := executor.NewMockExecutor(ctrl)
 	otherMockExec := executor.NewMockExecutor(ctrl)
 
-	httpClient := &http.Client{}
 	endpoint, err := apihttp.NewEndpoint(apihttp.HTTPS, "example.com", 538)
 	assert.Nil(t, err)
 	assert.NonNil(t, endpoint)
 
 	apiConfigFromFlags := flags.NewMockAPIConfigFromFlags(ctrl)
-	apiConfigFromFlags.EXPECT().MakeClient().Return(httpClient)
 	apiConfigFromFlags.EXPECT().MakeEndpoint().Return(endpoint, nil)
 	apiConfigFromFlags.EXPECT().APIKey().Return("OTAY")
 
@@ -130,13 +130,11 @@ func TestFromFlagsCreatesBatchingClient(t *testing.T) {
 
 	mockExec := executor.NewMockExecutor(ctrl)
 
-	httpClient := &http.Client{}
 	endpoint, err := apihttp.NewEndpoint(apihttp.HTTPS, "example.com", 538)
 	assert.Nil(t, err)
 	assert.NonNil(t, endpoint)
 
 	apiConfigFromFlags := flags.NewMockAPIConfigFromFlags(ctrl)
-	apiConfigFromFlags.EXPECT().MakeClient().Return(httpClient)
 	apiConfigFromFlags.EXPECT().MakeEndpoint().Return(endpoint, nil)
 	apiConfigFromFlags.EXPECT().APIKey().Return("OTAY")
 
@@ -198,5 +196,10 @@ func TestFromFlagsValidatesBatchingClient(t *testing.T) {
 		"-pfix.max-batch-size=1",
 	})
 
+	expectedErr := errors.New("boom")
+	apiConfigFromFlags.EXPECT().Validate().Return(expectedErr)
+	assert.Equal(t, ff.Validate(), expectedErr)
+
+	apiConfigFromFlags.EXPECT().Validate().Return(nil)
 	assert.Nil(t, ff.Validate())
 }

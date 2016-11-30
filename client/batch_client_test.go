@@ -1,7 +1,6 @@
 package client
 
 import (
-	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -102,14 +101,12 @@ func TestNewBatchingStatsClient(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	httpClient := &http.Client{}
 	exec := executor.NewMockExecutor(ctrl)
 	client, err := NewBatchingStatsClient(
 		time.Second,
 		100,
 		endpoint,
-		apiKey,
-		httpClient,
+		testApiKey,
 		exec,
 		log.NewNoopLogger(),
 	)
@@ -136,20 +133,14 @@ func TestNewBatchingStatsClientValidation(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	httpClient := &http.Client{}
 	exec := executor.NewMockExecutor(ctrl)
 	log := log.NewNoopLogger()
 
-	client, err := NewBatchingStatsClient(time.Second, 100, endpoint, apiKey, nil, exec, log)
-	assert.Nil(t, client)
-	assert.NonNil(t, err)
-
-	client, err = NewBatchingStatsClient(
+	client, err := NewBatchingStatsClient(
 		999*time.Millisecond,
 		1,
 		endpoint,
-		apiKey,
-		httpClient,
+		testApiKey,
 		exec,
 		log,
 	)
@@ -160,8 +151,7 @@ func TestNewBatchingStatsClientValidation(t *testing.T) {
 		time.Second,
 		0,
 		endpoint,
-		apiKey,
-		httpClient,
+		testApiKey,
 		exec,
 		log,
 	)

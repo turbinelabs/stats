@@ -14,6 +14,8 @@ import (
 // AuthorizerFromFlags constructs a handler.Authorizer from command
 // line flags.
 type AuthorizerFromFlags interface {
+	Validate() error
+
 	// Constructs a handler.Authorizer from command line flags
 	// with the given log.Logger.
 	Make(*log.Logger) (handler.Authorizer, error)
@@ -40,16 +42,17 @@ type apiAuthFromFlags struct {
 	clientFromFlags apihttp.FromFlags
 }
 
-func (ff *apiAuthFromFlags) Make(log *log.Logger) (handler.Authorizer, error) {
-	client := ff.clientFromFlags.MakeClient()
+func (ff *apiAuthFromFlags) Validate() error {
+	return ff.clientFromFlags.Validate()
+}
 
+func (ff *apiAuthFromFlags) Make(log *log.Logger) (handler.Authorizer, error) {
 	endpoint, err := ff.clientFromFlags.MakeEndpoint()
 	if err != nil {
 		return nil, err
 	}
 
 	auth := apiAuthorizer{
-		client:   client,
 		endpoint: endpoint,
 		log:      log,
 	}

@@ -48,6 +48,25 @@ func TestValidateServer(t *testing.T) {
 	assert.ErrorContains(t, err, "boom")
 }
 
+func TestValidateAuthorizer(t *testing.T) {
+	ctrl := gomock.NewController(assert.Tracing(t))
+	defer ctrl.Finish()
+
+	mockServerFromFlags := server.NewMockFromFlags(ctrl)
+	mockServerFromFlags.EXPECT().Validate().Return(nil)
+
+	mockAuthorizerFromFlags := handler.NewMockAuthorizerFromFlags(ctrl)
+	mockAuthorizerFromFlags.EXPECT().Validate().Return(errors.New("bad authorizer"))
+
+	ffImpl := &fromFlags{
+		ServerFromFlags:     mockServerFromFlags,
+		AuthorizerFromFlags: mockAuthorizerFromFlags,
+	}
+
+	err := ffImpl.Validate()
+	assert.ErrorContains(t, err, "bad authorizer")
+}
+
 func TestValidateQueryHandler(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
@@ -55,11 +74,15 @@ func TestValidateQueryHandler(t *testing.T) {
 	mockServerFromFlags := server.NewMockFromFlags(ctrl)
 	mockServerFromFlags.EXPECT().Validate().Return(nil)
 
+	mockAuthorizerFromFlags := handler.NewMockAuthorizerFromFlags(ctrl)
+	mockAuthorizerFromFlags.EXPECT().Validate().Return(nil)
+
 	mockQueryHandlerFromFlags := handler.NewMockQueryHandlerFromFlags(ctrl)
 	mockQueryHandlerFromFlags.EXPECT().Validate(false).Return(errors.New("bad query handler"))
 
 	ffImpl := &fromFlags{
 		ServerFromFlags:       mockServerFromFlags,
+		AuthorizerFromFlags:   mockAuthorizerFromFlags,
 		QueryHandlerFromFlags: mockQueryHandlerFromFlags,
 	}
 
@@ -74,6 +97,9 @@ func TestValidateMetricsCollector(t *testing.T) {
 	mockServerFromFlags := server.NewMockFromFlags(ctrl)
 	mockServerFromFlags.EXPECT().Validate().Return(nil)
 
+	mockAuthorizerFromFlags := handler.NewMockAuthorizerFromFlags(ctrl)
+	mockAuthorizerFromFlags.EXPECT().Validate().Return(nil)
+
 	mockQueryHandlerFromFlags := handler.NewMockQueryHandlerFromFlags(ctrl)
 	mockQueryHandlerFromFlags.EXPECT().Validate(false).Return(nil)
 
@@ -82,6 +108,7 @@ func TestValidateMetricsCollector(t *testing.T) {
 
 	ffImpl := &fromFlags{
 		ServerFromFlags:           mockServerFromFlags,
+		AuthorizerFromFlags:       mockAuthorizerFromFlags,
 		QueryHandlerFromFlags:     mockQueryHandlerFromFlags,
 		MetricsCollectorFromFlags: mockMetricsCollectorFromFlags,
 	}
@@ -97,6 +124,9 @@ func TestValidateSuccess(t *testing.T) {
 	mockServerFromFlags := server.NewMockFromFlags(ctrl)
 	mockServerFromFlags.EXPECT().Validate().Return(nil)
 
+	mockAuthorizerFromFlags := handler.NewMockAuthorizerFromFlags(ctrl)
+	mockAuthorizerFromFlags.EXPECT().Validate().Return(nil)
+
 	mockQueryHandlerFromFlags := handler.NewMockQueryHandlerFromFlags(ctrl)
 	mockQueryHandlerFromFlags.EXPECT().Validate(false).Return(nil)
 
@@ -105,6 +135,7 @@ func TestValidateSuccess(t *testing.T) {
 
 	ffImpl := &fromFlags{
 		ServerFromFlags:           mockServerFromFlags,
+		AuthorizerFromFlags:       mockAuthorizerFromFlags,
 		QueryHandlerFromFlags:     mockQueryHandlerFromFlags,
 		MetricsCollectorFromFlags: mockMetricsCollectorFromFlags,
 	}

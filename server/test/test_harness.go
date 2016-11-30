@@ -92,7 +92,6 @@ func (s *StatsServerTestHarness) Start() error {
 		return fmt.Errorf("failed to create metric source: %s", err.Error())
 	}
 
-	httpClient := apihttp.HeaderPreservingClient()
 	endpoint, err := apihttp.NewEndpoint(apihttp.HTTP, "127.0.0.1", s.StatsServerPort)
 	if err != nil {
 		return fmt.Errorf("failed to create endpoint: %s", err.Error())
@@ -107,7 +106,7 @@ func (s *StatsServerTestHarness) Start() error {
 		executor.WithParallelism(runtime.NumCPU()*2),
 	)
 
-	statsClient, err := client.NewStatsClient(endpoint, TestAPIKey, httpClient, exec)
+	statsClient, err := client.NewStatsClient(endpoint, TestAPIKey, exec)
 	if err != nil {
 		return fmt.Errorf("failed to create stats client: %s", err.Error())
 	}

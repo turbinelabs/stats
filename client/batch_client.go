@@ -3,7 +3,6 @@ package client
 import (
 	"errors"
 	"log"
-	"net/http"
 	"sync"
 	"time"
 
@@ -39,7 +38,6 @@ func NewBatchingStatsClient(
 	maxSize int,
 	dest apihttp.Endpoint,
 	apiKey string,
-	client *http.Client,
 	exec executor.Executor,
 	logger *log.Logger,
 ) (statsapi.StatsService, error) {
@@ -51,7 +49,7 @@ func NewBatchingStatsClient(
 		return nil, errors.New("max size must be at least 1")
 	}
 
-	underlyingStatsClient, err := newInternalStatsClient(dest, apiKey, client, exec)
+	underlyingStatsClient, err := newInternalStatsClient(dest, apiKey, exec)
 	if err != nil {
 		return nil, err
 	}

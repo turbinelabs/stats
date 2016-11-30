@@ -11,12 +11,13 @@ import (
 
 	apihttp "github.com/turbinelabs/api/http"
 	httperr "github.com/turbinelabs/api/http/error"
+	apiheader "github.com/turbinelabs/api/http/header"
 	statsapi "github.com/turbinelabs/api/service/stats"
 	"github.com/turbinelabs/nonstdlib/executor"
 )
 
 const (
-	clientID string = "tbn-stats-client (v0.1)"
+	statsClientID string = "tbn-stats-client (v0.1)"
 
 	forwardPath = "/v1.0/stats/forward"
 )
@@ -44,23 +45,24 @@ var _ internalStatsClient = &httpStatsV1{}
 func NewStatsClient(
 	dest apihttp.Endpoint,
 	apiKey string,
-	client *http.Client,
 	exec executor.Executor,
 ) (statsapi.StatsService, error) {
-	return newInternalStatsClient(dest, apiKey, client, exec)
+	return newInternalStatsClient(dest, apiKey, exec)
 }
 
 func newInternalStatsClient(
 	dest apihttp.Endpoint,
 	apiKey string,
-	client *http.Client,
 	exec executor.Executor,
 ) (*httpStatsV1, error) {
-	if client == nil {
-		return nil, fmt.Errorf("Attempting to configure StatsClient with nil *http.Client")
-	}
+	dest.AddHeader(apiheader.APIKey, apiKey)
+	dest.AddHeader(apiheader.ClientID, statsClientID)
 
-	return &httpStatsV1{dest, apihttp.NewRequestHandler(client, apiKey, clientID), exec}, nil
+	return &httpStatsV1{
+		dest,
+		apihttp.NewRequestHandler(dest.Client()),
+		exec,
+	}, nil
 }
 
 func encodePayload(payload *statsapi.Payload) (string, error) {
@@ -84,10 +86,12 @@ func (hs *httpStatsV1) IssueRequest(payload *statsapi.Payload, cb executor.Callb
 			if err := hs.requestHandler.Do(
 				func() (*http.Request, error) {
 					rdr := strings.NewReader(encoded)
-					req, err := http.NewRequest(
+					req, err := hs.dest.NewRequest(
 						"POST",
-						hs.dest.Url(forwardPath, apihttp.Params{}),
-						rdr)
+						forwardPath,
+						apihttp.Params{},
+						rdr,
+					)
 					if err != nil {
 						return nil, err
 					}

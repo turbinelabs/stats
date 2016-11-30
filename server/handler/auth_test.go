@@ -53,7 +53,6 @@ func mkAuthorizerFromHostPort(t *testing.T, host string, port int) apiAuthorizer
 	logger := log.New(os.Stderr, "", log.LstdFlags)
 
 	return apiAuthorizer{
-		client:   http.DefaultClient,
 		endpoint: e,
 		log:      logger,
 	}

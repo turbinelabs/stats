@@ -98,7 +98,7 @@ func (ff *fromFlags) Validate() error {
 		}
 	}
 
-	return nil
+	return ff.apiConfigFromFlags.Validate()
 }
 
 func (ff *fromFlags) Make(
@@ -108,8 +108,6 @@ func (ff *fromFlags) Make(
 	if ff.cachedClient != nil {
 		return ff.cachedClient, nil
 	}
-
-	client := ff.apiConfigFromFlags.MakeClient()
 
 	endpoint, err := ff.apiConfigFromFlags.MakeEndpoint()
 	if err != nil {
@@ -123,12 +121,11 @@ func (ff *fromFlags) Make(
 			ff.maxBatchSize,
 			endpoint,
 			ff.apiConfigFromFlags.APIKey(),
-			client,
 			exec,
 			logger,
 		)
 	} else {
-		stats, err = NewStatsClient(endpoint, ff.apiConfigFromFlags.APIKey(), client, exec)
+		stats, err = NewStatsClient(endpoint, ff.apiConfigFromFlags.APIKey(), exec)
 	}
 
 	if err != nil {
