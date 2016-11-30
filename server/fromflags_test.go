@@ -210,14 +210,14 @@ func (tc makeTestCase) run(t *testing.T) {
 	corsFromFlags.EXPECT().AllowedHeaders().Return([]string{"X-Turbine-API-Key"})
 	if tc.makeServerError != nil {
 		serverFromFlags.EXPECT().
-			Make(gomock.Any(), gomock.Any(), stats, gomock.Any()).
+			Make(gomock.Any(), gomock.Any(), stats, gomock.Any(), gomock.Any()).
 			Return(nil, tc.makeServerError)
 		return
 	}
 
 	server := server.NewMockServer(ctrl)
 	serverFromFlags.EXPECT().
-		Make(gomock.Any(), gomock.Any(), stats, gomock.Any()).
+		Make(gomock.Any(), gomock.Any(), stats, gomock.Any(), gomock.Any()).
 		Return(server, nil)
 
 	server.EXPECT().DeferClose(metricsCollector)

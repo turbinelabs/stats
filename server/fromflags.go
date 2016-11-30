@@ -146,7 +146,7 @@ func (ff *fromFlags) Make() (server.Server, error) {
 	routes := route.MkRoutes(
 		stats, authorizer, collector, queryHandler, allowedOrigins, allowedHeaders)
 
-	server, err := ff.ServerFromFlags.Make(logger, logger, stats, routes)
+	server, err := ff.ServerFromFlags.Make(logger, logger, stats, routes, nil)
 	if err != nil {
 		return nil, err
 	}
