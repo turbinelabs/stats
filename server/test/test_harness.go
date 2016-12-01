@@ -16,6 +16,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/turbinelabs/api/client"
 	apihttp "github.com/turbinelabs/api/http"
 	"github.com/turbinelabs/api/http/envelope"
 	"github.com/turbinelabs/api/http/header"
@@ -26,7 +27,6 @@ import (
 	"github.com/turbinelabs/logparser/parser"
 	"github.com/turbinelabs/nonstdlib/executor"
 	"github.com/turbinelabs/nonstdlib/proc"
-	"github.com/turbinelabs/stats/client"
 	"github.com/turbinelabs/stats/server/handler"
 	"github.com/turbinelabs/test/tempfile"
 )
