@@ -12,16 +12,21 @@ import (
 	tbnstrings "github.com/turbinelabs/nonstdlib/strings"
 )
 
+const (
+	defaultHost = "127.0.0.1"
+	defaultPort = 8125
+)
+
 var statsdCleaner = cleaner{
-	cleanTagName:  identity,
-	cleanStatName: identity,
+	cleanStatName: stripColons,
+	cleanTagName:  strip,
 	scopeDelim:    ".",
-	tagDelim:      "=",
 }
 
 type statsdFromFlags struct {
 	scope         string
-	addr          string
+	host          string
+	port          int
 	flushInterval time.Duration
 }
 
@@ -30,10 +35,17 @@ func newStatsdFromFlags(fs tbnflag.FlagSet, scope string) *statsdFromFlags {
 	scoped := fs.Scope(scope, "")
 
 	scoped.StringVar(
-		&ff.addr,
-		"addr",
-		"127.0.0.1:8125",
-		"Specifies the destination address for stats.",
+		&ff.host,
+		"host",
+		defaultHost,
+		"Specifies the destination host for stats.",
+	)
+
+	scoped.IntVar(
+		&ff.port,
+		"port",
+		defaultPort,
+		"Specifies the destination port for stats.",
 	)
 
 	scoped.DurationVar(
@@ -55,8 +67,15 @@ func (ff *statsdFromFlags) Make() (Stats, error) {
 }
 
 func (ff *statsdFromFlags) Validate() error {
-	if _, _, err := tbnstrings.SplitHostPort(ff.addr); err != nil {
-		return fmt.Errorf("--%s.addr is invalid: %s", ff.scope, err.Error())
+	addr := fmt.Sprintf("%s:%d", ff.host, ff.port)
+
+	if _, _, err := tbnstrings.SplitHostPort(addr); err != nil {
+		return fmt.Errorf(
+			"--%s.host or --%s.port is invalid: %s",
+			ff.scope,
+			ff.scope,
+			err.Error(),
+		)
 	}
 
 	if ff.flushInterval <= 0*time.Second {
@@ -66,7 +85,8 @@ func (ff *statsdFromFlags) Validate() error {
 }
 
 func (ff *statsdFromFlags) mkUDPWriter() (io.Writer, error) {
-	w, err := net.Dial("udp", ff.addr)
+	addr := fmt.Sprintf("%s:%d", ff.host, ff.port)
+	w, err := net.Dial("udp", addr)
 	if err != nil {
 		return nil, err
 	}

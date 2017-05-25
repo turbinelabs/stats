@@ -8,8 +8,10 @@ import (
 	tbnstrings "github.com/turbinelabs/nonstdlib/strings"
 )
 
+//go:generate mockgen -source $GOFILE -destination mock_$GOFILE -package $GOPACKAGE
+
 const (
-	defaultFlushInterval = 5 * time.Second
+	defaultFlushInterval = 500 * time.Millisecond
 	dogstatsdName        = "dogstatsd"
 	prometheusName       = "prometheus"
 	statsdName           = "statsd"

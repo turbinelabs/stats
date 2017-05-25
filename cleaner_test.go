@@ -25,6 +25,15 @@ func TestCleanerTagToString(t *testing.T) {
 	for _, tc := range testCases {
 		assert.Equal(t, c.tagToString(Tag{K: tc[0], V: tc[1]}), tc[2])
 	}
+
+	c = cleaner{
+		cleanTagName: strip,
+		tagDelim:     ":",
+	}
+
+	for _, tc := range testCases {
+		assert.Equal(t, c.tagToString(Tag{K: tc[0], V: tc[1]}), "")
+	}
 }
 
 func TestCleanerTagsToStrings(t *testing.T) {
@@ -35,13 +44,18 @@ func TestCleanerTagsToStrings(t *testing.T) {
 		tagDelim:      "->",
 	}
 
-	strs := c.tagsToStrings(
-		[]Tag{
-			{K: "t", V: "v"},
-			{K: "t"},
-			{K: "T2", V: "v"},
-		},
-	)
+	tags := []Tag{
+		{K: "t", V: "v"},
+		{K: "t"},
+		{K: "T2", V: "v"},
+	}
 
-	assert.ArrayEqual(t, strs, []string{"T->v", "T", "T2->v"})
+	assert.ArrayEqual(t, c.tagsToStrings(tags), []string{"T->v", "T", "T2->v"})
+
+	c = cleaner{
+		cleanTagName: strip,
+		tagDelim:     ":",
+	}
+
+	assert.ArrayEqual(t, c.tagsToStrings(tags), []string{})
 }

@@ -12,6 +12,13 @@ import (
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 )
 
+var wavefrontCleaner = cleaner{
+	cleanStatName: stripColons,
+	cleanTagName:  stripColons,
+	tagDelim:      "=",
+	scopeDelim:    ".",
+}
+
 type wavefrontSender struct {
 	s xstats.Sender
 }
@@ -69,5 +76,8 @@ func (ff *wavefrontFromFlags) Make() (Stats, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newFromSender(&wavefrontSender{statsd.New(w, ff.flushInterval)}, statsdCleaner), nil
+	return newFromSender(
+		&wavefrontSender{statsd.New(w, ff.flushInterval)},
+		wavefrontCleaner,
+	), nil
 }

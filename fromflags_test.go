@@ -41,14 +41,13 @@ func TestFromFlagsValidate(t *testing.T) {
 		{
 			[]string{
 				"--backends=dogstatsd",
-				"--dogstatsd.addr=nope",
+				"--dogstatsd.host=nope:nope",
 			},
-			"--dogstatsd.addr is invalid",
+			"--dogstatsd.host or --dogstatsd.port is invalid",
 		},
 		{
 			[]string{
 				"--backends=dogstatsd",
-				"--dogstatsd.addr=0:8000",
 				"--dogstatsd.flush-interval=0",
 			},
 			"--dogstatsd.flush-interval must be greater than zero",
@@ -56,7 +55,6 @@ func TestFromFlagsValidate(t *testing.T) {
 		{
 			[]string{
 				"--backends=dogstatsd",
-				"--dogstatsd.addr=0:8000",
 				"--dogstatsd.flush-interval=1s",
 			},
 			"",
@@ -80,14 +78,13 @@ func TestFromFlagsValidate(t *testing.T) {
 		{
 			[]string{
 				"--backends=statsd",
-				"--statsd.addr=nope",
+				"--statsd.host=nope:nope",
 			},
-			"--statsd.addr is invalid",
+			"--statsd.host or --statsd.port is invalid",
 		},
 		{
 			[]string{
 				"--backends=statsd",
-				"--statsd.addr=0:8000",
 				"--statsd.flush-interval=0",
 			},
 			"--statsd.flush-interval must be greater than zero",
@@ -95,7 +92,6 @@ func TestFromFlagsValidate(t *testing.T) {
 		{
 			[]string{
 				"--backends=statsd",
-				"--statsd.addr=0:8000",
 				"--statsd.flush-interval=1s",
 			},
 			"",
@@ -104,14 +100,13 @@ func TestFromFlagsValidate(t *testing.T) {
 		{
 			[]string{
 				"--backends=wavefront",
-				"--wavefront.addr=nope",
+				"--wavefront.host=nope:nope",
 			},
-			"--wavefront.addr is invalid",
+			"--wavefront.host or --wavefront.port is invalid",
 		},
 		{
 			[]string{
 				"--backends=wavefront",
-				"--wavefront.addr=0:8000",
 				"--wavefront.flush-interval=0",
 			},
 			"--wavefront.flush-interval must be greater than zero",
@@ -119,7 +114,6 @@ func TestFromFlagsValidate(t *testing.T) {
 		{
 			[]string{
 				"--backends=wavefront",
-				"--wavefront.addr=0:8000",
 				"--wavefront.flush-interval=1s",
 			},
 			"",
@@ -137,8 +131,10 @@ func TestFromFlagsMake(t *testing.T) {
 	ff := NewFromFlags(tfs)
 	err := fs.Parse([]string{
 		"--backends=dogstatsd,statsd",
-		"--dogstatsd.addr=localhost:8000",
-		"--statsd.addr=localhost:9000",
+		"--dogstatsd.host=localhost",
+		"--dogstatsd.port=8000",
+		"--statsd.host=localhost",
+		"--statsd.port=9000",
 	})
 	assert.Nil(t, err)
 

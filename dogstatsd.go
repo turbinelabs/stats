@@ -6,6 +6,13 @@ import (
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 )
 
+var dogStatsdCleaner = cleaner{
+	cleanStatName: stripColons,
+	cleanTagName:  stripCommas,
+	tagDelim:      ":",
+	scopeDelim:    ".",
+}
+
 type dogstatsdFromFlags struct {
 	*statsdFromFlags
 }
@@ -19,5 +26,5 @@ func (ff *dogstatsdFromFlags) Make() (Stats, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newFromSender(dogstatsd.New(w, ff.flushInterval), statsdCleaner), nil
+	return newFromSender(dogstatsd.New(w, ff.flushInterval), dogStatsdCleaner), nil
 }
