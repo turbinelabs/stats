@@ -94,7 +94,7 @@ func (ff *fromFlags) Make() (Stats, error) {
 		}
 	}
 
-	stats := NewMulti(statses)
+	stats := NewMulti(statses...)
 	for _, tag := range ff.tags.Strings {
 		key, value := tbnstrings.SplitFirstEqual(tag)
 		if value == "" {

@@ -12,7 +12,7 @@ import (
 func mkMulti(ctrl *gomock.Controller) (Stats, *MockStats, *MockStats) {
 	a := NewMockStats(ctrl)
 	b := NewMockStats(ctrl)
-	return NewMulti([]Stats{a, b}), a, b
+	return NewMulti(a, b), a, b
 }
 
 func TestMultiGauge(t *testing.T) {
@@ -91,7 +91,7 @@ func TestMultiClose(t *testing.T) {
 	b := NewMockStats(ctrl)
 	c := NewMockStats(ctrl)
 
-	multi := NewMulti([]Stats{a, b, c})
+	multi := NewMulti(a, b, c)
 
 	a.EXPECT().Close().Return(nil)
 	b.EXPECT().Close().Return(errors.New("oh noes"))

@@ -4,7 +4,7 @@ import "time"
 
 // NewMulti returns a Stats implementation that forwards calls to multiple
 // Stats backends
-func NewMulti(statses []Stats) Stats {
+func NewMulti(statses ...Stats) Stats {
 	return multiStats(statses)
 }
 
