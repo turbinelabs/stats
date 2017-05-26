@@ -4,6 +4,7 @@ import (
 	"flag"
 	"strings"
 	"testing"
+	"time"
 
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 	"github.com/turbinelabs/test/assert"
@@ -28,6 +29,42 @@ func (vtc *validateTestCase) check(t *testing.T) {
 			assert.Nil(t, ff.Validate())
 		}
 	})
+}
+
+func TestFromFlagsParse(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	tfs := tbnflag.Wrap(fs)
+	ff := NewFromFlags(tfs)
+	err := fs.Parse([]string{
+		"--backends=dogstatsd,statsd",
+		"--dogstatsd.host=localhost",
+		"--dogstatsd.port=8000",
+		"--dogstatsd.max-packet-len=512",
+		"--statsd.host=remotehost",
+		"--statsd.port=9000",
+		"--statsd.flush-interval=30s",
+	})
+	assert.Nil(t, err)
+
+	ffImpl := ff.(*fromFlags)
+
+	dsdFromFlags, ok := ffImpl.statsFromFlagses[dogstatsdName]
+	assert.True(t, ok)
+	dsdFromFlagsImpl := dsdFromFlags.(*dogstatsdFromFlags)
+	assert.Equal(t, dsdFromFlagsImpl.scope, "dogstatsd")
+	assert.Equal(t, dsdFromFlagsImpl.host, "localhost")
+	assert.Equal(t, dsdFromFlagsImpl.port, 8000)
+	assert.Equal(t, dsdFromFlagsImpl.maxPacketLen, 512)
+	assert.Equal(t, dsdFromFlagsImpl.flushInterval, defaultFlushInterval)
+
+	sdFromFlags, ok := ffImpl.statsFromFlagses[statsdName]
+	assert.True(t, ok)
+	sdFromFlagsImpl := sdFromFlags.(*statsdFromFlags)
+	assert.Equal(t, sdFromFlagsImpl.scope, "statsd")
+	assert.Equal(t, sdFromFlagsImpl.host, "remotehost")
+	assert.Equal(t, sdFromFlagsImpl.port, 9000)
+	assert.Equal(t, sdFromFlagsImpl.maxPacketLen, defaultMaxPacketLen)
+	assert.Equal(t, sdFromFlagsImpl.flushInterval, 30*time.Second)
 }
 
 func TestFromFlagsValidate(t *testing.T) {

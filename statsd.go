@@ -52,7 +52,7 @@ func newStatsdFromFlags(fs tbnflag.FlagSet, scope string) *statsdFromFlags {
 	)
 
 	scoped.IntVar(
-		&ff.port,
+		&ff.maxPacketLen,
 		"max-packet-len",
 		defaultMaxPacketLen,
 		"Specifies the maximum number of payload `bytes` sent per flush. If necessary, flushes will occur before the flush interval to prevent payloads from exceeding this size. The size does not include IP and UDP header bytes. Stats may not be delivered if the total size of the headers and payload exceeds the network's MTU.",
