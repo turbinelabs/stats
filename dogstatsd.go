@@ -26,5 +26,8 @@ func (ff *dogstatsdFromFlags) Make() (Stats, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newFromSender(dogstatsd.New(w, ff.flushInterval), dogStatsdCleaner), nil
+	return newFromSender(
+		dogstatsd.NewMaxPacket(w, ff.flushInterval, ff.maxPacketLen),
+		dogStatsdCleaner,
+	), nil
 }

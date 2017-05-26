@@ -2,7 +2,6 @@ package stats
 
 import (
 	"errors"
-	"time"
 
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 	tbnstrings "github.com/turbinelabs/nonstdlib/strings"
@@ -11,11 +10,10 @@ import (
 //go:generate mockgen -source $GOFILE -destination mock_$GOFILE -package $GOPACKAGE
 
 const (
-	defaultFlushInterval = 500 * time.Millisecond
-	dogstatsdName        = "dogstatsd"
-	prometheusName       = "prometheus"
-	statsdName           = "statsd"
-	wavefrontName        = "wavefront"
+	dogstatsdName  = "dogstatsd"
+	prometheusName = "prometheus"
+	statsdName     = "statsd"
+	wavefrontName  = "wavefront"
 )
 
 // FromFlags produces a Stats from configuration flags

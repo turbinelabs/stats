@@ -77,7 +77,7 @@ func (ff *wavefrontFromFlags) Make() (Stats, error) {
 		return nil, err
 	}
 	return newFromSender(
-		&wavefrontSender{statsd.New(w, ff.flushInterval)},
+		&wavefrontSender{statsd.NewMaxPacket(w, ff.flushInterval, ff.maxPacketLen)},
 		wavefrontCleaner,
 	), nil
 }

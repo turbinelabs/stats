@@ -13,8 +13,10 @@ import (
 )
 
 const (
-	defaultHost = "127.0.0.1"
-	defaultPort = 8125
+	defaultHost          = "127.0.0.1"
+	defaultPort          = 8125
+	defaultFlushInterval = 5 * time.Second
+	defaultMaxPacketLen  = 8192 // assume jumbo ethernet frames that handle 8k payload
 )
 
 var statsdCleaner = cleaner{
@@ -27,6 +29,7 @@ type statsdFromFlags struct {
 	scope         string
 	host          string
 	port          int
+	maxPacketLen  int
 	flushInterval time.Duration
 }
 
@@ -48,11 +51,18 @@ func newStatsdFromFlags(fs tbnflag.FlagSet, scope string) *statsdFromFlags {
 		"Specifies the destination port for stats.",
 	)
 
+	scoped.IntVar(
+		&ff.port,
+		"max-packet-len",
+		defaultMaxPacketLen,
+		"Specifies the maximum number of payload `bytes` sent per flush. If necessary, flushes will occur before the flush interval to prevent payloads from exceeding this size. The size does not include IP and UDP header bytes. Stats may not be delivered if the total size of the headers and payload exceeds the network's MTU.",
+	)
+
 	scoped.DurationVar(
 		&ff.flushInterval,
 		"flush-interval",
 		defaultFlushInterval,
-		"Specifies the interval between stats flushes.",
+		"Specifies the `duration` between stats flushes.",
 	)
 
 	return ff
@@ -63,7 +73,10 @@ func (ff *statsdFromFlags) Make() (Stats, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newFromSender(statsd.New(w, ff.flushInterval), statsdCleaner), nil
+	return newFromSender(
+		statsd.NewMaxPacket(w, ff.flushInterval, ff.maxPacketLen),
+		statsdCleaner,
+	), nil
 }
 
 func (ff *statsdFromFlags) Validate() error {
