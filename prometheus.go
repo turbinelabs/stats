@@ -74,8 +74,9 @@ func CleanPrometheusStatName(s string) string {
 }
 
 var prometheusCleaner = cleaner{
-	cleanTagName:  CleanPrometheusTagName,
 	cleanStatName: CleanPrometheusStatName,
+	cleanTagName:  CleanPrometheusTagName,
+	cleanTagValue: identity,
 	scopeDelim:    ":",
 	tagDelim:      ":",
 }

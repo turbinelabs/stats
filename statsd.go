@@ -22,6 +22,7 @@ const (
 var statsdCleaner = cleaner{
 	cleanStatName: stripColons,
 	cleanTagName:  strip,
+	cleanTagValue: strip,
 	scopeDelim:    ".",
 }
 

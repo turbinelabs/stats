@@ -34,7 +34,7 @@ func TestNewAPIStats(t *testing.T) {
 	assert.Equal(t, senderImpl.source, "sourcery")
 }
 
-func testStatsWithScope(t *testing.T, scope string, f func(Stats)) stats.Stat {
+func testAPISenderWithScope(t *testing.T, scope string, f func(Stats)) stats.Stat {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
@@ -62,19 +62,19 @@ func testStatsWithScope(t *testing.T, scope string, f func(Stats)) stats.Stat {
 	return payload.Stats[0]
 }
 
-func testStats(t *testing.T, f func(Stats)) stats.Stat {
-	return testStatsWithScope(t, "", f)
+func testAPISender(t *testing.T, f func(Stats)) stats.Stat {
+	return testAPISenderWithScope(t, "", f)
 }
 
-func TestStatsCount(t *testing.T) {
-	st := testStats(t, func(s Stats) {
+func TestAPISenderCount(t *testing.T) {
+	st := testAPISender(t, func(s Stats) {
 		s.Count("metric", 1)
 	})
 
 	assert.Equal(t, st.Name, "metric")
 	assert.Equal(t, *st.Value, 1.0)
 
-	st = testStatsWithScope(t, "a/b/c", func(s Stats) {
+	st = testAPISenderWithScope(t, "a/b/c", func(s Stats) {
 		s.Count("metric", 2)
 	})
 
@@ -82,15 +82,15 @@ func TestStatsCount(t *testing.T) {
 	assert.Equal(t, *st.Value, 2.0)
 }
 
-func TestStatsGauge(t *testing.T) {
-	st := testStats(t, func(s Stats) {
+func TestAPISenderGauge(t *testing.T) {
+	st := testAPISender(t, func(s Stats) {
 		s.Gauge("metric", 123)
 	})
 
 	assert.Equal(t, st.Name, "metric")
 	assert.Equal(t, *st.Value, 123.0)
 
-	st = testStatsWithScope(t, "a/b/c", func(s Stats) {
+	st = testAPISenderWithScope(t, "a/b/c", func(s Stats) {
 		s.Gauge("metric", 200)
 	})
 
@@ -98,15 +98,15 @@ func TestStatsGauge(t *testing.T) {
 	assert.Equal(t, *st.Value, 200.0)
 }
 
-func TestStatsTimingDuration(t *testing.T) {
-	st := testStats(t, func(s Stats) {
+func TestAPISenderTimingDuration(t *testing.T) {
+	st := testAPISender(t, func(s Stats) {
 		s.Timing("metric", 1234*time.Millisecond)
 	})
 
 	assert.Equal(t, st.Name, "metric")
 	assert.Equal(t, *st.Value, 1.234)
 
-	st = testStatsWithScope(t, "a/b/c", func(s Stats) {
+	st = testAPISenderWithScope(t, "a/b/c", func(s Stats) {
 		s.Timing("metric", 2*time.Second)
 	})
 
@@ -114,7 +114,7 @@ func TestStatsTimingDuration(t *testing.T) {
 	assert.Equal(t, *st.Value, 2.0)
 }
 
-func TestStatsTags(t *testing.T) {
+func TestAPISenderTags(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
@@ -153,7 +153,7 @@ func TestStatsTags(t *testing.T) {
 	assert.MapEqual(t, payload.Stats[0].Tags, map[string]string{"e": "1", "f": "2"})
 }
 
-func TestStatsClose(t *testing.T) {
+func TestApiSenderClose(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
@@ -162,4 +162,25 @@ func TestStatsClose(t *testing.T) {
 
 	s := NewAPIStats(mockSvc, "sourcery")
 	s.Close()
+}
+
+func TestAPICleanerToTagString(t *testing.T) {
+	testCases := []struct {
+		tag      Tag
+		expected string
+	}{
+		{
+			tag:      NewKVTag("x", "y"),
+			expected: `x=y`,
+		},
+		{
+			tag:      NewKVTag("=x=x=", "y"),
+			expected: `xx=y`,
+		},
+	}
+
+	for _, tc := range testCases {
+		got := apiCleaner.tagToString(tc.tag)
+		assert.Equal(t, got, tc.expected)
+	}
 }

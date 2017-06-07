@@ -6,9 +6,20 @@ import (
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 )
 
-var dogStatsdCleaner = cleaner{
+var (
+	stripColonsCommasAndPipes = mkStrip(":|,")
+)
+
+// Based on review of data dog's dd-agent (aggregator.py), none of the
+// delimiters it uses have escaping mechanisms. Colons are not allowed
+// in stat names because they delimit the name from its value. Pipe
+// characters delimit the value from metadata. Colons delimit tags
+// names from tag values. Commas delimit tags. None of those
+// characters mays be safely use in tag names or tag values.
+var dogstatsdCleaner = cleaner{
 	cleanStatName: stripColons,
-	cleanTagName:  stripCommas,
+	cleanTagName:  stripColonsCommasAndPipes,
+	cleanTagValue: stripColonsCommasAndPipes,
 	tagDelim:      ":",
 	scopeDelim:    ".",
 }
@@ -28,6 +39,6 @@ func (ff *dogstatsdFromFlags) Make() (Stats, error) {
 	}
 	return newFromSender(
 		dogstatsd.NewMaxPacket(w, ff.flushInterval, ff.maxPacketLen),
-		dogStatsdCleaner,
+		dogstatsdCleaner,
 	), nil
 }

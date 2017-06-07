@@ -15,8 +15,9 @@ import (
 
 func newIdentityCleaner() cleaner {
 	return cleaner{
-		cleanTagName:  identity,
 		cleanStatName: identity,
+		cleanTagName:  identity,
+		cleanTagValue: identity,
 		scopeDelim:    ".",
 		tagDelim:      "=",
 	}
@@ -32,8 +33,9 @@ func newPrefixStrippingCleaner() cleaner {
 	}
 
 	return cleaner{
-		cleanTagName:  strip,
 		cleanStatName: strip,
+		cleanTagName:  strip,
+		cleanTagValue: strip,
 		scopeDelim:    ".",
 		tagDelim:      "=",
 	}

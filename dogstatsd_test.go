@@ -37,3 +37,47 @@ func TestDogstatsdBackend(t *testing.T) {
 	scope.Gauge("gauge", 3.0)
 	assert.Equal(t, <-l.Msgs, fmt.Sprintf("prefix.gauge:%f|g\n", 3.0))
 }
+
+func TestDogstatsdCleanerCleanStatName(t *testing.T) {
+	testCases := [][]string{
+		{"ok", "ok"},
+		{"no:colons", "nocolons"},
+	}
+
+	for _, tc := range testCases {
+		assert.Equal(t, dogstatsdCleaner.cleanStatName(tc[0]), tc[1])
+	}
+}
+
+func TestDogstatsdCleanerTagToString(t *testing.T) {
+	testCases := []struct {
+		tag      Tag
+		expected string
+	}{
+		{
+			tag:      NewKVTag("x", "y"),
+			expected: `x:y`,
+		},
+		{
+			tag:      NewKVTag("a:b", "x:y"),
+			expected: "ab:xy",
+		},
+		{
+			tag:      NewKVTag("a|b", "x|y"),
+			expected: "ab:xy",
+		},
+		{
+			tag:      NewKVTag("a,b", "x,y"),
+			expected: "ab:xy",
+		},
+		{
+			tag:      NewKVTag("x y", "x: \U0001F600"),
+			expected: "x y:x \U0001F600",
+		},
+	}
+
+	for _, tc := range testCases {
+		got := dogstatsdCleaner.tagToString(tc.tag)
+		assert.Equal(t, got, tc.expected)
+	}
+}

@@ -14,7 +14,8 @@ var (
 
 	apiCleaner = cleaner{
 		cleanStatName: identity,
-		cleanTagName:  identity,
+		cleanTagName:  mkStrip("="),
+		cleanTagValue: identity,
 		tagDelim:      "=",
 		scopeDelim:    "/",
 	}

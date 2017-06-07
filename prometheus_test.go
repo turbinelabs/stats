@@ -43,3 +43,24 @@ func TestCleanPrometheusStatName(t *testing.T) {
 		assert.Equal(t, CleanPrometheusStatName(tc[0]), tc[1])
 	}
 }
+
+func TestPrometheusCleanerTagToString(t *testing.T) {
+	testCases := []struct {
+		tag      Tag
+		expected string
+	}{
+		{
+			tag:      NewKVTag("x", "y"),
+			expected: `x:y`,
+		},
+		{
+			tag:      NewKVTag("x y", "x: \U0001F600"),
+			expected: "x_y:x: \U0001F600",
+		},
+	}
+
+	for _, tc := range testCases {
+		got := prometheusCleaner.tagToString(tc.tag)
+		assert.Equal(t, got, tc.expected)
+	}
+}

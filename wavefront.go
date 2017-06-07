@@ -12,9 +12,48 @@ import (
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 )
 
+var (
+	cleanWavefront = func(s string) string {
+		return strings.Map(
+			func(r rune) rune {
+				switch {
+				case r >= '0' && r <= '9':
+					return r
+				case r >= 'A' && r <= 'Z':
+					return r
+				case r >= 'a' && r <= 'z':
+					return r
+				case r == '_' || r == '-' || r == '.':
+					return r
+				default:
+					return -1
+				}
+			},
+			s,
+		)
+	}
+
+	cleanWavefrontTagValue = func(s string) string {
+		// "~" is used to separate tags in wavefront's statsd
+		// plugin and must be stripped.
+		s = strings.Replace(s, "~", "", -1)
+
+		return fmt.Sprintf(`"%s"`, strings.Replace(s, `"`, `\"`, -1))
+	}
+)
+
+// Per https://community.wavefront.com/docs/DOC-1031.
+// Stat names: ascii alphanumeric, hyphen, underscore, period. Forward
+//             slash and comma require quoting.
+// Tag names: ascii alphanumeric, hyphen, underscore, period.
+// Tag values: quoted strings allow any value, including quotes (by
+//             backslash escaping)
+// The wavefront statsd plugin passes tags through without
+// modification or further escaping.
 var wavefrontCleaner = cleaner{
-	cleanStatName: stripColons,
-	cleanTagName:  stripColons,
+	cleanStatName: cleanWavefront,
+	cleanTagName:  cleanWavefront,
+	cleanTagValue: cleanWavefrontTagValue,
 	tagDelim:      "=",
 	scopeDelim:    ".",
 }

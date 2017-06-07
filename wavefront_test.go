@@ -69,8 +69,49 @@ func TestWavefrontBackend(t *testing.T) {
 	scope := stats.Scope("prefix")
 
 	scope.Count("count", 2.0, NewKVTag("taggity", "tag"))
-	assert.Equal(t, <-l.Msgs, fmt.Sprintf("prefix.count~taggity=tag:%f|c\n", 2.0))
+	assert.Equal(t, <-l.Msgs, fmt.Sprintf(`prefix.count~taggity="tag":%f|c`+"\n", 2.0))
 
 	scope.Gauge("gauge", 3.0)
 	assert.Equal(t, <-l.Msgs, fmt.Sprintf("prefix.gauge:%f|g\n", 3.0))
+}
+
+func TestWavefrontCleanerToTagString(t *testing.T) {
+	testCases := []struct {
+		tag      Tag
+		expected string
+	}{
+		{
+			tag:      NewKVTag("x", "y"),
+			expected: `x="y"`,
+		},
+		{
+			tag:      NewKVTag("has space", "y"),
+			expected: `hasspace="y"`,
+		},
+		{
+			tag:      NewKVTag("x!@#$%^&*x", "y"),
+			expected: `xx="y"`,
+		},
+		{
+			tag:      NewKVTag("x-x_x.x", "y"),
+			expected: `x-x_x.x="y"`,
+		},
+		{
+			tag:      NewKVTag("x\U0001f600x", "y"),
+			expected: `xx="y"`,
+		},
+		{
+			tag:      NewKVTag("x", "y z"),
+			expected: `x="y z"`,
+		},
+		{
+			tag:      NewKVTag("x", `"quoted"`),
+			expected: `x="\"quoted\""`,
+		},
+	}
+
+	for _, tc := range testCases {
+		got := wavefrontCleaner.tagToString(tc.tag)
+		assert.Equal(t, got, tc.expected)
+	}
 }
