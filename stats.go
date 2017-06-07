@@ -34,7 +34,8 @@ type Stats interface {
 	// subsequent stats queries, for backends that support tags.
 	AddTags(tags ...Tag)
 
-	// Scope adds the given scopes as suffixes to prefix of each stat name.
+	// Scope creates a new Stats that appends the given scopes to
+	// the prefix for each stat name.
 	Scope(scope string, scopes ...string) Stats
 
 	// Close should be called when the Stats is no longer needed
