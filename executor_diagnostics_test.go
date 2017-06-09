@@ -6,7 +6,9 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/turbinelabs/nonstdlib/executor"
+	tbnstrings "github.com/turbinelabs/nonstdlib/strings"
 	"github.com/turbinelabs/test/assert"
+	"github.com/turbinelabs/test/matcher"
 )
 
 func testDiagnosticsCallback(
@@ -123,4 +125,45 @@ func TestStatsDiagnosticsCallbackCallbackDuration(t *testing.T) {
 			diag.CallbackDuration(time.Millisecond)
 		},
 	)
+}
+
+func TestDiagnosticCallbackStatsAndTags(t *testing.T) {
+	ctrl := gomock.NewController(assert.Tracing(t))
+	defer ctrl.Finish()
+
+	mockStats := NewMockStats(ctrl)
+
+	statNameCaptor := matcher.CaptureAll()
+	tagCaptor := matcher.CaptureAll()
+
+	mockStats.EXPECT().Count(statNameCaptor, 1.0).AnyTimes()
+	mockStats.EXPECT().Count(statNameCaptor, 1.0, tagCaptor).AnyTimes()
+	mockStats.EXPECT().Timing(statNameCaptor, time.Millisecond).AnyTimes()
+	mockStats.EXPECT().Timing(statNameCaptor, time.Millisecond, tagCaptor).AnyTimes()
+
+	diag := NewStatsDiagnosticsCallback(mockStats)
+	forEachAttemptResult(func(r executor.AttemptResult) {
+		diag.TaskStarted(1)
+		diag.AttemptStarted(time.Millisecond)
+		diag.AttemptCompleted(r, time.Millisecond)
+		diag.TaskCompleted(r, time.Millisecond)
+		diag.CallbackDuration(time.Millisecond)
+	})
+
+	capturedStatNames := tbnstrings.NewSet()
+	for _, v := range statNameCaptor.V {
+		statName, ok := v.(string)
+		assert.True(t, ok)
+		capturedStatNames.Put(statName)
+	}
+
+	capturedTagNames := tbnstrings.NewSet()
+	for _, v := range tagCaptor.V {
+		tag, ok := v.(Tag)
+		assert.True(t, ok)
+		capturedTagNames.Put(tag.K)
+	}
+
+	assert.HasSameElements(t, DiagnosticsCallbackStats(), capturedStatNames.Slice())
+	assert.HasSameElements(t, DiagnosticsCallbackTags(), capturedTagNames.Slice())
 }
