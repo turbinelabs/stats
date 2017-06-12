@@ -2,10 +2,27 @@ package stats
 
 import "time"
 
-// NewMulti returns a Stats implementation that forwards calls to multiple
-// Stats backends
+// NewMulti returns a Stats implementation that forwards calls to
+// multiple Stats backends. Nil Stats values are ignored. If no
+// non-nil Stats are passed, returns the result of NewNoopStats. If
+// only a single non-nil Stats is passed, it is returned.
 func NewMulti(statses ...Stats) Stats {
-	return multiStats(statses)
+	for i := 0; i < len(statses); {
+		if statses[i] == nil {
+			statses = append(statses[:i], statses[i+1:]...)
+		} else {
+			i++
+		}
+	}
+
+	switch len(statses) {
+	case 0:
+		return NewNoopStats()
+	case 1:
+		return statses[0]
+	default:
+		return multiStats(statses)
+	}
 }
 
 // NewRollUp creates a Stats whose scopes delegate stats back to itself. For example,

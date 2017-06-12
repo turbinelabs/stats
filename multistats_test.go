@@ -94,6 +94,38 @@ func testMultiTiming(
 	s.Timing("foo", time.Second, NewKVTag("a", "b"))
 }
 
+func TestNewMulti(t *testing.T) {
+	ctrl := gomock.NewController(assert.Tracing(t))
+	defer ctrl.Finish()
+
+	m := NewMulti()
+	_, ok := m.(*noop)
+	assert.True(t, ok)
+
+	m = NewMulti(nil, nil, nil)
+	_, ok = m.(*noop)
+	assert.True(t, ok)
+
+	s1 := NewMockStats(ctrl)
+	s2 := NewMockStats(ctrl)
+
+	m = NewMulti(s1)
+	assert.SameInstance(t, m, s1)
+
+	m = NewMulti(nil, s1, nil)
+	assert.SameInstance(t, m, s1)
+
+	m = NewMulti(s1, s2)
+	underlying, ok := m.(multiStats)
+	assert.True(t, ok)
+	assert.HasSameElements(t, underlying, []Stats{s1, s2})
+
+	m = NewMulti(nil, s1, nil, s2, nil)
+	underlying, ok = m.(multiStats)
+	assert.True(t, ok)
+	assert.HasSameElements(t, underlying, []Stats{s1, s2})
+}
+
 func TestMultiStats(t *testing.T) {
 	testMultiGauge(t, mkMulti)
 	testMultiCount(t, mkMulti)
