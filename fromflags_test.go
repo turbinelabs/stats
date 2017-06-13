@@ -155,6 +155,33 @@ func TestFromFlagsValidate(t *testing.T) {
 			},
 			"",
 		},
+
+		// node, source, and tags
+		{
+			[]string{
+				"--backends=dogstatsd",
+				"--node=xyz",
+				"--source=pdq",
+				"--tags=other",
+			},
+			"",
+		},
+		{
+			[]string{
+				"--backends=dogstatsd",
+				"--node=xyz",
+				"--tags=node=notxyz",
+			},
+			"cannot combine --tags=node=... and --node",
+		},
+		{
+			[]string{
+				"--backends=dogstatsd",
+				"--source=xyz",
+				"--tags=source=notxyz",
+			},
+			"cannot combine --tags=source=... and --source",
+		},
 	}
 
 	for _, tc := range testCases {

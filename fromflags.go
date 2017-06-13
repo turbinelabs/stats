@@ -46,6 +46,20 @@ func NewFromFlags(fs tbnflag.FlagSet) FromFlags {
 		"Selects which stats backend(s) to use.",
 	)
 
+	fs.StringVar(
+		&ff.sourceTag,
+		"source",
+		"",
+		`If set, specifies the source to use when submitting stats to backends. Equivalent to adding "--{{PREFIX}}tags=source=value" to the command line.`,
+	)
+
+	fs.StringVar(
+		&ff.nodeTag,
+		"node",
+		"",
+		`If set, specifies the node to use when submitting stats to backends. Equivalent to adding "--{{PREFIX}}tags=node=value" to the command line.`,
+	)
+
 	fs.Var(
 		&ff.tags,
 		"tags",
@@ -63,7 +77,22 @@ type statsFromFlags interface {
 type fromFlags struct {
 	statsFromFlagses map[string]statsFromFlags
 	backends         tbnflag.Strings
+	nodeTag          string
+	sourceTag        string
 	tags             tbnflag.Strings
+}
+
+func (ff *fromFlags) parseTags() []Tag {
+	result := make([]Tag, 0, len(ff.tags.Strings))
+	for _, tag := range ff.tags.Strings {
+		key, value := tbnstrings.SplitFirstEqual(tag)
+		if value == "" {
+			result = append(result, NewTag(key))
+		} else {
+			result = append(result, NewKVTag(key, value))
+		}
+	}
+	return result
 }
 
 func (ff *fromFlags) Validate() error {
@@ -76,6 +105,16 @@ func (ff *fromFlags) Validate() error {
 			if err := sff.Validate(); err != nil {
 				return err
 			}
+		}
+	}
+
+	for _, tag := range ff.parseTags() {
+		if tag.K == "node" && ff.nodeTag != "" {
+			return errors.New("cannot combine --tags=node=... and --node")
+		}
+
+		if tag.K == "source" && ff.sourceTag != "" {
+			return errors.New("cannot combine --tags=source=... and --source")
 		}
 	}
 
@@ -102,6 +141,14 @@ func (ff *fromFlags) Make() (Stats, error) {
 		} else {
 			stats.AddTags(NewKVTag(key, value))
 		}
+	}
+
+	if ff.nodeTag != "" {
+		stats.AddTags(NewKVTag("node", ff.nodeTag))
+	}
+
+	if ff.sourceTag != "" {
+		stats.AddTags(NewKVTag("source", ff.sourceTag))
 	}
 
 	return stats, nil
