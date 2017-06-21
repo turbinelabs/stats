@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"fmt"
 	"strings"
 	"unicode/utf8"
 )
@@ -13,11 +14,19 @@ var (
 )
 
 func mkStrip(set string) func(string) string {
+	return mkReplace(set, -1)
+}
+
+func mkReplace(set string, replacement rune) func(string) string {
 	switch utf8.RuneCountInString(set) {
 	case 0:
 		return identity
 	case 1:
-		return func(s string) string { return strings.Replace(s, set, "", -1) }
+		r := ""
+		if replacement != -1 {
+			r = fmt.Sprintf("%c", replacement)
+		}
+		return func(s string) string { return strings.Replace(s, set, r, -1) }
 	case 2:
 		r1, next := utf8.DecodeRuneInString(set)
 		r2, _ := utf8.DecodeRuneInString(set[next:])
@@ -26,7 +35,7 @@ func mkStrip(set string) func(string) string {
 			return strings.Map(
 				func(r rune) rune {
 					if r == r1 || r == r2 {
-						return -1
+						return replacement
 					}
 					return r
 				},
@@ -42,7 +51,7 @@ func mkStrip(set string) func(string) string {
 			return strings.Map(
 				func(r rune) rune {
 					if r == r1 || r == r2 || r == r3 {
-						return -1
+						return replacement
 					}
 					return r
 				},
@@ -51,10 +60,14 @@ func mkStrip(set string) func(string) string {
 		}
 
 	default:
+		r := ""
+		if replacement != -1 {
+			r = fmt.Sprintf("%c", replacement)
+		}
 		parts := strings.Split(set, "")
 		return func(s string) string {
 			for _, part := range parts {
-				s = strings.Replace(s, part, "", -1)
+				s = strings.Replace(s, part, r, -1)
 			}
 			return s
 		}

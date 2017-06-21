@@ -60,24 +60,36 @@ func TestDogstatsdCleanerTagToString(t *testing.T) {
 		},
 		{
 			tag:      NewKVTag("a:b", "x:y"),
-			expected: "ab:xy",
+			expected: "a_b:x_y",
 		},
 		{
 			tag:      NewKVTag("a|b", "x|y"),
-			expected: "ab:xy",
+			expected: "a_b:x_y",
 		},
 		{
 			tag:      NewKVTag("a,b", "x,y"),
-			expected: "ab:xy",
+			expected: "a_b:x_y",
 		},
 		{
 			tag:      NewKVTag("x y", "x: \U0001F600"),
-			expected: "x y:x \U0001F600",
+			expected: "x y:x_ \U0001F600",
 		},
 	}
 
-	for _, tc := range testCases {
-		got := dogstatsdCleaner.tagToString(tc.tag)
-		assert.Equal(t, got, tc.expected)
+	for i, tc := range testCases {
+		assert.Group(
+			fmt.Sprintf(
+				"Tag(%s, %s) (testcase %d of %d)",
+				tc.tag.K,
+				tc.tag.V,
+				i+1,
+				len(testCases),
+			),
+			t,
+			func(g *assert.G) {
+				got := dogstatsdCleaner.tagToString(tc.tag)
+				assert.Equal(g, got, tc.expected)
+			},
+		)
 	}
 }

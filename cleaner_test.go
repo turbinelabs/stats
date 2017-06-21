@@ -95,3 +95,30 @@ func TestMkString(t *testing.T) {
 	)
 	assert.Equal(t, quad("ok"), "ok")
 }
+
+func TestMkReplace(t *testing.T) {
+	assert.SameInstance(t, mkReplace("", 'x'), identity)
+
+	single := mkReplace("\U0001F622", 'x')
+	assert.Equal(t, single("\U0001F600\U0001F622"), "\U0001F600x")
+
+	double := mkReplace("\U0001F600\U0001F622", 'x')
+	assert.Equal(t, double("happy\U0001F600 sad\U0001F622"), "happyx sadx")
+	assert.Equal(t, double("ok"), "ok")
+
+	triple := mkReplace("\U0001F600\U0001F622\U0001F60E", 'x')
+	assert.Equal(
+		t,
+		triple("happy\U0001F600 sad\U0001F622 dealwithit\U0001F60E"),
+		"happyx sadx dealwithitx",
+	)
+	assert.Equal(t, triple("ok"), "ok")
+
+	quad := mkReplace("\U0001F600\U0001F622\U0001F60E\U0001F635", 'x')
+	assert.Equal(
+		t,
+		quad("happy\U0001F600 sad\U0001F622 dealwithit\U0001F60E dead\U0001F635"),
+		"happyx sadx dealwithitx deadx",
+	)
+	assert.Equal(t, quad("ok"), "ok")
+}
