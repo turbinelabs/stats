@@ -1,13 +1,16 @@
 package stats
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net"
 	"testing"
 	"time"
 
 	tbnstrings "github.com/turbinelabs/nonstdlib/strings"
 	"github.com/turbinelabs/test/assert"
+	testio "github.com/turbinelabs/test/io"
 )
 
 type testUDPListener struct {
@@ -82,4 +85,74 @@ func TestStatsdBackend(t *testing.T) {
 
 	scope.Gauge("gauge", 3.0)
 	assert.Equal(t, <-l.Msgs, fmt.Sprintf("prefix.gauge:%f|g\n", 3.0))
+}
+
+func TestStatsdStdoutHook(t *testing.T) {
+	l := mkListener(t)
+	defer l.Close()
+
+	addr := l.Addr(t)
+	_, port, err := tbnstrings.SplitHostPort(addr)
+	assert.Nil(t, err)
+
+	var savedStdoutWriter io.Writer
+	msgs := make(chan string, 10)
+	writer := testio.NewChannelWriter(msgs)
+
+	savedStdoutWriter, stdoutWriter = stdoutWriter, writer
+	defer func() {
+		stdoutWriter = savedStdoutWriter
+	}()
+
+	statsdFromFlags := &statsdFromFlags{
+		host:          "127.0.0.1",
+		port:          port,
+		flushInterval: 10 * time.Millisecond,
+		debug:         true,
+	}
+
+	stats, err := statsdFromFlags.Make(false)
+	assert.Nil(t, err)
+	defer stats.Close()
+
+	scope := stats.Scope("prefix")
+
+	scope.Count("count", 2.0, NewKVTag("nopity", "nope"))
+	assert.Equal(t, <-l.Msgs, fmt.Sprintf("prefix.count:%f|c\n", 2.0))
+	assert.Equal(t, <-msgs, fmt.Sprintf("prefix.count:%f|c\n", 2.0))
+
+	scope.Gauge("gauge", 3.0)
+	assert.Equal(t, <-l.Msgs, fmt.Sprintf("prefix.gauge:%f|g\n", 3.0))
+	assert.Equal(t, <-msgs, fmt.Sprintf("prefix.gauge:%f|g\n", 3.0))
+}
+
+func TestDebugWriter(t *testing.T) {
+	main := bytes.NewBuffer(make([]byte, 0, 1024))
+	debug := bytes.NewBuffer(make([]byte, 0, 1024))
+	failing := testio.NewFailingWriter()
+
+	dw := &debugWriter{main, debug}
+	n, err := dw.Write([]byte("both"))
+	assert.Equal(t, n, 4)
+	assert.Nil(t, err)
+	assert.Equal(t, main.String(), "both")
+	assert.Equal(t, debug.String(), "both")
+
+	main.Reset()
+	debug.Reset()
+
+	dw = &debugWriter{main, failing}
+	n, err = dw.Write([]byte("both"))
+	assert.Equal(t, n, 4)
+	assert.Nil(t, err)
+	assert.Equal(t, main.String(), "both")
+
+	main.Reset()
+	debug.Reset()
+
+	dw = &debugWriter{failing, debug}
+	n, err = dw.Write([]byte("both"))
+	assert.Equal(t, n, 0)
+	assert.NonNil(t, err)
+	assert.Equal(t, debug.String(), "both")
 }

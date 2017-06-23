@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"time"
 
 	"github.com/rs/xstats/statsd"
@@ -26,12 +27,15 @@ var statsdCleaner = cleaner{
 	scopeDelim:    ".",
 }
 
+var stdoutWriter io.Writer = os.Stdout
+
 type statsdFromFlags struct {
 	scope         string
 	host          string
 	port          int
 	maxPacketLen  int
 	flushInterval time.Duration
+	debug         bool
 }
 
 func newStatsdFromFlags(fs tbnflag.FlagSet, scope string) *statsdFromFlags {
@@ -66,6 +70,12 @@ func newStatsdFromFlags(fs tbnflag.FlagSet, scope string) *statsdFromFlags {
 		"Specifies the `duration` between stats flushes.",
 	)
 
+	scoped.BoolVar(
+		&ff.debug,
+		"debug",
+		false,
+		"If enabled, logs the stats data on stdout.",
+	)
 	return ff
 }
 
@@ -100,10 +110,31 @@ func (ff *statsdFromFlags) Validate() error {
 }
 
 func (ff *statsdFromFlags) mkUDPWriter() (io.Writer, error) {
+	var (
+		w   io.Writer
+		err error
+	)
+
 	addr := fmt.Sprintf("%s:%d", ff.host, ff.port)
-	w, err := net.Dial("udp", addr)
+	w, err = net.Dial("udp", addr)
 	if err != nil {
 		return nil, err
 	}
+
+	if ff.debug {
+		w = &debugWriter{w, stdoutWriter}
+	}
+
 	return w, nil
+}
+
+// debugWriter differs from io.MultiWriter in that it ignores short
+// writes and errors on its debug Writer.
+type debugWriter struct {
+	underlying, debug io.Writer
+}
+
+func (dw *debugWriter) Write(b []byte) (int, error) {
+	defer dw.debug.Write(b)
+	return dw.underlying.Write(b)
 }
