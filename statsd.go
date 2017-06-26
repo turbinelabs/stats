@@ -69,7 +69,7 @@ func newStatsdFromFlags(fs tbnflag.FlagSet, scope string) *statsdFromFlags {
 	return ff
 }
 
-func (ff *statsdFromFlags) Make() (Stats, error) {
+func (ff *statsdFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
 	w, err := ff.mkUDPWriter()
 	if err != nil {
 		return nil, err
@@ -77,6 +77,7 @@ func (ff *statsdFromFlags) Make() (Stats, error) {
 	return newFromSender(
 		statsd.NewMaxPacket(w, ff.flushInterval, ff.maxPacketLen),
 		statsdCleaner,
+		classifyStatusCodes,
 	), nil
 }
 

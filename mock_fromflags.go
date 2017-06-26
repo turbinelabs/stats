@@ -80,13 +80,13 @@ func (_mr *_MockstatsFromFlagsRecorder) Validate() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
 }
 
-func (_m *MockstatsFromFlags) Make() (Stats, error) {
-	ret := _m.ctrl.Call(_m, "Make")
+func (_m *MockstatsFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
+	ret := _m.ctrl.Call(_m, "Make", classifyStatusCodes)
 	ret0, _ := ret[0].(Stats)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockstatsFromFlagsRecorder) Make() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Make")
+func (_mr *_MockstatsFromFlagsRecorder) Make(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Make", arg0)
 }

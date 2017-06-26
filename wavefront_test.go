@@ -62,7 +62,7 @@ func TestWavefrontBackend(t *testing.T) {
 		},
 	}
 
-	stats, err := dogstatsdFromFlags.Make()
+	stats, err := dogstatsdFromFlags.Make(false)
 	assert.Nil(t, err)
 	defer stats.Close()
 

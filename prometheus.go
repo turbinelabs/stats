@@ -107,6 +107,6 @@ func (ff *prometheusFromFlags) Validate() error {
 	return nil
 }
 
-func (ff *prometheusFromFlags) Make() (Stats, error) {
-	return newFromSender(prometheus.New(ff.addr), prometheusCleaner), nil
+func (ff *prometheusFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
+	return newFromSender(prometheus.New(ff.addr), prometheusCleaner, classifyStatusCodes), nil
 }

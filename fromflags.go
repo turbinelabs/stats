@@ -66,20 +66,28 @@ func NewFromFlags(fs tbnflag.FlagSet) FromFlags {
 		`Tags to be included with every stat. May be comma-delimited or specified more than once. Should be of the form "<key>=<value>" or "tag"`,
 	)
 
+	fs.BoolVar(
+		&ff.classifyStatusCodes,
+		"classify-status-codes",
+		true,
+		`If enabled, stats with a tagged with "status_code" will automatically gain another tag, "status_class", with a value of "success", "redirect", "client_error" or "server_error". If the "status_code" value is not numeric, the "status_class" tag is omitted.`,
+	)
+
 	return ff
 }
 
 type statsFromFlags interface {
 	Validate() error
-	Make() (Stats, error)
+	Make(classifyStatusCodes bool) (Stats, error)
 }
 
 type fromFlags struct {
-	statsFromFlagses map[string]statsFromFlags
-	backends         tbnflag.Strings
-	nodeTag          string
-	sourceTag        string
-	tags             tbnflag.Strings
+	statsFromFlagses    map[string]statsFromFlags
+	backends            tbnflag.Strings
+	nodeTag             string
+	sourceTag           string
+	tags                tbnflag.Strings
+	classifyStatusCodes bool
 }
 
 func (ff *fromFlags) parseTags() []Tag {
@@ -125,10 +133,11 @@ func (ff *fromFlags) Make() (Stats, error) {
 	statses := make([]Stats, 0, len(ff.statsFromFlagses))
 	for _, backend := range ff.backends.Strings {
 		if sff, ok := ff.statsFromFlagses[backend]; ok {
-			sender, err := sff.Make()
+			sender, err := sff.Make(ff.classifyStatusCodes)
 			if err != nil {
 				return nil, err
 			}
+
 			statses = append(statses, sender)
 		}
 	}

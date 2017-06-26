@@ -60,7 +60,7 @@ func TestClose(t *testing.T) {
 	defer ctrl.Finish()
 	mockSender := &closeableSender{Sender: newMockXstatsSender(ctrl)}
 
-	s := newFromSender(mockSender, newIdentityCleaner()).Scope("foo").Scope("bar", "baz")
+	s := newFromSender(mockSender, newIdentityCleaner(), false).Scope("foo").Scope("bar", "baz")
 	assert.Nil(t, s.Close())
 	assert.True(t, mockSender.wasClosed)
 }
@@ -74,7 +74,7 @@ func TestCloseErr(t *testing.T) {
 		closeErr: errors.New("gah"),
 	}
 
-	s := newFromSender(mockSender, newIdentityCleaner()).Scope("foo").Scope("bar", "baz")
+	s := newFromSender(mockSender, newIdentityCleaner(), false).Scope("foo").Scope("bar", "baz")
 	assert.ErrorContains(t, s.Close(), "could not close sender: gah")
 	assert.True(t, mockSender.wasClosed)
 }
@@ -91,7 +91,7 @@ func TestTypes(t *testing.T) {
 		mockSender.EXPECT().Timing("t", time.Second),
 	)
 
-	s := newFromSender(mockSender, newPrefixStrippingCleaner())
+	s := newFromSender(mockSender, newPrefixStrippingCleaner(), false)
 
 	s.Gauge("abc:g", 1.0)
 	s.Count("def:c", 2.0)
@@ -109,28 +109,52 @@ func TestScope(t *testing.T) {
 	mockSender.EXPECT().Histogram("foo.bar.baz.histo", 3.0)
 	mockSender.EXPECT().Timing("foo.bar.baz.time", time.Second)
 
-	s := newFromSender(mockSender, newIdentityCleaner()).Scope("foo").Scope("bar", "baz")
+	s := newFromSender(mockSender, newIdentityCleaner(), false).Scope("foo").Scope("bar", "baz")
 	s.Gauge("gauge", 1.0)
 	s.Count("count", 2.0)
 	s.Histogram("histo", 3.0)
 	s.Timing("time", time.Second)
+
+	mockSender.EXPECT().Gauge(
+		"foo.bar.baz.gauge",
+		1.0,
+		statusCodeTag+"=200",
+		statusClassTag+"="+statusClassSuccess,
+	)
+	s = newFromSender(mockSender, newIdentityCleaner(), true).Scope("foo").Scope("bar", "baz")
+	s.Gauge("gauge", 1.0, NewKVTag(statusCodeTag, "200"))
 }
 
 func TestTags(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	mockSender := newMockXstatsSender(ctrl)
-	mockSender.EXPECT().Gauge("gauge", 1.0, "type=gauge")
-	mockSender.EXPECT().Count("count", 2.0, "type=counter")
-	mockSender.EXPECT().Histogram("histo", 3.0, "type=histogram")
-	mockSender.EXPECT().Timing("time", time.Second, "type=timing")
+	codeTag := NewKVTag(statusCodeTag, "200")
+	cleanCodeTag := statusCodeTag + "=200"
+	cleanClassTag := statusClassTag + "=" + statusClassSuccess
 
-	s := newFromSender(mockSender, newIdentityCleaner())
-	s.Gauge("gauge", 1.0, NewKVTag("type", "gauge"))
-	s.Count("count", 2.0, NewKVTag("type", "counter"))
-	s.Histogram("histo", 3.0, NewKVTag("type", "histogram"))
-	s.Timing("time", time.Second, NewKVTag("type", "timing"))
+	mockSender := newMockXstatsSender(ctrl)
+	mockSender.EXPECT().Gauge("gauge", 1.0, "type=gauge", cleanCodeTag)
+	mockSender.EXPECT().Count("count", 2.0, "type=counter", cleanCodeTag)
+	mockSender.EXPECT().Histogram("histo", 3.0, "type=histogram", cleanCodeTag)
+	mockSender.EXPECT().Timing("time", time.Second, "type=timing", cleanCodeTag)
+
+	s := newFromSender(mockSender, newIdentityCleaner(), false)
+	s.Gauge("gauge", 1.0, NewKVTag("type", "gauge"), codeTag)
+	s.Count("count", 2.0, NewKVTag("type", "counter"), codeTag)
+	s.Histogram("histo", 3.0, NewKVTag("type", "histogram"), codeTag)
+	s.Timing("time", time.Second, NewKVTag("type", "timing"), codeTag)
+
+	mockSender.EXPECT().Gauge("gauge", 1.0, "type=gauge", cleanCodeTag, cleanClassTag)
+	mockSender.EXPECT().Count("count", 2.0, "type=counter", cleanCodeTag, cleanClassTag)
+	mockSender.EXPECT().Histogram("histo", 3.0, "type=histogram", cleanCodeTag, cleanClassTag)
+	mockSender.EXPECT().Timing("time", time.Second, "type=timing", cleanCodeTag, cleanClassTag)
+
+	s = newFromSender(mockSender, newIdentityCleaner(), true)
+	s.Gauge("gauge", 1.0, NewKVTag("type", "gauge"), codeTag)
+	s.Count("count", 2.0, NewKVTag("type", "counter"), codeTag)
+	s.Histogram("histo", 3.0, NewKVTag("type", "histogram"), codeTag)
+	s.Timing("time", time.Second, NewKVTag("type", "timing"), codeTag)
 }
 
 func TestAddTags(t *testing.T) {
@@ -138,10 +162,23 @@ func TestAddTags(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockSender := newMockXstatsSender(ctrl)
-	mockSender.EXPECT().Gauge("gauge", 1.0, "type=gauge", "a=b")
+	mockSender.EXPECT().Gauge("gauge", 1.0, "type=gauge", statusCodeTag+"=200")
 
-	s := newFromSender(mockSender, newIdentityCleaner())
-	s.AddTags(NewKVTag("a", "b"))
+	s := newFromSender(mockSender, newIdentityCleaner(), false)
+	s.AddTags(NewKVTag(statusCodeTag, "200"))
+
+	s.Gauge("gauge", 1.0, NewKVTag("type", "gauge"))
+
+	mockSender.EXPECT().Gauge(
+		"gauge",
+		1.0,
+		"type=gauge",
+		statusCodeTag+"=200",
+		statusClassTag+"="+statusClassSuccess,
+	)
+
+	s = newFromSender(mockSender, newIdentityCleaner(), true)
+	s.AddTags(NewKVTag(statusCodeTag, "200"))
 
 	s.Gauge("gauge", 1.0, NewKVTag("type", "gauge"))
 }

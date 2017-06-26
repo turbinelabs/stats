@@ -110,7 +110,7 @@ func newWavefrontFromFlags(fs tbnflag.FlagSet) statsFromFlags {
 	return &wavefrontFromFlags{newStatsdFromFlags(fs, wavefrontName)}
 }
 
-func (ff *wavefrontFromFlags) Make() (Stats, error) {
+func (ff *wavefrontFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
 	w, err := ff.mkUDPWriter()
 	if err != nil {
 		return nil, err
@@ -118,5 +118,6 @@ func (ff *wavefrontFromFlags) Make() (Stats, error) {
 	return newFromSender(
 		&wavefrontSender{statsd.NewMaxPacket(w, ff.flushInterval, ff.maxPacketLen)},
 		wavefrontCleaner,
+		classifyStatusCodes,
 	), nil
 }

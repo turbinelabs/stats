@@ -30,6 +30,7 @@ func NewAPIStats(svc stats.StatsService, source string) Stats {
 			source: source,
 		},
 		apiCleaner,
+		false,
 	)
 }
 

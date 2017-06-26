@@ -71,7 +71,7 @@ func TestStatsdBackend(t *testing.T) {
 		flushInterval: 10 * time.Millisecond,
 	}
 
-	stats, err := statsdFromFlags.Make()
+	stats, err := statsdFromFlags.Make(false)
 	assert.Nil(t, err)
 	defer stats.Close()
 

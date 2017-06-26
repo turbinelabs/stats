@@ -42,33 +42,49 @@ type Stats interface {
 	Close() error
 }
 
-func newFromSender(s xstats.Sender, c cleaner) Stats {
-	return &xStats{xstats.NewScoping(s, c.scopeDelim), s, c}
+func newFromSender(s xstats.Sender, c cleaner, classifyStatusCodes bool) Stats {
+	return &xStats{xstats.NewScoping(s, c.scopeDelim), s, c, classifyStatusCodes}
 }
 
 type xStats struct {
-	xstater xstats.XStater
-	sender  xstats.Sender
-	cleaner cleaner
+	xstater             xstats.XStater
+	sender              xstats.Sender
+	cleaner             cleaner
+	classifyStatusCodes bool
 }
 
 func (xs *xStats) Gauge(stat string, value float64, tags ...Tag) {
+	if xs.classifyStatusCodes {
+		tags = statusCodeClassifier(tags)
+	}
 	xs.xstater.Gauge(xs.cleaner.cleanStatName(stat), value, xs.cleaner.tagsToStrings(tags)...)
 }
 
 func (xs *xStats) Count(stat string, count float64, tags ...Tag) {
+	if xs.classifyStatusCodes {
+		tags = statusCodeClassifier(tags)
+	}
 	xs.xstater.Count(xs.cleaner.cleanStatName(stat), count, xs.cleaner.tagsToStrings(tags)...)
 }
 
 func (xs *xStats) Histogram(stat string, value float64, tags ...Tag) {
+	if xs.classifyStatusCodes {
+		tags = statusCodeClassifier(tags)
+	}
 	xs.xstater.Histogram(xs.cleaner.cleanStatName(stat), value, xs.cleaner.tagsToStrings(tags)...)
 }
 
 func (xs *xStats) Timing(stat string, value time.Duration, tags ...Tag) {
+	if xs.classifyStatusCodes {
+		tags = statusCodeClassifier(tags)
+	}
 	xs.xstater.Timing(xs.cleaner.cleanStatName(stat), value, xs.cleaner.tagsToStrings(tags)...)
 }
 
 func (xs *xStats) AddTags(tags ...Tag) {
+	if xs.classifyStatusCodes {
+		tags = statusCodeClassifier(tags)
+	}
 	xs.xstater.AddTags(xs.cleaner.tagsToStrings(tags)...)
 }
 
@@ -81,5 +97,5 @@ func (xs *xStats) Close() error {
 
 func (xs *xStats) Scope(scope string, scopes ...string) Stats {
 	xsr := xstats.Scope(xs.xstater, scope, scopes...)
-	return &xStats{xsr, xs.sender, xs.cleaner}
+	return &xStats{xsr, xs.sender, xs.cleaner, xs.classifyStatusCodes}
 }

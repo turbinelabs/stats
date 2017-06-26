@@ -34,7 +34,7 @@ func newDogstatsdFromFlags(fs tbnflag.FlagSet) statsFromFlags {
 	return &dogstatsdFromFlags{newStatsdFromFlags(fs, dogstatsdName)}
 }
 
-func (ff *dogstatsdFromFlags) Make() (Stats, error) {
+func (ff *dogstatsdFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
 	w, err := ff.mkUDPWriter()
 	if err != nil {
 		return nil, err
@@ -42,5 +42,6 @@ func (ff *dogstatsdFromFlags) Make() (Stats, error) {
 	return newFromSender(
 		dogstatsd.NewMaxPacket(w, ff.flushInterval, ff.maxPacketLen),
 		dogstatsdCleaner,
+		classifyStatusCodes,
 	), nil
 }
