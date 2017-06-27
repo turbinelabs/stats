@@ -55,8 +55,8 @@ func testAPISenderWithScope(t *testing.T, scope string, f func(Stats)) stats.Sta
 	payload := payloadCaptor.V.(*stats.Payload)
 	assert.Equal(t, payload.Source, "sourcery")
 	assert.Equal(t, len(payload.Stats), 1)
-	assert.True(t, before <= payload.Stats[0].Timestamp)
-	assert.True(t, after >= payload.Stats[0].Timestamp)
+	assert.LessThanEqual(t, before, payload.Stats[0].Timestamp)
+	assert.GreaterThanEqual(t, after, payload.Stats[0].Timestamp)
 	assert.Equal(t, len(payload.Stats[0].Tags), 0)
 
 	return payload.Stats[0]
