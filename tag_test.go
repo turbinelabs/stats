@@ -26,15 +26,15 @@ func tagNames(tags []Tag) []string {
 }
 
 func TestStatusCodeClassifier(t *testing.T) {
-	tags := []Tag{NewKVTag("a", "b"), NewKVTag(statusCodeTag, "200"), NewKVTag("x", "y")}
+	tags := []Tag{NewKVTag("a", "b"), NewKVTag(StatusCodeTag, "200"), NewKVTag("x", "y")}
 
 	assert.ArrayEqual(
 		t,
 		tagNames(statusCodeClassifier(tags)),
-		[]string{"a", statusCodeTag, "x", statusClassTag},
+		[]string{"a", StatusCodeTag, "x", StatusClassTag},
 	)
 
-	tags = []Tag{NewKVTag("a", "b"), NewKVTag(statusCodeTag, "whoops"), NewKVTag("x", "y")}
+	tags = []Tag{NewKVTag("a", "b"), NewKVTag(StatusCodeTag, "whoops"), NewKVTag("x", "y")}
 
 	assert.ArrayEqual(
 		t,
@@ -57,19 +57,19 @@ func TestStatusClassFromValue(t *testing.T) {
 		expectedClass string
 		expectedOk    bool
 	}{
-		{"100", statusClassSuccess, true},
-		{"200", statusClassSuccess, true},
-		{"299", statusClassSuccess, true},
-		{"300", statusClassRedirect, true},
-		{"399", statusClassRedirect, true},
-		{"400", statusClassClientErr, true},
-		{"499", statusClassClientErr, true},
-		{"500", statusClassServerErr, true},
-		{"599", statusClassServerErr, true},
-		{"999", statusClassServerErr, true},
-		{"000", statusClassServerErr, true},
-		{"33", statusClassServerErr, true},
-		{"3", statusClassServerErr, true},
+		{"100", StatusClassSuccess, true},
+		{"200", StatusClassSuccess, true},
+		{"299", StatusClassSuccess, true},
+		{"300", StatusClassRedirect, true},
+		{"399", StatusClassRedirect, true},
+		{"400", StatusClassClientErr, true},
+		{"499", StatusClassClientErr, true},
+		{"500", StatusClassServerErr, true},
+		{"599", StatusClassServerErr, true},
+		{"999", StatusClassServerErr, true},
+		{"000", StatusClassServerErr, true},
+		{"33", StatusClassServerErr, true},
+		{"3", StatusClassServerErr, true},
 		{"", "", false},
 		{"x", "", false},
 		{"xx", "", false},

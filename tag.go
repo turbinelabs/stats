@@ -1,12 +1,12 @@
 package stats
 
 const (
-	statusCodeTag        = "status_code"
-	statusClassTag       = "status_class"
-	statusClassSuccess   = "success"
-	statusClassRedirect  = "redirect"
-	statusClassClientErr = "client_error"
-	statusClassServerErr = "server_error"
+	StatusCodeTag        = "status_code"
+	StatusClassTag       = "status_class"
+	StatusClassSuccess   = "success"
+	StatusClassRedirect  = "redirect"
+	StatusClassClientErr = "client_error"
+	StatusClassServerErr = "server_error"
 )
 
 // Tag is an optional piece of metadata to be added to one or more stat points
@@ -27,9 +27,9 @@ func NewKVTag(k, v string) Tag {
 
 func statusCodeClassifier(tags []Tag) []Tag {
 	for _, tag := range tags {
-		if tag.K == statusCodeTag {
+		if tag.K == StatusCodeTag {
 			if statusClass, ok := statusClassFromValue(tag.V); ok {
-				return append(tags, NewKVTag(statusClassTag, statusClass))
+				return append(tags, NewKVTag(StatusClassTag, statusClass))
 			}
 			return tags
 		}
@@ -51,17 +51,17 @@ func statusClassFromValue(v string) (string, bool) {
 	}
 
 	if len(v) != 3 {
-		return statusClassServerErr, true
+		return StatusClassServerErr, true
 	}
 
 	switch v[0] {
 	case '1', '2':
-		return statusClassSuccess, true
+		return StatusClassSuccess, true
 	case '3':
-		return statusClassRedirect, true
+		return StatusClassRedirect, true
 	case '4':
-		return statusClassClientErr, true
+		return StatusClassClientErr, true
 	default:
-		return statusClassServerErr, true
+		return StatusClassServerErr, true
 	}
 }

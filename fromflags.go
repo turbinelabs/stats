@@ -2,6 +2,7 @@ package stats
 
 import (
 	"errors"
+	"fmt"
 
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 	tbnstrings "github.com/turbinelabs/nonstdlib/strings"
@@ -70,7 +71,15 @@ func NewFromFlags(fs tbnflag.FlagSet) FromFlags {
 		&ff.classifyStatusCodes,
 		"classify-status-codes",
 		true,
-		`If enabled, stats with a tagged with "status_code" will automatically gain another tag, "status_class", with a value of "success", "redirect", "client_error" or "server_error". If the "status_code" value is not numeric, the "status_class" tag is omitted.`,
+		fmt.Sprintf(
+			`If enabled, stats with tagged with "%s" will automatically gain another tag, "%s", with a value of "%s", "%s", "%s" or "%s". If the "%[1]s" value is not numeric, the "%[2]s" tag is omitted.`,
+			StatusCodeTag,
+			StatusClassTag,
+			StatusClassSuccess,
+			StatusClassRedirect,
+			StatusClassClientErr,
+			StatusClassServerErr,
+		),
 	)
 
 	return ff

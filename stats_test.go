@@ -118,20 +118,20 @@ func TestScope(t *testing.T) {
 	mockSender.EXPECT().Gauge(
 		"foo.bar.baz.gauge",
 		1.0,
-		statusCodeTag+"=200",
-		statusClassTag+"="+statusClassSuccess,
+		StatusCodeTag+"=200",
+		StatusClassTag+"="+StatusClassSuccess,
 	)
 	s = newFromSender(mockSender, newIdentityCleaner(), true).Scope("foo").Scope("bar", "baz")
-	s.Gauge("gauge", 1.0, NewKVTag(statusCodeTag, "200"))
+	s.Gauge("gauge", 1.0, NewKVTag(StatusCodeTag, "200"))
 }
 
 func TestTags(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	codeTag := NewKVTag(statusCodeTag, "200")
-	cleanCodeTag := statusCodeTag + "=200"
-	cleanClassTag := statusClassTag + "=" + statusClassSuccess
+	codeTag := NewKVTag(StatusCodeTag, "200")
+	cleanCodeTag := StatusCodeTag + "=200"
+	cleanClassTag := StatusClassTag + "=" + StatusClassSuccess
 
 	mockSender := newMockXstatsSender(ctrl)
 	mockSender.EXPECT().Gauge("gauge", 1.0, "type=gauge", cleanCodeTag)
@@ -162,10 +162,10 @@ func TestAddTags(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockSender := newMockXstatsSender(ctrl)
-	mockSender.EXPECT().Gauge("gauge", 1.0, "type=gauge", statusCodeTag+"=200")
+	mockSender.EXPECT().Gauge("gauge", 1.0, "type=gauge", StatusCodeTag+"=200")
 
 	s := newFromSender(mockSender, newIdentityCleaner(), false)
-	s.AddTags(NewKVTag(statusCodeTag, "200"))
+	s.AddTags(NewKVTag(StatusCodeTag, "200"))
 
 	s.Gauge("gauge", 1.0, NewKVTag("type", "gauge"))
 
@@ -173,12 +173,12 @@ func TestAddTags(t *testing.T) {
 		"gauge",
 		1.0,
 		"type=gauge",
-		statusCodeTag+"=200",
-		statusClassTag+"="+statusClassSuccess,
+		StatusCodeTag+"=200",
+		StatusClassTag+"="+StatusClassSuccess,
 	)
 
 	s = newFromSender(mockSender, newIdentityCleaner(), true)
-	s.AddTags(NewKVTag(statusCodeTag, "200"))
+	s.AddTags(NewKVTag(StatusCodeTag, "200"))
 
 	s.Gauge("gauge", 1.0, NewKVTag("type", "gauge"))
 }
