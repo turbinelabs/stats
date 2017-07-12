@@ -72,6 +72,7 @@ func TestStatsdBackend(t *testing.T) {
 		host:          "127.0.0.1",
 		port:          port,
 		flushInterval: 10 * time.Millisecond,
+		lsff:          &latchingSenderFromFlags{},
 	}
 
 	stats, err := statsdFromFlags.Make(false)
@@ -109,6 +110,7 @@ func TestStatsdStdoutHook(t *testing.T) {
 		port:          port,
 		flushInterval: 10 * time.Millisecond,
 		debug:         true,
+		lsff:          &latchingSenderFromFlags{},
 	}
 
 	stats, err := statsdFromFlags.Make(false)

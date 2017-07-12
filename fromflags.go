@@ -3,6 +3,7 @@ package stats
 import (
 	"errors"
 	"fmt"
+	"sort"
 
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 	tbnstrings "github.com/turbinelabs/nonstdlib/strings"
@@ -11,6 +12,7 @@ import (
 //go:generate mockgen -source $GOFILE -destination mock_$GOFILE -package $GOPACKAGE
 
 const (
+	apiStatsName   = "api"
 	dogstatsdName  = "dogstatsd"
 	prometheusName = "prometheus"
 	statsdName     = "statsd"
@@ -23,24 +25,82 @@ type FromFlags interface {
 	Make() (Stats, error)
 }
 
+// Option is an opaquely-typed option for NewFromFlags.
+type Option func(*fromFlagsOptions)
+
+// EnableAPIStatsBackend enables the API stats backend.
+func EnableAPIStatsBackend() Option {
+	return func(ff *fromFlagsOptions) {
+		ff.enableAPIStats = true
+	}
+}
+
+// APIStatsOptions configures NewFromFlags to pass APIStatsOption
+// values to the API Stats backend.
+func APIStatsOptions(opts ...APIStatsOption) Option {
+	return func(ff *fromFlagsOptions) {
+		ff.apiStatsOptions = append(ff.apiStatsOptions, opts...)
+	}
+}
+
 // NewFromFlags produces a FromFlags configured by the given flagset
-func NewFromFlags(fs tbnflag.FlagSet) FromFlags {
-	ff := &fromFlags{
-		backends: tbnflag.NewStringsWithConstraint(
-			dogstatsdName,
-			wavefrontName,
-			prometheusName,
-			statsdName,
-		),
-		tags: tbnflag.NewStrings(),
-		statsFromFlagses: map[string]statsFromFlags{
-			dogstatsdName:  newDogstatsdFromFlags(fs),
-			wavefrontName:  newWavefrontFromFlags(fs),
-			prometheusName: newPrometheusFromFlags(fs),
-			statsdName:     newStatsdFromFlags(fs, "statsd"),
-		},
+// and options.
+func NewFromFlags(fs tbnflag.FlagSet, options ...Option) FromFlags {
+	ffOpts := &fromFlagsOptions{}
+	for _, apply := range options {
+		apply(ffOpts)
 	}
 
+	backends := []string{
+		dogstatsdName,
+		prometheusName,
+		wavefrontName,
+		statsdName,
+	}
+
+	sffMap := map[string]statsFromFlags{
+		dogstatsdName:  newDogstatsdFromFlags(fs.Scope(dogstatsdName, "")),
+		prometheusName: newPrometheusFromFlags(fs.Scope(prometheusName, "")),
+		wavefrontName:  newWavefrontFromFlags(fs.Scope(wavefrontName, "")),
+		statsdName:     newStatsdFromFlags(fs.Scope(statsdName, "")),
+	}
+
+	if ffOpts.enableAPIStats {
+		backends = append(backends, apiStatsName)
+
+		sffMap[apiStatsName] = newAPIStatsFromFlags(
+			fs.Scope(apiStatsName, ""),
+			ffOpts.apiStatsOptions...,
+		)
+	}
+
+	sort.Strings(backends)
+
+	ff := &fromFlags{
+		backends:         tbnflag.NewStringsWithConstraint(backends...),
+		tags:             tbnflag.NewStrings(),
+		statsFromFlagses: sffMap,
+	}
+
+	ff.initFlags(fs)
+	return ff
+}
+
+type fromFlags struct {
+	statsFromFlagses    map[string]statsFromFlags
+	backends            tbnflag.Strings
+	nodeTag             string
+	sourceTag           string
+	tags                tbnflag.Strings
+	classifyStatusCodes bool
+}
+
+type fromFlagsOptions struct {
+	enableAPIStats  bool
+	apiStatsOptions []APIStatsOption
+}
+
+func (ff *fromFlags) initFlags(fs tbnflag.FlagSet) {
 	fs.Var(
 		&ff.backends,
 		"backends",
@@ -81,35 +141,6 @@ func NewFromFlags(fs tbnflag.FlagSet) FromFlags {
 			StatusClassServerErr,
 		),
 	)
-
-	return ff
-}
-
-type statsFromFlags interface {
-	Validate() error
-	Make(classifyStatusCodes bool) (Stats, error)
-}
-
-type fromFlags struct {
-	statsFromFlagses    map[string]statsFromFlags
-	backends            tbnflag.Strings
-	nodeTag             string
-	sourceTag           string
-	tags                tbnflag.Strings
-	classifyStatusCodes bool
-}
-
-func (ff *fromFlags) parseTags() []Tag {
-	result := make([]Tag, 0, len(ff.tags.Strings))
-	for _, tag := range ff.tags.Strings {
-		key, value := tbnstrings.SplitFirstEqual(tag)
-		if value == "" {
-			result = append(result, NewTag(key))
-		} else {
-			result = append(result, NewKVTag(key, value))
-		}
-	}
-	return result
 }
 
 func (ff *fromFlags) Validate() error {
@@ -125,17 +156,48 @@ func (ff *fromFlags) Validate() error {
 		}
 	}
 
+	seenNode := false
+	seenSource := false
 	for _, tag := range ff.parseTags() {
-		if tag.K == "node" && ff.nodeTag != "" {
-			return errors.New("cannot combine --tags=node=... and --node")
+		if tag.K == "node" {
+			if ff.nodeTag != "" {
+				return errors.New("cannot combine --tags=node=... and --node")
+			}
+
+			if seenNode {
+				return errors.New("cannot specify multiple tags named node")
+			}
+
+			seenNode = true
 		}
 
-		if tag.K == "source" && ff.sourceTag != "" {
-			return errors.New("cannot combine --tags=source=... and --source")
+		if tag.K == "source" {
+			if ff.sourceTag != "" {
+				return errors.New("cannot combine --tags=source=... and --source")
+			}
+
+			if seenSource {
+				return errors.New("cannot specify multiple tags named source")
+			}
+
+			seenSource = true
 		}
 	}
 
 	return nil
+}
+
+func (ff *fromFlags) parseTags() []Tag {
+	result := make([]Tag, 0, len(ff.tags.Strings))
+	for _, tag := range ff.tags.Strings {
+		key, value := tbnstrings.SplitFirstEqual(tag)
+		if value == "" {
+			result = append(result, NewTag(key))
+		} else {
+			result = append(result, NewKVTag(key, value))
+		}
+	}
+	return result
 }
 
 func (ff *fromFlags) Make() (Stats, error) {
@@ -152,21 +214,14 @@ func (ff *fromFlags) Make() (Stats, error) {
 	}
 
 	stats := NewMulti(statses...)
-	for _, tag := range ff.tags.Strings {
-		key, value := tbnstrings.SplitFirstEqual(tag)
-		if value == "" {
-			stats.AddTags(NewTag(key))
-		} else {
-			stats.AddTags(NewKVTag(key, value))
-		}
-	}
+	stats.AddTags(ff.parseTags()...)
 
 	if ff.nodeTag != "" {
-		stats.AddTags(NewKVTag("node", ff.nodeTag))
+		stats.AddTags(NewKVTag(NodeTag, ff.nodeTag))
 	}
 
 	if ff.sourceTag != "" {
-		stats.AddTags(NewKVTag("source", ff.sourceTag))
+		stats.AddTags(NewKVTag(SourceTag, ff.sourceTag))
 	}
 
 	return stats, nil

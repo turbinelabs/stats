@@ -82,14 +82,14 @@ var prometheusCleaner = cleaner{
 }
 
 type prometheusFromFlags struct {
-	addr string
+	flagScope string
+	addr      string
 }
 
 func newPrometheusFromFlags(fs tbnflag.FlagSet) statsFromFlags {
-	ff := &prometheusFromFlags{}
-	scoped := fs.Scope(prometheusName, "")
+	ff := &prometheusFromFlags{flagScope: fs.GetScope()}
 
-	scoped.StringVar(
+	fs.StringVar(
 		&ff.addr,
 		"addr",
 		"0.0.0.0:9102",
@@ -102,7 +102,7 @@ func newPrometheusFromFlags(fs tbnflag.FlagSet) statsFromFlags {
 func (ff *prometheusFromFlags) Validate() error {
 	_, _, err := tbnstrings.SplitHostPort(ff.addr)
 	if err != nil {
-		return fmt.Errorf("--%s.addr is invalid: %s", prometheusName, err.Error())
+		return fmt.Errorf("--%saddr is invalid: %s", ff.flagScope, err.Error())
 	}
 	return nil
 }

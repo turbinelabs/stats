@@ -22,6 +22,7 @@ func TestDogstatsdBackend(t *testing.T) {
 			host:          "127.0.0.1",
 			port:          port,
 			flushInterval: 10 * time.Millisecond,
+			lsff:          &latchingSenderFromFlags{},
 		},
 	}
 

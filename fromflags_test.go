@@ -1,11 +1,15 @@
 package stats
 
 import (
-	"flag"
+	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+
+	apiflags "github.com/turbinelabs/api/client/flags"
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 	"github.com/turbinelabs/test/assert"
 )
@@ -18,9 +22,8 @@ type validateTestCase struct {
 func (vtc *validateTestCase) check(t *testing.T) {
 	desc := strings.Join(vtc.args, " ")
 	assert.Group(desc, t, func(g *assert.G) {
-		fs := flag.NewFlagSet("test", flag.ContinueOnError)
-		tfs := tbnflag.Wrap(fs)
-		ff := NewFromFlags(tfs)
+		fs := tbnflag.NewTestFlagSet()
+		ff := NewFromFlags(fs, EnableAPIStatsBackend())
 		err := fs.Parse(vtc.args)
 		assert.Nil(t, err)
 		if vtc.expectErrorContains != "" {
@@ -32,9 +35,8 @@ func (vtc *validateTestCase) check(t *testing.T) {
 }
 
 func TestFromFlagsParse(t *testing.T) {
-	fs := flag.NewFlagSet("test", flag.ContinueOnError)
-	tfs := tbnflag.Wrap(fs)
-	ff := NewFromFlags(tfs)
+	fs := tbnflag.NewTestFlagSet()
+	ff := NewFromFlags(fs)
 	err := fs.Parse([]string{
 		"--backends=dogstatsd,statsd",
 		"--dogstatsd.host=localhost",
@@ -51,7 +53,7 @@ func TestFromFlagsParse(t *testing.T) {
 	dsdFromFlags, ok := ffImpl.statsFromFlagses[dogstatsdName]
 	assert.True(t, ok)
 	dsdFromFlagsImpl := dsdFromFlags.(*dogstatsdFromFlags)
-	assert.Equal(t, dsdFromFlagsImpl.scope, "dogstatsd")
+	assert.Equal(t, dsdFromFlagsImpl.flagScope, "dogstatsd.")
 	assert.Equal(t, dsdFromFlagsImpl.host, "localhost")
 	assert.Equal(t, dsdFromFlagsImpl.port, 8000)
 	assert.Equal(t, dsdFromFlagsImpl.maxPacketLen, 512)
@@ -60,11 +62,33 @@ func TestFromFlagsParse(t *testing.T) {
 	sdFromFlags, ok := ffImpl.statsFromFlagses[statsdName]
 	assert.True(t, ok)
 	sdFromFlagsImpl := sdFromFlags.(*statsdFromFlags)
-	assert.Equal(t, sdFromFlagsImpl.scope, "statsd")
+	assert.Equal(t, sdFromFlagsImpl.flagScope, "statsd.")
 	assert.Equal(t, sdFromFlagsImpl.host, "remotehost")
 	assert.Equal(t, sdFromFlagsImpl.port, 9000)
 	assert.Equal(t, sdFromFlagsImpl.maxPacketLen, defaultMaxPacketLen)
 	assert.Equal(t, sdFromFlagsImpl.flushInterval, 30*time.Second)
+}
+
+func TestFromFlagsOptions(t *testing.T) {
+	ctrl := gomock.NewController(assert.Tracing(t))
+	defer ctrl.Finish()
+
+	mockStatsClientFromFlags := apiflags.NewMockStatsClientFromFlags(ctrl)
+	mockStatsClientFromFlags.EXPECT().APIKey().Return("key")
+	mockStatsClientFromFlags.EXPECT().Validate().Return(errors.New("passed thru"))
+
+	fs := tbnflag.NewTestFlagSet()
+
+	ff := NewFromFlags(
+		fs,
+		EnableAPIStatsBackend(),
+		APIStatsOptions(SetStatsClientFromFlags(mockStatsClientFromFlags)),
+	)
+	err := fs.Parse([]string{
+		"--backends=api",
+	})
+	assert.Nil(t, err)
+	assert.ErrorContains(t, ff.Validate(), "passed thru")
 }
 
 func TestFromFlagsValidate(t *testing.T) {
@@ -92,7 +116,41 @@ func TestFromFlagsValidate(t *testing.T) {
 		{
 			[]string{
 				"--backends=dogstatsd",
-				"--dogstatsd.flush-interval=1s",
+				"--dogstatsd.latch=true",
+			},
+			"",
+		},
+		{
+			[]string{
+				"--backends=dogstatsd",
+				"--dogstatsd.latch=true",
+				"--dogstatsd.latch.window=0",
+			},
+			"--dogstatsd.latch.window must be greater than 0",
+		},
+		{
+			[]string{
+				"--backends=dogstatsd",
+				"--dogstatsd.latch=true",
+				"--dogstatsd.latch.base-value=0",
+			},
+			"--dogstatsd.latch.base-value must be greater than 0",
+		},
+		{
+			[]string{
+				"--backends=dogstatsd",
+				"--dogstatsd.latch=true",
+				"--dogstatsd.latch.buckets=1",
+			},
+			"--dogstatsd.latch.buckets must be greater than 1",
+		},
+		{
+			[]string{
+				"--backends=dogstatsd",
+				"--dogstatsd.latch=true",
+				"--dogstatsd.latch.window=1m",
+				"--dogstatsd.latch.base-value=1",
+				"--dogstatsd.latch.buckets=8",
 			},
 			"",
 		},
@@ -133,6 +191,47 @@ func TestFromFlagsValidate(t *testing.T) {
 			},
 			"",
 		},
+		{
+			[]string{
+				"--backends=statsd",
+				"--statsd.latch=true",
+			},
+			"",
+		},
+		{
+			[]string{
+				"--backends=statsd",
+				"--statsd.latch=true",
+				"--statsd.latch.window=0",
+			},
+			"--statsd.latch.window must be greater than 0",
+		},
+		{
+			[]string{
+				"--backends=statsd",
+				"--statsd.latch=true",
+				"--statsd.latch.base-value=0",
+			},
+			"--statsd.latch.base-value must be greater than 0",
+		},
+		{
+			[]string{
+				"--backends=statsd",
+				"--statsd.latch=true",
+				"--statsd.latch.buckets=1",
+			},
+			"--statsd.latch.buckets must be greater than 1",
+		},
+		{
+			[]string{
+				"--backends=statsd",
+				"--statsd.latch=true",
+				"--statsd.latch.window=1m",
+				"--statsd.latch.base-value=1",
+				"--statsd.latch.buckets=8",
+			},
+			"",
+		},
 		// wavefront
 		{
 			[]string{
@@ -152,6 +251,107 @@ func TestFromFlagsValidate(t *testing.T) {
 			[]string{
 				"--backends=wavefront",
 				"--wavefront.flush-interval=1s",
+			},
+			"",
+		},
+		{
+			[]string{
+				"--backends=wavefront",
+				"--wavefront.latch=true",
+			},
+			"",
+		},
+		{
+			[]string{
+				"--backends=wavefront",
+				"--wavefront.latch=true",
+				"--wavefront.latch.window=0",
+			},
+			"--wavefront.latch.window must be greater than 0",
+		},
+		{
+			[]string{
+				"--backends=wavefront",
+				"--wavefront.latch=true",
+				"--wavefront.latch.base-value=0",
+			},
+			"--wavefront.latch.base-value must be greater than 0",
+		},
+		{
+			[]string{
+				"--backends=wavefront",
+				"--wavefront.latch=true",
+				"--wavefront.latch.buckets=1",
+			},
+			"--wavefront.latch.buckets must be greater than 1",
+		},
+		{
+			[]string{
+				"--backends=wavefront",
+				"--wavefront.latch=true",
+				"--wavefront.latch.window=1m",
+				"--wavefront.latch.base-value=1",
+				"--wavefront.latch.buckets=8",
+			},
+			"",
+		},
+		// api
+		{
+			[]string{
+				"--backends=api",
+			},
+			"--api.key must be specified",
+		},
+		{
+			[]string{
+				"--backends=api",
+				"--api.key=keyzor",
+			},
+			"",
+		},
+		{
+			[]string{
+				"--backends=api",
+				"--api.key=keyzor",
+				"--api.latch=true",
+			},
+			"",
+		},
+		{
+			[]string{
+				"--backends=api",
+				"--api.key=keyzor",
+				"--api.latch=true",
+				"--api.latch.window=0",
+			},
+			"--api.latch.window must be greater than 0",
+		},
+		{
+			[]string{
+				"--backends=api",
+				"--api.key=keyzor",
+				"--api.latch=true",
+				"--api.latch.base-value=0",
+			},
+			"--api.latch.base-value must be greater than 0",
+		},
+		{
+			[]string{
+				"--backends=api",
+				"--api.key=keyzor",
+				"--api.latch=true",
+				"--api.latch.buckets=1",
+			},
+			"--api.latch.buckets must be greater than 1",
+		},
+		{
+			[]string{
+				"--backends=api",
+				"--api.key=keyzor",
+				"--api.latch=true",
+				"--api.latch.window=1m",
+				"--api.latch.base-value=1",
+				"--api.latch.buckets=8",
 			},
 			"",
 		},
@@ -177,10 +377,24 @@ func TestFromFlagsValidate(t *testing.T) {
 		{
 			[]string{
 				"--backends=dogstatsd",
+				"--tags=node=xyz,node=notxyz",
+			},
+			"cannot specify multiple tags named node",
+		},
+		{
+			[]string{
+				"--backends=dogstatsd",
 				"--source=xyz",
 				"--tags=source=notxyz",
 			},
 			"cannot combine --tags=source=... and --source",
+		},
+		{
+			[]string{
+				"--backends=dogstatsd",
+				"--tags=source=xyz,source=notxyz",
+			},
+			"cannot specify multiple tags named source",
 		},
 	}
 
@@ -189,10 +403,19 @@ func TestFromFlagsValidate(t *testing.T) {
 	}
 }
 
+func getXstatsSenderType(t *testing.T, s Stats) string {
+	xstats, ok := s.(*xStats)
+	if !ok {
+		t.Errorf("Stats %#v is not an *xStats", s)
+		return ""
+	}
+
+	return reflect.TypeOf(xstats.sender).String()
+}
+
 func TestFromFlagsMake(t *testing.T) {
-	fs := flag.NewFlagSet("test", flag.ContinueOnError)
-	tfs := tbnflag.Wrap(fs)
-	ff := NewFromFlags(tfs)
+	fs := tbnflag.NewTestFlagSet()
+	ff := NewFromFlags(fs)
 	err := fs.Parse([]string{
 		"--backends=dogstatsd,statsd",
 		"--dogstatsd.host=localhost",
@@ -209,5 +432,85 @@ func TestFromFlagsMake(t *testing.T) {
 	multiStats, ok := stats.(multiStats)
 	assert.True(t, ok)
 	assert.Equal(t, len(multiStats), 2)
+	assert.Equal(t, getXstatsSenderType(t, multiStats[0]), "*dogstatsd.sender")
+	assert.Equal(t, getXstatsSenderType(t, multiStats[1]), "*statsd.sender")
 	assert.Nil(t, multiStats.Close())
+}
+
+func TestFromFlagsMakeWithLatching(t *testing.T) {
+	fs := tbnflag.NewTestFlagSet()
+	ff := NewFromFlags(fs)
+	err := fs.Parse([]string{
+		"--backends=dogstatsd,statsd",
+		"--dogstatsd.host=localhost",
+		"--dogstatsd.port=8000",
+		"--dogstatsd.latch=true",
+		"--statsd.host=localhost",
+		"--statsd.port=9000",
+	})
+	assert.Nil(t, err)
+
+	assert.Nil(t, ff.Validate())
+	stats, err := ff.Make()
+	assert.Nil(t, err)
+
+	multiStats, ok := stats.(multiStats)
+	assert.True(t, ok)
+	assert.Equal(t, len(multiStats), 2)
+	assert.Equal(t, getXstatsSenderType(t, multiStats[0]), "*stats.latchingSender")
+	assert.Equal(t, getXstatsSenderType(t, multiStats[1]), "*statsd.sender")
+	assert.Nil(t, multiStats.Close())
+}
+
+func TestFromFlagsMakeAddsTags(t *testing.T) {
+	ctrl := gomock.NewController(assert.Tracing(t))
+	defer ctrl.Finish()
+
+	mockStats := NewMockStats(ctrl)
+
+	mockStatsFromFlags := newMockStatsFromFlags(ctrl)
+	mockStatsFromFlags.EXPECT().Make(false).AnyTimes().Return(mockStats, nil)
+
+	ff := &fromFlags{
+		backends: tbnflag.NewStringsWithConstraint(
+			"mock",
+		),
+		tags: tbnflag.NewStrings(),
+		statsFromFlagses: map[string]statsFromFlags{
+			"mock": mockStatsFromFlags,
+		},
+	}
+	ff.backends.Set("mock")
+
+	mockStats.EXPECT().AddTags()
+	s, err := ff.Make()
+	assert.NonNil(t, s)
+	assert.Nil(t, err)
+
+	ff.tags.ResetDefault("a=b", "c=d")
+	mockStats.EXPECT().AddTags(NewKVTag("a", "b"), NewKVTag("c", "d"))
+	s, err = ff.Make()
+	assert.NonNil(t, s)
+	assert.Nil(t, err)
+
+	ff.tags.ResetDefault("a=b", "source=s", "node=n", "c=d")
+	mockStats.EXPECT().AddTags(
+		NewKVTag("a", "b"),
+		NewKVTag("source", "s"),
+		NewKVTag("node", "n"),
+		NewKVTag("c", "d"),
+	)
+	s, err = ff.Make()
+	assert.NonNil(t, s)
+	assert.Nil(t, err)
+
+	ff.tags.ResetDefault("a=b", "c=d")
+	ff.sourceTag = "s"
+	ff.nodeTag = "n"
+	mockStats.EXPECT().AddTags(NewKVTag("a", "b"), NewKVTag("c", "d"))
+	mockStats.EXPECT().AddTags(NewKVTag("source", "s"))
+	mockStats.EXPECT().AddTags(NewKVTag("node", "n"))
+	s, err = ff.Make()
+	assert.NonNil(t, s)
+	assert.Nil(t, err)
 }

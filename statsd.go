@@ -30,65 +30,57 @@ var statsdCleaner = cleaner{
 var stdoutWriter io.Writer = os.Stdout
 
 type statsdFromFlags struct {
-	scope         string
+	flagScope     string
 	host          string
 	port          int
 	maxPacketLen  int
 	flushInterval time.Duration
+	lsff          *latchingSenderFromFlags
 	debug         bool
 }
 
-func newStatsdFromFlags(fs tbnflag.FlagSet, scope string) *statsdFromFlags {
-	ff := &statsdFromFlags{scope: scope}
-	scoped := fs.Scope(scope, "")
+func newStatsdFromFlags(fs tbnflag.FlagSet) *statsdFromFlags {
+	ff := &statsdFromFlags{
+		flagScope: fs.GetScope(),
+		lsff:      newLatchingSenderFromFlags(fs),
+	}
 
-	scoped.StringVar(
+	fs.StringVar(
 		&ff.host,
 		"host",
 		defaultHost,
 		"Specifies the destination host for stats.",
 	)
 
-	scoped.IntVar(
+	fs.IntVar(
 		&ff.port,
 		"port",
 		defaultPort,
 		"Specifies the destination port for stats.",
 	)
 
-	scoped.IntVar(
+	fs.IntVar(
 		&ff.maxPacketLen,
 		"max-packet-len",
 		defaultMaxPacketLen,
 		"Specifies the maximum number of payload `bytes` sent per flush. If necessary, flushes will occur before the flush interval to prevent payloads from exceeding this size. The size does not include IP and UDP header bytes. Stats may not be delivered if the total size of the headers and payload exceeds the network's MTU.",
 	)
 
-	scoped.DurationVar(
+	fs.DurationVar(
 		&ff.flushInterval,
 		"flush-interval",
 		defaultFlushInterval,
 		"Specifies the `duration` between stats flushes.",
 	)
 
-	scoped.BoolVar(
+	fs.BoolVar(
 		&ff.debug,
 		"debug",
 		false,
 		"If enabled, logs the stats data on stdout.",
 	)
-	return ff
-}
 
-func (ff *statsdFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
-	w, err := ff.mkUDPWriter()
-	if err != nil {
-		return nil, err
-	}
-	return newFromSender(
-		statsd.NewMaxPacket(w, ff.flushInterval, ff.maxPacketLen),
-		statsdCleaner,
-		classifyStatusCodes,
-	), nil
+	return ff
 }
 
 func (ff *statsdFromFlags) Validate() error {
@@ -96,17 +88,32 @@ func (ff *statsdFromFlags) Validate() error {
 
 	if _, _, err := tbnstrings.SplitHostPort(addr); err != nil {
 		return fmt.Errorf(
-			"--%s.host or --%s.port is invalid: %s",
-			ff.scope,
-			ff.scope,
+			"--%shost or --%sport is invalid: %s",
+			ff.flagScope,
+			ff.flagScope,
 			err.Error(),
 		)
 	}
 
 	if ff.flushInterval <= 0*time.Second {
-		return fmt.Errorf("--%s.flush-interval must be greater than zero", ff.scope)
+		return fmt.Errorf("--%sflush-interval must be greater than zero", ff.flagScope)
 	}
-	return nil
+
+	return ff.lsff.Validate()
+}
+
+func (ff *statsdFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
+	w, err := ff.mkUDPWriter()
+	if err != nil {
+		return nil, err
+	}
+
+	underlying := ff.lsff.Make(
+		statsd.NewMaxPacket(w, ff.flushInterval, ff.maxPacketLen),
+		statsdCleaner,
+	)
+
+	return newFromSender(underlying, statsdCleaner, classifyStatusCodes), nil
 }
 
 func (ff *statsdFromFlags) mkUDPWriter() (io.Writer, error) {

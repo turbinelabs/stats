@@ -31,7 +31,7 @@ type dogstatsdFromFlags struct {
 }
 
 func newDogstatsdFromFlags(fs tbnflag.FlagSet) statsFromFlags {
-	return &dogstatsdFromFlags{newStatsdFromFlags(fs, dogstatsdName)}
+	return &dogstatsdFromFlags{newStatsdFromFlags(fs)}
 }
 
 func (ff *dogstatsdFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
@@ -39,8 +39,14 @@ func (ff *dogstatsdFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newFromSender(
+
+	underlying := ff.lsff.Make(
 		dogstatsd.NewMaxPacket(w, ff.flushInterval, ff.maxPacketLen),
+		dogstatsdCleaner,
+	)
+
+	return newFromSender(
+		underlying,
 		dogstatsdCleaner,
 		classifyStatusCodes,
 	), nil

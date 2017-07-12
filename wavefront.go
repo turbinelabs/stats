@@ -107,7 +107,7 @@ type wavefrontFromFlags struct {
 }
 
 func newWavefrontFromFlags(fs tbnflag.FlagSet) statsFromFlags {
-	return &wavefrontFromFlags{newStatsdFromFlags(fs, wavefrontName)}
+	return &wavefrontFromFlags{newStatsdFromFlags(fs)}
 }
 
 func (ff *wavefrontFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
@@ -115,8 +115,14 @@ func (ff *wavefrontFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newFromSender(
+
+	underlying := ff.lsff.Make(
 		&wavefrontSender{statsd.NewMaxPacket(w, ff.flushInterval, ff.maxPacketLen)},
+		wavefrontCleaner,
+	)
+
+	return newFromSender(
+		underlying,
 		wavefrontCleaner,
 		classifyStatusCodes,
 	), nil
