@@ -26,18 +26,6 @@ func testDiagnosticsCallback(
 	invokeDiagnostics(diag)
 }
 
-func forEachAttemptResult(f func(executor.AttemptResult)) {
-	for _, r := range []executor.AttemptResult{
-		executor.AttemptSuccess,
-		executor.AttemptTimeout,
-		executor.AttemptGlobalTimeout,
-		executor.AttemptCancellation,
-		executor.AttemptError,
-	} {
-		f(r)
-	}
-}
-
 func TestStatsDiagnosticsCallbackTaskStarted(t *testing.T) {
 	testDiagnosticsCallback(
 		t,
@@ -55,7 +43,7 @@ func TestStatsDiagnosticsCallbackTaskCompleted(t *testing.T) {
 	testDiagnosticsCallback(
 		t,
 		func(stats *MockStats) {
-			forEachAttemptResult(func(r executor.AttemptResult) {
+			executor.ForEachAttemptResult(func(r executor.AttemptResult) {
 				stats.EXPECT().Count(
 					"tasks_completed",
 					1.0,
@@ -69,7 +57,7 @@ func TestStatsDiagnosticsCallbackTaskCompleted(t *testing.T) {
 			})
 		},
 		func(diag executor.DiagnosticsCallback) {
-			forEachAttemptResult(func(r executor.AttemptResult) {
+			executor.ForEachAttemptResult(func(r executor.AttemptResult) {
 				diag.TaskCompleted(r, time.Duration(r)*time.Second)
 			})
 		},
@@ -94,7 +82,7 @@ func TestStatsDiagnosticsCallbackAttemptCompleted(t *testing.T) {
 	testDiagnosticsCallback(
 		t,
 		func(stats *MockStats) {
-			forEachAttemptResult(func(r executor.AttemptResult) {
+			executor.ForEachAttemptResult(func(r executor.AttemptResult) {
 				stats.EXPECT().Count(
 					"attempts_completed",
 					1.0,
@@ -108,7 +96,7 @@ func TestStatsDiagnosticsCallbackAttemptCompleted(t *testing.T) {
 			})
 		},
 		func(diag executor.DiagnosticsCallback) {
-			forEachAttemptResult(func(r executor.AttemptResult) {
+			executor.ForEachAttemptResult(func(r executor.AttemptResult) {
 				diag.AttemptCompleted(r, time.Duration(r)*time.Second)
 			})
 		},
@@ -142,7 +130,7 @@ func TestDiagnosticCallbackStatsAndTags(t *testing.T) {
 	mockStats.EXPECT().Timing(statNameCaptor, time.Millisecond, tagCaptor).AnyTimes()
 
 	diag := NewStatsDiagnosticsCallback(mockStats)
-	forEachAttemptResult(func(r executor.AttemptResult) {
+	executor.ForEachAttemptResult(func(r executor.AttemptResult) {
 		diag.TaskStarted(1)
 		diag.AttemptStarted(time.Millisecond)
 		diag.AttemptCompleted(r, time.Millisecond)
