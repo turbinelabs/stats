@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	apiflags "github.com/turbinelabs/api/client/flags"
 	"github.com/turbinelabs/api/service/stats"
-	"github.com/turbinelabs/nonstdlib/executor"
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 )
 
@@ -15,6 +15,8 @@ const (
 	// DefaultClientApp is the clientApp used when constructing an api stats
 	// client. If a specific clientApp is required, use SetStatsClientFromFlags.
 	DefaultClientApp = "github.com/turbinelabs/stats"
+
+	unspecified = "unspecified"
 )
 
 // APIStatsOption is a configuration option the the API stats backend.
@@ -29,16 +31,16 @@ func SetStatsClientFromFlags(statsClientFromFlags apiflags.StatsClientFromFlags)
 	}
 }
 
-// SetExecutorFromFlags specifies a pre-configured executor.FromFlags
-// to use when creating a stats.StatsService.
-func SetExecutorFromFlags(execFromFlags executor.FromFlags) APIStatsOption {
+// SetZoneKeyFromFlags specifies a pre-configured
+// apiflags.ZoneKeyFromFlags to use when creating an API stats sender.
+func SetZoneKeyFromFlags(zoneKeyFromFlags apiflags.ZoneKeyFromFlags) APIStatsOption {
 	return func(ff *apiStatsFromFlags) {
-		ff.execFromFlags = execFromFlags
+		ff.zoneKeyFromFlags = zoneKeyFromFlags
 	}
 }
 
 // SetLogger specifies a custom Logger to use when constructing an
-// executor.Executor and stats.StatsService.
+// stats.StatsService.
 func SetLogger(logger *log.Logger) APIStatsOption {
 	return func(ff *apiStatsFromFlags) {
 		ff.logger = logger
@@ -48,11 +50,15 @@ func SetLogger(logger *log.Logger) APIStatsOption {
 func newAPIStatsFromFlags(fs tbnflag.FlagSet, options ...APIStatsOption) statsFromFlags {
 	ff := &apiStatsFromFlags{
 		flagScope:               fs.GetScope(),
-		latchingSenderFromFlags: newLatchingSenderFromFlags(fs),
+		latchingSenderFromFlags: newLatchingSenderFromFlags(fs, true),
 	}
 
 	for _, apply := range options {
 		apply(ff)
+	}
+
+	if ff.zoneKeyFromFlags == nil {
+		ff.zoneKeyFromFlags = apiflags.NewZoneKeyFromFlags(fs)
 	}
 
 	if ff.statsClientFromFlags == nil {
@@ -73,24 +79,24 @@ func newAPIStatsFromFlags(fs tbnflag.FlagSet, options ...APIStatsOption) statsFr
 		)
 	}
 
-	if ff.execFromFlags == nil {
-		ff.execFromFlags = executor.NewFromFlags(fs)
-	}
-
 	return ff
 }
 
 type apiStatsFromFlags struct {
 	flagScope               string
 	logger                  *log.Logger
+	zoneKeyFromFlags        apiflags.ZoneKeyFromFlags
 	statsClientFromFlags    apiflags.StatsClientFromFlags
-	execFromFlags           executor.FromFlags
 	latchingSenderFromFlags *latchingSenderFromFlags
 }
 
 func (ff *apiStatsFromFlags) Validate() error {
 	if ff.statsClientFromFlags.APIKey() == "" {
 		return fmt.Errorf("--%skey must be specified", ff.flagScope)
+	}
+
+	if ff.zoneKeyFromFlags.ZoneName() == "" {
+		return fmt.Errorf("--%szone-name must be specified", ff.flagScope)
 	}
 
 	if err := ff.statsClientFromFlags.Validate(); err != nil {
@@ -100,22 +106,21 @@ func (ff *apiStatsFromFlags) Validate() error {
 	return ff.latchingSenderFromFlags.Validate()
 }
 
-func (ff *apiStatsFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
+func (ff *apiStatsFromFlags) Make() (Stats, error) {
 	logger := ff.logger
 	if logger == nil {
 		logger = log.New(os.Stderr, "stats: ", log.LstdFlags)
 	}
 
-	exec := ff.execFromFlags.Make(logger)
-
-	statsClient, err := ff.statsClientFromFlags.Make(exec, logger)
+	statsClient, err := ff.statsClientFromFlags.MakeV2(logger)
 	if err != nil {
 		return nil, err
 	}
 
 	sender := &apiSender{
 		svc:    statsClient,
-		source: "unspecified",
+		source: unspecified,
+		zone:   ff.zoneKeyFromFlags.ZoneName(),
 	}
 
 	wrappedSender := ff.latchingSenderFromFlags.Make(sender, apiCleaner)
@@ -131,29 +136,64 @@ type apiStats struct {
 	apiSender *apiSender
 }
 
-// AddTags filters out tags named source and alters the source used
-// when making API stats forwarding calls. All other tags are treated
-// normally.
+// AddTags filters out tags named source, node, and zone. The source
+// and zone tags alter the source and zone used when making API stats
+// forwarding calls. The node tag is ignored. All other tags are
+// treated normally.
 func (s *apiStats) AddTags(tags ...Tag) {
 	for _, tag := range tags {
-		if tag.K == SourceTag {
+		switch tag.K {
+		case NodeTag:
+			// ignore
+
+		case SourceTag:
 			s.apiSender.source = tag.V
-		} else {
+
+		case ZoneTag:
+			s.apiSender.zone = tag.V
+
+		default:
 			s.Stats.AddTags(tag)
 		}
 	}
 }
 
-// NewAPIStats creates a Stats that uses the given stats.StatsService
-// to forward arbitrary stats with an unspecified source. The source
-// may be subsequently overridden by invoking AddTags with a tag named
-// "source".
-func NewAPIStats(svc stats.StatsService) Stats {
+// NewAPIStats creates a Stats that uses the given stats.StatsServiceV2
+// to forward arbitrary stats with an unspecified source and zone. The
+// source and zone may be subsequently overridden by invoking AddTags
+// with tags named SourceTag and ZoneTag.
+func NewAPIStats(svc stats.StatsServiceV2) Stats {
 	sender := &apiSender{
 		svc:    svc,
-		source: "unspecified",
+		source: unspecified,
+		zone:   unspecified,
 	}
 	underlying := newFromSender(sender, apiCleaner, false)
+
+	return &apiStats{underlying, sender}
+}
+
+// NewLatchingAPIStats creates a Stats as in NewAPIStats, but with latching enabled.
+func NewLatchingAPIStats(
+	svc stats.StatsServiceV2,
+	window time.Duration,
+	baseValue float64,
+	numBuckets int,
+) Stats {
+	sender := &apiSender{
+		svc:    svc,
+		source: unspecified,
+		zone:   unspecified,
+	}
+
+	wrappedSender := newLatchingSender(
+		sender,
+		apiCleaner,
+		latchWindow(window),
+		latchBuckets(baseValue, numBuckets),
+	)
+
+	underlying := newFromSender(wrappedSender, apiCleaner, false)
 
 	return &apiStats{underlying, sender}
 }

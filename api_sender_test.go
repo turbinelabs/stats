@@ -18,10 +18,10 @@ func TestNewAPIStats(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	mockSvc := stats.NewMockStatsService(ctrl)
+	mockSvc := stats.NewMockStatsServiceV2(ctrl)
 
 	s := NewAPIStats(mockSvc)
-	s.AddTags(NewKVTag(SourceTag, "sourcery"))
+	s.AddTags(NewKVTag(SourceTag, "sourcery"), NewKVTag(ZoneTag, "zone"))
 
 	apiStatsImpl, ok := s.(*apiStats)
 	assert.NonNil(t, apiStatsImpl)
@@ -32,133 +32,136 @@ func TestNewAPIStats(t *testing.T) {
 
 	assert.SameInstance(t, apiStatsImpl.apiSender.svc, mockSvc)
 	assert.Equal(t, apiStatsImpl.apiSender.source, "sourcery")
+	assert.Equal(t, apiStatsImpl.apiSender.zone, "zone")
 }
 
-func testAPISenderWithScope(t *testing.T, scope string, f func(Stats)) stats.Stat {
+func testAPISenderWithScope(t *testing.T, scope string, f func(Stats)) stats.PayloadV2 {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	payloadCaptor := matcher.CaptureType(reflect.TypeOf(&stats.Payload{}))
+	payloadCaptor := matcher.CaptureType(reflect.TypeOf(&stats.PayloadV2{}))
 
-	mockSvc := stats.NewMockStatsService(ctrl)
-	mockSvc.EXPECT().Forward(payloadCaptor).Return(nil, nil)
+	mockSvc := stats.NewMockStatsServiceV2(ctrl)
+	mockSvc.EXPECT().ForwardV2(payloadCaptor).Return(nil, nil)
 
 	s := NewAPIStats(mockSvc)
-	s.AddTags(NewKVTag(SourceTag, "sourcery"))
+	s.AddTags(NewKVTag(SourceTag, "sourcery"), NewKVTag(ZoneTag, "zone"))
 	if scope != "" {
 		s = s.Scope(scope)
 	}
 
-	before := tbntime.ToUnixMicro(time.Now())
+	before := tbntime.ToUnixMilli(time.Now())
 	f(s)
-	after := tbntime.ToUnixMicro(time.Now())
+	after := tbntime.ToUnixMilli(time.Now())
 
-	payload := payloadCaptor.V.(*stats.Payload)
+	payload := payloadCaptor.V.(*stats.PayloadV2)
 	assert.Equal(t, payload.Source, "sourcery")
+	assert.Equal(t, payload.Zone, "zone")
 	assert.Equal(t, len(payload.Stats), 1)
 	assert.LessThanEqual(t, before, payload.Stats[0].Timestamp)
 	assert.GreaterThanEqual(t, after, payload.Stats[0].Timestamp)
 	assert.Equal(t, len(payload.Stats[0].Tags), 0)
 
-	return payload.Stats[0]
+	return *payload
 }
 
-func testAPISenderWithTimestampTag(t *testing.T, f func(Stats)) stats.Stat {
+func testAPISenderWithTimestampTag(t *testing.T, f func(Stats)) stats.PayloadV2 {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	payloadCaptor := matcher.CaptureType(reflect.TypeOf(&stats.Payload{}))
+	payloadCaptor := matcher.CaptureType(reflect.TypeOf(&stats.PayloadV2{}))
 
-	mockSvc := stats.NewMockStatsService(ctrl)
-	mockSvc.EXPECT().Forward(payloadCaptor).Return(nil, nil)
+	mockSvc := stats.NewMockStatsServiceV2(ctrl)
+	mockSvc.EXPECT().ForwardV2(payloadCaptor).Return(nil, nil)
 
 	s := NewAPIStats(mockSvc)
-	s.AddTags(NewKVTag(SourceTag, "sourcery"))
+	s.AddTags(NewKVTag(SourceTag, "sourcery"), NewKVTag(ZoneTag, "zone"))
 
 	f(s)
 
-	payload := payloadCaptor.V.(*stats.Payload)
+	payload := payloadCaptor.V.(*stats.PayloadV2)
 	assert.Equal(t, payload.Source, "sourcery")
+	assert.Equal(t, payload.Zone, "zone")
 	assert.Equal(t, len(payload.Stats), 1)
 	assert.Equal(t, len(payload.Stats[0].Tags), 0)
 
-	return payload.Stats[0]
+	return *payload
 }
 
-func testAPISender(t *testing.T, f func(Stats)) stats.Stat {
+func testAPISender(t *testing.T, f func(Stats)) stats.PayloadV2 {
 	return testAPISenderWithScope(t, "", f)
 }
 
 func TestAPISenderCount(t *testing.T) {
 	st := testAPISender(t, func(s Stats) {
 		s.Count("metric", 1)
-	})
+	}).Stats[0]
 
 	assert.Equal(t, st.Name, "metric")
-	assert.Equal(t, *st.Value, 1.0)
+	assert.Equal(t, *st.Count, 1.0)
 
 	st = testAPISenderWithScope(t, "a/b/c", func(s Stats) {
 		s.Count("metric", 2)
-	})
+	}).Stats[0]
 
 	assert.Equal(t, st.Name, "a/b/c/metric")
-	assert.Equal(t, *st.Value, 2.0)
+	assert.Equal(t, *st.Count, 2.0)
 
 	st = testAPISenderWithTimestampTag(t, func(s Stats) {
-		s.Count("metric", 1, NewKVTag(TimestampTag, "1500000000000"))
-	})
+		s.Count("metric", 1, NewKVTag(TimestampTag, "1500000000"))
+	}).Stats[0]
 
 	assert.Equal(t, st.Name, "metric")
-	assert.Equal(t, *st.Value, 1.0)
-	assert.Equal(t, st.Timestamp, int64(1500000000000000))
+	assert.Equal(t, *st.Count, 1.0)
+	assert.Equal(t, st.Timestamp, int64(1500000000))
 }
 
 func TestAPISenderGauge(t *testing.T) {
 	st := testAPISender(t, func(s Stats) {
 		s.Gauge("metric", 123)
-	})
+	}).Stats[0]
 
 	assert.Equal(t, st.Name, "metric")
-	assert.Equal(t, *st.Value, 123.0)
+	assert.Equal(t, *st.Gauge, 123.0)
 
 	st = testAPISenderWithScope(t, "a/b/c", func(s Stats) {
 		s.Gauge("metric", 200)
-	})
+	}).Stats[0]
 
 	assert.Equal(t, st.Name, "a/b/c/metric")
-	assert.Equal(t, *st.Value, 200.0)
+	assert.Equal(t, *st.Gauge, 200.0)
 
 	st = testAPISenderWithTimestampTag(t, func(s Stats) {
-		s.Gauge("metric", 123, NewKVTag(TimestampTag, "1500000000000"))
-	})
+		s.Gauge("metric", 123, NewKVTag(TimestampTag, "1500000000"))
+	}).Stats[0]
 
 	assert.Equal(t, st.Name, "metric")
-	assert.Equal(t, *st.Value, 123.0)
-	assert.Equal(t, st.Timestamp, int64(1500000000000000))
+	assert.Equal(t, *st.Gauge, 123.0)
+	assert.Equal(t, st.Timestamp, int64(1500000000))
 }
 
 func TestAPISenderTimingDuration(t *testing.T) {
 	st := testAPISender(t, func(s Stats) {
 		s.Timing("metric", 1234*time.Millisecond)
-	})
+	}).Stats[0]
 
 	assert.Equal(t, st.Name, "metric")
-	assert.Equal(t, *st.Value, 1.234)
+	assert.Equal(t, *st.Gauge, 1.234)
 
 	st = testAPISenderWithScope(t, "a/b/c", func(s Stats) {
 		s.Timing("metric", 2*time.Second)
-	})
+	}).Stats[0]
 
 	assert.Equal(t, st.Name, "a/b/c/metric")
-	assert.Equal(t, *st.Value, 2.0)
+	assert.Equal(t, *st.Gauge, 2.0)
 
 	st = testAPISenderWithTimestampTag(t, func(s Stats) {
-		s.Timing("metric", 1234*time.Millisecond, NewKVTag(TimestampTag, "1500000000000"))
-	})
+		s.Timing("metric", 1234*time.Millisecond, NewKVTag(TimestampTag, "1500000000"))
+	}).Stats[0]
 
 	assert.Equal(t, st.Name, "metric")
-	assert.Equal(t, *st.Value, 1.234)
-	assert.Equal(t, st.Timestamp, int64(1500000000000000))
+	assert.Equal(t, *st.Gauge, 1.234)
+	assert.Equal(t, st.Timestamp, int64(1500000000))
 }
 
 func TestAPISenderLatchedHistogram(t *testing.T) {
@@ -171,68 +174,81 @@ func TestAPISenderLatchedHistogram(t *testing.T) {
 		Max:       0.1,
 	}
 
-	st := testAPISenderWithTimestampTag(t, func(s Stats) {
+	payload := testAPISenderWithTimestampTag(t, func(s Stats) {
 		sender := s.(*apiStats).apiSender
-		sender.LatchedHistogram("histo", latchedHistogram, TimestampTag+"=1500000000000")
+		sender.LatchedHistogram("histo", latchedHistogram, TimestampTag+"=1500000000")
 	})
+	st := payload.Stats[0]
 
 	assert.Equal(t, st.Name, "histo")
-	assert.ArrayEqual(
+	assert.MapEqual(
 		t,
-		st.Histogram.Buckets,
-		[][2]float64{
-			{0.001, 200.0},
-			{0.002, 550.0},
-			{0.004, 245.0},
-			{0.008, 4.0},
+		payload.Limits,
+		map[string][]float64{
+			"default": {0.001, 0.002, 0.004, 0.008},
 		},
 	)
+	assert.ArrayEqual(t, st.Histogram.Buckets, []int64{200, 550, 245, 4})
 	assert.Equal(t, st.Histogram.Count, int64(1000))
 	assert.Equal(t, st.Histogram.Sum, 1.778)
 	assert.Equal(t, st.Histogram.Minimum, 0.0005)
 	assert.Equal(t, st.Histogram.Maximum, 0.1)
-	assert.Equal(t, st.Histogram.P50, 0.002)
-	assert.Equal(t, st.Histogram.P99, 0.004)
-	assert.Equal(t, st.Timestamp, int64(1500000000000000))
+	assert.Equal(t, st.Timestamp, int64(1500000000))
 }
 
 func TestAPISenderTags(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	payloadCaptor := matcher.CaptureType(reflect.TypeOf(&stats.Payload{}))
+	payloadCaptor := matcher.CaptureType(reflect.TypeOf(&stats.PayloadV2{}))
 
-	mockSvc := stats.NewMockStatsService(ctrl)
-	mockSvc.EXPECT().Forward(payloadCaptor).Return(nil, nil)
+	mockSvc := stats.NewMockStatsServiceV2(ctrl)
+	mockSvc.EXPECT().ForwardV2(payloadCaptor).Return(nil, nil)
 
 	s := NewAPIStats(mockSvc)
-	s.AddTags(NewKVTag(SourceTag, "sourcery"))
+	s.AddTags(NewKVTag(SourceTag, "sourcery"), NewKVTag(ZoneTag, "zone"))
 
-	s.Count("metric", 1, NewKVTag("a", "1"), NewKVTag("b", "2"))
+	s.Count(
+		"metric",
+		1,
+		NewKVTag("a", "1"),
+		NewKVTag("b", "2"),
+		NewKVTag(ProxyTag, "proximate"),
+		NewKVTag(ProxyVersionTag, "1.2.3"),
+	)
 
-	payload := payloadCaptor.V.(*stats.Payload)
+	payload := payloadCaptor.V.(*stats.PayloadV2)
 	assert.Equal(t, payload.Source, "sourcery")
+	assert.Equal(t, payload.Zone, "zone")
+	assert.Equal(t, ptr.StringValue(payload.Proxy), "proximate")
+	assert.Equal(t, ptr.StringValue(payload.ProxyVersion), "1.2.3")
 	assert.Equal(t, len(payload.Stats), 1)
-	assert.Equal(t, ptr.Float64Value(payload.Stats[0].Value), 1.0)
-	assert.Equal(t, ptr.BoolValue(payload.Stats[0].IsGauge), false)
+	assert.Equal(t, ptr.Float64Value(payload.Stats[0].Count), 1.0)
 	assert.MapEqual(t, payload.Stats[0].Tags, map[string]string{"a": "1", "b": "2"})
 
-	mockSvc.EXPECT().Forward(payloadCaptor).Return(nil, nil)
-	s.Gauge("metric", 2, NewKVTag("c", "1"), NewKVTag("d", "2"))
+	mockSvc.EXPECT().ForwardV2(payloadCaptor).Return(nil, nil)
+	s.Gauge(
+		"metric",
+		2,
+		NewKVTag("c", "1"),
+		NewKVTag("d", "2"),
+		NewKVTag(ProxyTag, "proximal"),
+		NewKVTag(ProxyVersionTag, "2.3.4"),
+	)
 
-	payload = payloadCaptor.V.(*stats.Payload)
+	payload = payloadCaptor.V.(*stats.PayloadV2)
+	assert.Equal(t, ptr.StringValue(payload.Proxy), "proximal")
+	assert.Equal(t, ptr.StringValue(payload.ProxyVersion), "2.3.4")
 	assert.Equal(t, len(payload.Stats), 1)
-	assert.Equal(t, ptr.Float64Value(payload.Stats[0].Value), 2.0)
-	assert.Equal(t, ptr.BoolValue(payload.Stats[0].IsGauge), true)
+	assert.Equal(t, ptr.Float64Value(payload.Stats[0].Gauge), 2.0)
 	assert.MapEqual(t, payload.Stats[0].Tags, map[string]string{"c": "1", "d": "2"})
 
-	mockSvc.EXPECT().Forward(payloadCaptor).Return(nil, nil)
+	mockSvc.EXPECT().ForwardV2(payloadCaptor).Return(nil, nil)
 	s.Timing("metric", 2*time.Second, NewKVTag("e", "1"), NewKVTag("f", "2"))
 
-	payload = payloadCaptor.V.(*stats.Payload)
+	payload = payloadCaptor.V.(*stats.PayloadV2)
 	assert.Equal(t, len(payload.Stats), 1)
-	assert.Equal(t, ptr.Float64Value(payload.Stats[0].Value), 2.0)
-	assert.Equal(t, ptr.BoolValue(payload.Stats[0].IsGauge), false)
+	assert.Equal(t, ptr.Float64Value(payload.Stats[0].Gauge), 2.0)
 	assert.MapEqual(t, payload.Stats[0].Tags, map[string]string{"e": "1", "f": "2"})
 }
 
@@ -240,7 +256,7 @@ func TestApiSenderClose(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	mockSvc := stats.NewMockStatsService(ctrl)
+	mockSvc := stats.NewMockStatsServiceV2(ctrl)
 	mockSvc.EXPECT().Close().Return(nil)
 
 	s := NewAPIStats(mockSvc)

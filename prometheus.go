@@ -84,6 +84,7 @@ var prometheusCleaner = cleaner{
 type prometheusFromFlags struct {
 	flagScope string
 	addr      string
+	scope     string
 }
 
 func newPrometheusFromFlags(fs tbnflag.FlagSet) statsFromFlags {
@@ -94,6 +95,13 @@ func newPrometheusFromFlags(fs tbnflag.FlagSet) statsFromFlags {
 		"addr",
 		"0.0.0.0:9102",
 		"Specifies the listener address for Prometheus scraping.",
+	)
+
+	fs.StringVar(
+		&ff.scope,
+		"scope",
+		"",
+		"If specified, prepends the given scope to metric names.",
 	)
 
 	return ff
@@ -107,6 +115,10 @@ func (ff *prometheusFromFlags) Validate() error {
 	return nil
 }
 
-func (ff *prometheusFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
-	return newFromSender(prometheus.New(ff.addr), prometheusCleaner, classifyStatusCodes), nil
+func (ff *prometheusFromFlags) Make() (Stats, error) {
+	stats := newFromSender(prometheus.New(ff.addr), prometheusCleaner, true)
+	if ff.scope != "" {
+		stats = stats.Scope(ff.scope)
+	}
+	return stats, nil
 }

@@ -110,7 +110,7 @@ func newWavefrontFromFlags(fs tbnflag.FlagSet) statsFromFlags {
 	return &wavefrontFromFlags{newStatsdFromFlags(fs)}
 }
 
-func (ff *wavefrontFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
+func (ff *wavefrontFromFlags) Make() (Stats, error) {
 	w, err := ff.mkUDPWriter()
 	if err != nil {
 		return nil, err
@@ -121,9 +121,5 @@ func (ff *wavefrontFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
 		wavefrontCleaner,
 	)
 
-	return newFromSender(
-		underlying,
-		wavefrontCleaner,
-		classifyStatusCodes,
-	), nil
+	return newFromSender(underlying, wavefrontCleaner, true), nil
 }

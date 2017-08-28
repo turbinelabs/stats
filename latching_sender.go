@@ -18,11 +18,11 @@ import (
 )
 
 const (
-	DefaultLatchWindow         = 1 * time.Second
+	DefaultLatchWindow         = 1 * time.Minute
 	DefaultHistogramNumBuckets = 10
 	DefaultHistogramBaseValue  = 0.001 // 1 millisecond in fractional seconds
 
-	latchedAt = "latched_at"
+	LatchedAtMetric = "latched_at"
 )
 
 // latchableSender provides an interface that allows client-aggregated
@@ -268,8 +268,9 @@ func (s *latchingSender) completeLatch(nextLatchStart time.Time) {
 			sent++
 		}
 	}
+
 	if sent > 0 {
-		s.underlying.Gauge("latched_at", float64(s.latchStart.Unix()))
+		s.underlying.Gauge(LatchedAtMetric, float64(s.latchStart.Unix()), s.tagsWithTimestamp(nil)...)
 	}
 
 	s.latchStart = nextLatchStart

@@ -26,7 +26,7 @@ func TestDogstatsdBackend(t *testing.T) {
 		},
 	}
 
-	stats, err := dogstatsdFromFlags.Make(false)
+	stats, err := dogstatsdFromFlags.Make()
 	assert.Nil(t, err)
 	defer stats.Close()
 

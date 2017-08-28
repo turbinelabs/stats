@@ -10,7 +10,6 @@ import (
 
 	apiflags "github.com/turbinelabs/api/client/flags"
 	"github.com/turbinelabs/api/service/stats"
-	"github.com/turbinelabs/nonstdlib/executor"
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 	"github.com/turbinelabs/test/assert"
 )
@@ -20,17 +19,16 @@ func TestNewAPIStatsFromFlagsOptions(t *testing.T) {
 	defer ctrl.Finish()
 
 	logger := log.New(os.Stderr, "test: ", 0)
-	mockExecFromFlags := executor.NewMockFromFlags(ctrl)
-	mockExec := executor.NewMockExecutor(ctrl)
 	mockStatsClientFromFlags := apiflags.NewMockStatsClientFromFlags(ctrl)
-	mockStatsClient := stats.NewMockStatsService(ctrl)
+	mockStatsClient := stats.NewMockStatsServiceV2(ctrl)
+	mockZoneKeyFromFlags := apiflags.NewMockZoneKeyFromFlags(ctrl)
 
 	fs := tbnflag.NewTestFlagSet().Scope("api", "")
 
 	ff := newAPIStatsFromFlags(
 		fs,
-		SetExecutorFromFlags(mockExecFromFlags),
 		SetStatsClientFromFlags(mockStatsClientFromFlags),
+		SetZoneKeyFromFlags(mockZoneKeyFromFlags),
 		SetLogger(logger),
 	)
 
@@ -38,46 +36,48 @@ func TestNewAPIStatsFromFlagsOptions(t *testing.T) {
 	assert.NonNil(t, ffImpl)
 
 	assert.SameInstance(t, ffImpl.logger, logger)
-	assert.SameInstance(t, ffImpl.execFromFlags, mockExecFromFlags)
 	assert.SameInstance(t, ffImpl.statsClientFromFlags, mockStatsClientFromFlags)
 
 	mockStatsClientFromFlags.EXPECT().APIKey().Return("")
 	assert.ErrorContains(t, ff.Validate(), "--api.key must be specified")
 
+	mockStatsClientFromFlags.EXPECT().APIKey().Return("key")
+	mockZoneKeyFromFlags.EXPECT().ZoneName().Return("")
+	assert.ErrorContains(t, ff.Validate(), "--api.zone-name must be specified")
+
 	e := errors.New("boom")
 	mockStatsClientFromFlags.EXPECT().APIKey().Return("key")
+	mockZoneKeyFromFlags.EXPECT().ZoneName().Return("zone")
 	mockStatsClientFromFlags.EXPECT().Validate().Return(e)
 	assert.ErrorContains(t, ff.Validate(), "boom")
 
 	mockStatsClientFromFlags.EXPECT().APIKey().Return("key")
+	mockZoneKeyFromFlags.EXPECT().ZoneName().Return("zone")
 	mockStatsClientFromFlags.EXPECT().Validate().Return(nil)
 	assert.Nil(t, ff.Validate())
 
-	mockExecFromFlags.EXPECT().Make(logger).Return(mockExec)
-	mockStatsClientFromFlags.EXPECT().Make(mockExec, logger).Return(nil, e)
-	_, err := ff.Make(false)
+	mockStatsClientFromFlags.EXPECT().MakeV2(logger).Return(nil, e)
+	_, err := ff.Make()
 	assert.ErrorContains(t, err, "boom")
 
-	mockExecFromFlags.EXPECT().Make(logger).Return(mockExec)
-	mockStatsClientFromFlags.EXPECT().Make(mockExec, logger).Return(mockStatsClient, nil)
-	s, err := ff.Make(false)
+	mockZoneKeyFromFlags.EXPECT().ZoneName().Return("zone")
+	mockStatsClientFromFlags.EXPECT().MakeV2(logger).Return(mockStatsClient, nil)
+	s, err := ff.Make()
 	assert.Nil(t, err)
 	assert.NonNil(t, s)
 
 	fs = tbnflag.NewTestFlagSet().Scope("api", "")
 	ff = newAPIStatsFromFlags(
 		fs,
-		SetExecutorFromFlags(mockExecFromFlags),
 		SetStatsClientFromFlags(mockStatsClientFromFlags),
 	)
 
 	ffImpl = ff.(*apiStatsFromFlags)
 	assert.NonNil(t, ffImpl)
-	mockExecFromFlags.EXPECT().Make(gomock.Not(gomock.Nil())).Return(mockExec)
 	mockStatsClientFromFlags.EXPECT().
-		Make(mockExec, gomock.Not(gomock.Nil())).
+		MakeV2(gomock.Not(gomock.Nil())).
 		Return(mockStatsClient, nil)
-	s, err = ff.Make(false)
+	s, err = ff.Make()
 	assert.Nil(t, err)
 	assert.NonNil(t, s)
 }
@@ -98,11 +98,41 @@ func TestAPIStatsAddTags(t *testing.T) {
 		underlying.EXPECT().AddTags(tagC),
 		underlying.EXPECT().AddTags(tagD),
 	)
-	sender := &apiSender{source: "unspecified"}
+	sender := &apiSender{source: "unspecified", zone: "unspecified"}
 
 	stats := &apiStats{underlying, sender}
 	stats.AddTags(tagA, tagB)
-	stats.AddTags(tagC, NewKVTag("source", "x"), tagD)
+	stats.AddTags(tagC, NewKVTag("source", "s"), NewKVTag("zone", "z"), tagD)
 
-	assert.Equal(t, sender.source, "x")
+	assert.Equal(t, sender.source, "s")
+	assert.Equal(t, sender.zone, "z")
+}
+
+func TestNewLatchingAPIStats(t *testing.T) {
+	ctrl := gomock.NewController(assert.Tracing(t))
+	defer ctrl.Finish()
+
+	mockStatsClient := stats.NewMockStatsServiceV2(ctrl)
+
+	stats := NewLatchingAPIStats(
+		mockStatsClient,
+		DefaultLatchWindow,
+		DefaultHistogramBaseValue,
+		DefaultHistogramNumBuckets,
+	)
+	assert.NonNil(t, stats)
+
+	statsImpl, ok := stats.(*apiStats)
+	assert.True(t, ok)
+
+	underlyingImpl, ok := statsImpl.Stats.(*xStats)
+	assert.True(t, ok)
+
+	wrappedSender, ok := underlyingImpl.sender.(*latchingSender)
+	assert.True(t, ok)
+
+	wrappedAPISender, ok := wrappedSender.underlying.(*apiSender)
+	assert.True(t, ok)
+
+	assert.SameInstance(t, statsImpl.apiSender, wrappedAPISender)
 }

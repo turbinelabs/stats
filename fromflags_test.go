@@ -25,11 +25,11 @@ func (vtc *validateTestCase) check(t *testing.T) {
 		fs := tbnflag.NewTestFlagSet()
 		ff := NewFromFlags(fs, EnableAPIStatsBackend())
 		err := fs.Parse(vtc.args)
-		assert.Nil(t, err)
+		assert.Nil(g, err)
 		if vtc.expectErrorContains != "" {
-			assert.ErrorContains(t, ff.Validate(), vtc.expectErrorContains)
+			assert.ErrorContains(g, ff.Validate(), vtc.expectErrorContains)
 		} else {
-			assert.Nil(t, ff.Validate())
+			assert.Nil(g, ff.Validate())
 		}
 	})
 }
@@ -77,18 +77,43 @@ func TestFromFlagsOptions(t *testing.T) {
 	mockStatsClientFromFlags.EXPECT().APIKey().Return("key")
 	mockStatsClientFromFlags.EXPECT().Validate().Return(errors.New("passed thru"))
 
+	mockZoneKeyFromFlags := apiflags.NewMockZoneKeyFromFlags(ctrl)
+	mockZoneKeyFromFlags.EXPECT().ZoneName().Return("zone")
+
 	fs := tbnflag.NewTestFlagSet()
 
 	ff := NewFromFlags(
 		fs,
 		EnableAPIStatsBackend(),
-		APIStatsOptions(SetStatsClientFromFlags(mockStatsClientFromFlags)),
+		APIStatsOptions(
+			SetStatsClientFromFlags(mockStatsClientFromFlags),
+			SetZoneKeyFromFlags(mockZoneKeyFromFlags),
+		),
 	)
+	ffImpl := ff.(*fromFlags)
+	assert.ArrayEqual(t, ffImpl.backends.Strings, []string{})
+
 	err := fs.Parse([]string{
 		"--backends=api",
 	})
 	assert.Nil(t, err)
 	assert.ErrorContains(t, ff.Validate(), "passed thru")
+
+	fs = tbnflag.NewTestFlagSet()
+	ff = NewFromFlags(
+		fs,
+		DefaultBackends("statsd", "wavefront"),
+	)
+	ffImpl = ff.(*fromFlags)
+	assert.ArrayEqual(t, ffImpl.backends.Strings, []string{"statsd", "wavefront"})
+
+	fs = tbnflag.NewTestFlagSet()
+	ff = NewFromFlags(
+		fs,
+		DefaultBackends("api", "DOGSTATSD", "fred"),
+	)
+	ffImpl = ff.(*fromFlags)
+	assert.ArrayEqual(t, ffImpl.backends.Strings, []string{"dogstatsd"})
 }
 
 func TestFromFlagsValidate(t *testing.T) {
@@ -307,12 +332,21 @@ func TestFromFlagsValidate(t *testing.T) {
 				"--backends=api",
 				"--api.key=keyzor",
 			},
+			"--api.zone-name must be specified",
+		},
+		{
+			[]string{
+				"--backends=api",
+				"--api.key=keyzor",
+				"--api.zone-name=zoner",
+			},
 			"",
 		},
 		{
 			[]string{
 				"--backends=api",
 				"--api.key=keyzor",
+				"--api.zone-name=zoner",
 				"--api.latch=true",
 			},
 			"",
@@ -321,6 +355,7 @@ func TestFromFlagsValidate(t *testing.T) {
 			[]string{
 				"--backends=api",
 				"--api.key=keyzor",
+				"--api.zone-name=zoner",
 				"--api.latch=true",
 				"--api.latch.window=0",
 			},
@@ -330,6 +365,7 @@ func TestFromFlagsValidate(t *testing.T) {
 			[]string{
 				"--backends=api",
 				"--api.key=keyzor",
+				"--api.zone-name=zoner",
 				"--api.latch=true",
 				"--api.latch.base-value=0",
 			},
@@ -339,6 +375,7 @@ func TestFromFlagsValidate(t *testing.T) {
 			[]string{
 				"--backends=api",
 				"--api.key=keyzor",
+				"--api.zone-name=zoner",
 				"--api.latch=true",
 				"--api.latch.buckets=1",
 			},
@@ -348,6 +385,7 @@ func TestFromFlagsValidate(t *testing.T) {
 			[]string{
 				"--backends=api",
 				"--api.key=keyzor",
+				"--api.zone-name=zoner",
 				"--api.latch=true",
 				"--api.latch.window=1m",
 				"--api.latch.base-value=1",
@@ -469,7 +507,7 @@ func TestFromFlagsMakeAddsTags(t *testing.T) {
 	mockStats := NewMockStats(ctrl)
 
 	mockStatsFromFlags := newMockStatsFromFlags(ctrl)
-	mockStatsFromFlags.EXPECT().Make(false).AnyTimes().Return(mockStats, nil)
+	mockStatsFromFlags.EXPECT().Make().AnyTimes().Return(mockStats, nil)
 
 	ff := &fromFlags{
 		backends: tbnflag.NewStringsWithConstraint(

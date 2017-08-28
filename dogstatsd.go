@@ -34,7 +34,7 @@ func newDogstatsdFromFlags(fs tbnflag.FlagSet) statsFromFlags {
 	return &dogstatsdFromFlags{newStatsdFromFlags(fs)}
 }
 
-func (ff *dogstatsdFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
+func (ff *dogstatsdFromFlags) Make() (Stats, error) {
 	w, err := ff.mkUDPWriter()
 	if err != nil {
 		return nil, err
@@ -45,9 +45,5 @@ func (ff *dogstatsdFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
 		dogstatsdCleaner,
 	)
 
-	return newFromSender(
-		underlying,
-		dogstatsdCleaner,
-		classifyStatusCodes,
-	), nil
+	return newFromSender(underlying, dogstatsdCleaner, true), nil
 }

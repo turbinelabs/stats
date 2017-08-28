@@ -54,7 +54,7 @@ func TestWavefrontBackend(t *testing.T) {
 	_, port, err := tbnstrings.SplitHostPort(addr)
 	assert.Nil(t, err)
 
-	dogstatsdFromFlags := &wavefrontFromFlags{
+	wavefrontFromFlags := &wavefrontFromFlags{
 		&statsdFromFlags{
 			host:          "127.0.0.1",
 			port:          port,
@@ -63,7 +63,7 @@ func TestWavefrontBackend(t *testing.T) {
 		},
 	}
 
-	stats, err := dogstatsdFromFlags.Make(false)
+	stats, err := wavefrontFromFlags.Make()
 	assert.Nil(t, err)
 	defer stats.Close()
 

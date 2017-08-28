@@ -35,6 +35,7 @@ type statsdFromFlags struct {
 	port          int
 	maxPacketLen  int
 	flushInterval time.Duration
+	scope         string
 	lsff          *latchingSenderFromFlags
 	debug         bool
 }
@@ -42,7 +43,7 @@ type statsdFromFlags struct {
 func newStatsdFromFlags(fs tbnflag.FlagSet) *statsdFromFlags {
 	ff := &statsdFromFlags{
 		flagScope: fs.GetScope(),
-		lsff:      newLatchingSenderFromFlags(fs),
+		lsff:      newLatchingSenderFromFlags(fs, false),
 	}
 
 	fs.StringVar(
@@ -71,6 +72,13 @@ func newStatsdFromFlags(fs tbnflag.FlagSet) *statsdFromFlags {
 		"flush-interval",
 		defaultFlushInterval,
 		"Specifies the `duration` between stats flushes.",
+	)
+
+	fs.StringVar(
+		&ff.scope,
+		"scope",
+		"",
+		"If specified, prepends the given scope to metric names.",
 	)
 
 	fs.BoolVar(
@@ -102,7 +110,7 @@ func (ff *statsdFromFlags) Validate() error {
 	return ff.lsff.Validate()
 }
 
-func (ff *statsdFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
+func (ff *statsdFromFlags) Make() (Stats, error) {
 	w, err := ff.mkUDPWriter()
 	if err != nil {
 		return nil, err
@@ -113,7 +121,13 @@ func (ff *statsdFromFlags) Make(classifyStatusCodes bool) (Stats, error) {
 		statsdCleaner,
 	)
 
-	return newFromSender(underlying, statsdCleaner, classifyStatusCodes), nil
+	stats := newFromSender(underlying, statsdCleaner, true)
+
+	if ff.scope != "" {
+		stats = stats.Scope(ff.scope)
+	}
+
+	return stats, nil
 }
 
 func (ff *statsdFromFlags) mkUDPWriter() (io.Writer, error) {

@@ -8,9 +8,12 @@ const (
 	StatusClassClientErr = "client_error"
 	StatusClassServerErr = "server_error"
 
-	NodeTag      = "node"
-	SourceTag    = "source"
-	TimestampTag = "timestamp"
+	NodeTag         = "node"
+	ProxyTag        = "proxy"
+	ProxyVersionTag = "proxy-version"
+	SourceTag       = "source"
+	TimestampTag    = "timestamp"
+	ZoneTag         = "zone"
 )
 
 // Tag is an optional piece of metadata to be added to one or more stat points

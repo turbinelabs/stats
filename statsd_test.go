@@ -75,7 +75,7 @@ func TestStatsdBackend(t *testing.T) {
 		lsff:          &latchingSenderFromFlags{},
 	}
 
-	stats, err := statsdFromFlags.Make(false)
+	stats, err := statsdFromFlags.Make()
 	assert.Nil(t, err)
 	defer stats.Close()
 
@@ -113,7 +113,7 @@ func TestStatsdStdoutHook(t *testing.T) {
 		lsff:          &latchingSenderFromFlags{},
 	}
 
-	stats, err := statsdFromFlags.Make(false)
+	stats, err := statsdFromFlags.Make()
 	assert.Nil(t, err)
 	defer stats.Close()
 

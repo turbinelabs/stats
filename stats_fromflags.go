@@ -4,5 +4,5 @@ package stats
 
 type statsFromFlags interface {
 	Validate() error
-	Make(classifyStatusCodes bool) (Stats, error)
+	Make() (Stats, error)
 }

@@ -148,12 +148,11 @@ func runSimpleLatchTest(
 
 	for n, v := range outputValues {
 		ts := start.Truncate(time.Second).Add(time.Duration(n) * time.Second)
+		tags := []interface{}{
+			fmt.Sprintf("%s=%d", TimestampTag, tbntime.ToUnixMilli(ts)),
+		}
 
 		for i, m := range outputMetrics {
-			tags := []interface{}{
-				fmt.Sprintf("%s=%d", TimestampTag, tbntime.ToUnixMilli(ts)),
-			}
-
 			if isGauge {
 				underlying.EXPECT().Gauge(m, v[i], tags...)
 			} else {
@@ -164,11 +163,12 @@ func runSimpleLatchTest(
 		underlying.EXPECT().Gauge(
 			"latched_at",
 			float64(ts.Unix()),
+			tags...,
 		)
 	}
 
 	tbntime.WithTimeAt(start, func(tc tbntime.ControlledSource) {
-		s := newLatchingSender(underlying, testCleaner, timeSource(tc))
+		s := newLatchingSender(underlying, testCleaner, latchWindow(time.Second), timeSource(tc))
 
 		for _, v := range inputValues {
 			tags := make([]string, 0, 1)
@@ -337,7 +337,7 @@ func runHistogramLatchTestBase(
 			}
 
 			mock.EXPECT().LatchedHistogram(stat, latchedHisto, tags...)
-			mock.EXPECT().Gauge("latched_at", float64(ts.Unix()))
+			mock.EXPECT().Gauge("latched_at", float64(ts.Unix()), tags...)
 		}
 
 		underlying = mock
@@ -362,14 +362,14 @@ func runHistogramLatchTestBase(
 			mock.EXPECT().Count(fmt.Sprintf("%s.sum", stat), float64(h.sum), tags...)
 			mock.EXPECT().Gauge(fmt.Sprintf("%s.min", stat), float64(h.min), tags...)
 			mock.EXPECT().Gauge(fmt.Sprintf("%s.max", stat), float64(h.max), tags...)
-			mock.EXPECT().Gauge("latched_at", float64(ts.Unix()))
+			mock.EXPECT().Gauge("latched_at", float64(ts.Unix()), tags...)
 		}
 
 		underlying = mock
 	}
 
 	tbntime.WithTimeAt(start, func(tc tbntime.ControlledSource) {
-		s := newLatchingSender(underlying, testCleaner, timeSource(tc))
+		s := newLatchingSender(underlying, testCleaner, latchWindow(time.Second), timeSource(tc))
 
 		for _, v := range inputValues {
 			tags := []string{
@@ -482,7 +482,7 @@ func TestLatchedTags(t *testing.T) {
 				defer ctrl.Finish()
 
 				underlying := newMockXstatsSender(ctrl)
-				s := newLatchingSender(underlying, testCleaner)
+				s := newLatchingSender(underlying, testCleaner, latchWindow(time.Second))
 				sImpl := s.(*latchingSender)
 				gotTags, gotTime := sImpl.latchedTags(tc.tags)
 				assert.ArrayEqual(t, gotTags, tc.expectedTags)
@@ -509,11 +509,11 @@ func TestLatchingSenderLatchesOverMultipleMetrics(t *testing.T) {
 		underlying.EXPECT().Count("c2", float64(4*n+7), tsTag)
 		underlying.EXPECT().Gauge("g", float64(2*n+1), "a=1", tsTag)
 		underlying.EXPECT().Gauge("g", float64(2*n+4), "a=2", tsTag)
-		underlying.EXPECT().Gauge("latched_at", float64(ts.Unix()))
+		underlying.EXPECT().Gauge("latched_at", float64(ts.Unix()), tsTag)
 	}
 
 	tbntime.WithTimeAt(start, func(tc tbntime.ControlledSource) {
-		s := newLatchingSender(underlying, testCleaner, timeSource(tc))
+		s := newLatchingSender(underlying, testCleaner, latchWindow(time.Second), timeSource(tc))
 
 		for n := 0; n < 10; n++ {
 			tsTag := fmt.Sprintf(

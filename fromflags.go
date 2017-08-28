@@ -2,8 +2,8 @@ package stats
 
 import (
 	"errors"
-	"fmt"
 	"sort"
+	"strings"
 
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 	tbnstrings "github.com/turbinelabs/nonstdlib/strings"
@@ -43,6 +43,15 @@ func APIStatsOptions(opts ...APIStatsOption) Option {
 	}
 }
 
+// DefaultBackends configures NewFromFlags with default backends (that
+// may be overridden by command line flags). Unknown backends are
+// ignored.
+func DefaultBackends(backends ...string) Option {
+	return func(ff *fromFlagsOptions) {
+		ff.defaultBackends = backends
+	}
+}
+
 // NewFromFlags produces a FromFlags configured by the given flagset
 // and options.
 func NewFromFlags(fs tbnflag.FlagSet, options ...Option) FromFlags {
@@ -74,6 +83,16 @@ func NewFromFlags(fs tbnflag.FlagSet, options ...Option) FromFlags {
 		)
 	}
 
+	var defaultBackends []string
+	if len(ffOpts.defaultBackends) > 0 {
+		for _, backend := range ffOpts.defaultBackends {
+			backend = strings.ToLower(backend)
+			if _, ok := sffMap[backend]; ok {
+				defaultBackends = append(defaultBackends, backend)
+			}
+		}
+	}
+
 	sort.Strings(backends)
 
 	ff := &fromFlags{
@@ -81,23 +100,24 @@ func NewFromFlags(fs tbnflag.FlagSet, options ...Option) FromFlags {
 		tags:             tbnflag.NewStrings(),
 		statsFromFlagses: sffMap,
 	}
+	ff.backends.ResetDefault(defaultBackends...)
 
 	ff.initFlags(fs)
 	return ff
 }
 
 type fromFlags struct {
-	statsFromFlagses    map[string]statsFromFlags
-	backends            tbnflag.Strings
-	nodeTag             string
-	sourceTag           string
-	tags                tbnflag.Strings
-	classifyStatusCodes bool
+	statsFromFlagses map[string]statsFromFlags
+	backends         tbnflag.Strings
+	nodeTag          string
+	sourceTag        string
+	tags             tbnflag.Strings
 }
 
 type fromFlagsOptions struct {
 	enableAPIStats  bool
 	apiStatsOptions []APIStatsOption
+	defaultBackends []string
 }
 
 func (ff *fromFlags) initFlags(fs tbnflag.FlagSet) {
@@ -125,21 +145,6 @@ func (ff *fromFlags) initFlags(fs tbnflag.FlagSet) {
 		&ff.tags,
 		"tags",
 		`Tags to be included with every stat. May be comma-delimited or specified more than once. Should be of the form "<key>=<value>" or "tag"`,
-	)
-
-	fs.BoolVar(
-		&ff.classifyStatusCodes,
-		"classify-status-codes",
-		true,
-		fmt.Sprintf(
-			`If enabled, stats with tagged with "%s" will automatically gain another tag, "%s", with a value of "%s", "%s", "%s" or "%s". If the "%[1]s" value is not numeric, the "%[2]s" tag is omitted.`,
-			StatusCodeTag,
-			StatusClassTag,
-			StatusClassSuccess,
-			StatusClassRedirect,
-			StatusClassClientErr,
-			StatusClassServerErr,
-		),
 	)
 }
 
@@ -204,7 +209,7 @@ func (ff *fromFlags) Make() (Stats, error) {
 	statses := make([]Stats, 0, len(ff.statsFromFlagses))
 	for _, backend := range ff.backends.Strings {
 		if sff, ok := ff.statsFromFlagses[backend]; ok {
-			sender, err := sff.Make(ff.classifyStatusCodes)
+			sender, err := sff.Make()
 			if err != nil {
 				return nil, err
 			}

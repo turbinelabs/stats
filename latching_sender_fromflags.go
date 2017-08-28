@@ -15,7 +15,10 @@ type latchingSenderFromFlags struct {
 	numBuckets  int
 }
 
-func newLatchingSenderFromFlags(fs tbnflag.FlagSet) *latchingSenderFromFlags {
+func newLatchingSenderFromFlags(
+	fs tbnflag.FlagSet,
+	enableLatchingDefault bool,
+) *latchingSenderFromFlags {
 	scoped := fs.Scope("latch", "")
 
 	ff := &latchingSenderFromFlags{flagScope: scoped.GetScope()}
@@ -23,7 +26,7 @@ func newLatchingSenderFromFlags(fs tbnflag.FlagSet) *latchingSenderFromFlags {
 	fs.BoolVar(
 		&ff.enabled,
 		"latch",
-		false,
+		enableLatchingDefault,
 		"Specifies whether stats are accumulated over a window before being sent to the backend.",
 	)
 
