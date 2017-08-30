@@ -394,7 +394,7 @@ func TestFromFlagsValidate(t *testing.T) {
 			"",
 		},
 
-		// node, source, and tags
+		// node, source, unique-source, and tags
 		{
 			[]string{
 				"--backends=dogstatsd",
@@ -410,7 +410,7 @@ func TestFromFlagsValidate(t *testing.T) {
 				"--node=xyz",
 				"--tags=node=notxyz",
 			},
-			"cannot combine --tags=node=... and --node",
+			"cannot combine --tags=node=... with --node",
 		},
 		{
 			[]string{
@@ -422,10 +422,24 @@ func TestFromFlagsValidate(t *testing.T) {
 		{
 			[]string{
 				"--backends=dogstatsd",
+				"--node=" + strings.Repeat("X", maxSourceLen+1),
+			},
+			"--node or --tags=node=... may not be longer than 256 bytes",
+		},
+		{
+			[]string{
+				"--backends=dogstatsd",
+				"--tags=node=" + strings.Repeat("X", maxSourceLen+1),
+			},
+			"--node or --tags=node=... may not be longer than 256 bytes",
+		},
+		{
+			[]string{
+				"--backends=dogstatsd",
 				"--source=xyz",
 				"--tags=source=notxyz",
 			},
-			"cannot combine --tags=source=... and --source",
+			"cannot combine --tags=source=... with --source or --unique-source",
 		},
 		{
 			[]string{
@@ -433,6 +447,43 @@ func TestFromFlagsValidate(t *testing.T) {
 				"--tags=source=xyz,source=notxyz",
 			},
 			"cannot specify multiple tags named source",
+		},
+		{
+			[]string{
+				"--backends=dogstatsd",
+				"--unique-source=xyz",
+				"--tags=source=notxyz",
+			},
+			"cannot combine --tags=source=... with --source or --unique-source",
+		},
+		{
+			[]string{
+				"--backends=dogstatsd",
+				"--source=xyz",
+				"--unique-source=pdq",
+			},
+			"cannot combine --tags=source=... with --source or --unique-source",
+		},
+		{
+			[]string{
+				"--backends=dogstatsd",
+				"--source=" + strings.Repeat("X", maxSourceLen+1),
+			},
+			"--source or --tags=source=... may not be longer than 256 bytes",
+		},
+		{
+			[]string{
+				"--backends=dogstatsd",
+				"--tags=source=" + strings.Repeat("X", maxSourceLen+1),
+			},
+			"--source or --tags=source=... may not be longer than 256 bytes",
+		},
+		{
+			[]string{
+				"--backends=dogstatsd",
+				"--unique-source=" + strings.Repeat("X", maxSourceLen+1),
+			},
+			"--unique-source may not be longer than 256 bytes",
 		},
 	}
 
@@ -501,6 +552,8 @@ func TestFromFlagsMakeWithLatching(t *testing.T) {
 }
 
 func TestFromFlagsMakeAddsTags(t *testing.T) {
+	const uuidRegex = "[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}"
+
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
@@ -521,12 +574,14 @@ func TestFromFlagsMakeAddsTags(t *testing.T) {
 	ff.backends.Set("mock")
 
 	mockStats.EXPECT().AddTags()
+	mockStats.EXPECT().AddTags(TagMatches("source", uuidRegex))
 	s, err := ff.Make()
 	assert.NonNil(t, s)
 	assert.Nil(t, err)
 
 	ff.tags.ResetDefault("a=b", "c=d")
 	mockStats.EXPECT().AddTags(NewKVTag("a", "b"), NewKVTag("c", "d"))
+	mockStats.EXPECT().AddTags(TagMatches("source", uuidRegex))
 	s, err = ff.Make()
 	assert.NonNil(t, s)
 	assert.Nil(t, err)
@@ -534,16 +589,27 @@ func TestFromFlagsMakeAddsTags(t *testing.T) {
 	ff.tags.ResetDefault("a=b", "source=s", "node=n", "c=d")
 	mockStats.EXPECT().AddTags(
 		NewKVTag("a", "b"),
-		NewKVTag("source", "s"),
-		NewKVTag("node", "n"),
 		NewKVTag("c", "d"),
 	)
+	mockStats.EXPECT().AddTags(NewKVTag("node", "n"))
+	mockStats.EXPECT().AddTags(TagMatches("source", "s-"+uuidRegex))
+
 	s, err = ff.Make()
 	assert.NonNil(t, s)
 	assert.Nil(t, err)
 
 	ff.tags.ResetDefault("a=b", "c=d")
 	ff.sourceTag = "s"
+	ff.nodeTag = "n"
+	mockStats.EXPECT().AddTags(NewKVTag("a", "b"), NewKVTag("c", "d"))
+	mockStats.EXPECT().AddTags(TagMatches("source", "s-"+uuidRegex))
+	mockStats.EXPECT().AddTags(NewKVTag("node", "n"))
+	s, err = ff.Make()
+	assert.NonNil(t, s)
+	assert.Nil(t, err)
+
+	ff.tags.ResetDefault("a=b", "c=d")
+	ff.uniqueSourceTag = "s"
 	ff.nodeTag = "n"
 	mockStats.EXPECT().AddTags(NewKVTag("a", "b"), NewKVTag("c", "d"))
 	mockStats.EXPECT().AddTags(NewKVTag("source", "s"))

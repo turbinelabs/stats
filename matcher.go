@@ -3,6 +3,7 @@ package stats
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 
 	"github.com/golang/mock/gomock"
 	"github.com/turbinelabs/nonstdlib/executor"
@@ -96,4 +97,31 @@ func (d DiagnosticsCallbackEqual) String() string {
 		)
 	}
 	return "DiagnosticsCallbackEqual(invalid; expected is not a *statsDiagnosticsCallback)"
+}
+
+// TagMatches creates a Matcher that matches a Tag with the given key
+// and a value regular expression.
+func TagMatches(key, valueRegex string) gomock.Matcher {
+	return tagMatches{
+		key:        key,
+		valueRegex: regexp.MustCompile(valueRegex),
+	}
+}
+
+type tagMatches struct {
+	key        string
+	valueRegex *regexp.Regexp
+}
+
+func (m tagMatches) Matches(x interface{}) bool {
+	tag, ok := x.(Tag)
+	if !ok {
+		return false
+	}
+
+	return m.key == tag.K && m.valueRegex.MatchString(tag.V)
+}
+
+func (m tagMatches) String() string {
+	return fmt.Sprintf("tagMatches(%s=~/%s/)", m.key, m.valueRegex.String())
 }

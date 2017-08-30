@@ -2,10 +2,13 @@ package stats
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/turbinelabs/idgen"
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
+	"github.com/turbinelabs/nonstdlib/ptr"
 	tbnstrings "github.com/turbinelabs/nonstdlib/strings"
 )
 
@@ -17,6 +20,9 @@ const (
 	prometheusName = "prometheus"
 	statsdName     = "statsd"
 	wavefrontName  = "wavefront"
+
+	maxNodeLen   = 256
+	maxSourceLen = 256
 )
 
 // FromFlags produces a Stats from configuration flags
@@ -96,9 +102,10 @@ func NewFromFlags(fs tbnflag.FlagSet, options ...Option) FromFlags {
 	sort.Strings(backends)
 
 	ff := &fromFlags{
+		statsFromFlagses: sffMap,
+		flagScope:        fs.GetScope(),
 		backends:         tbnflag.NewStringsWithConstraint(backends...),
 		tags:             tbnflag.NewStrings(),
-		statsFromFlagses: sffMap,
 	}
 	ff.backends.ResetDefault(defaultBackends...)
 
@@ -108,9 +115,11 @@ func NewFromFlags(fs tbnflag.FlagSet, options ...Option) FromFlags {
 
 type fromFlags struct {
 	statsFromFlagses map[string]statsFromFlags
+	flagScope        string
 	backends         tbnflag.Strings
 	nodeTag          string
 	sourceTag        string
+	uniqueSourceTag  string
 	tags             tbnflag.Strings
 }
 
@@ -131,7 +140,14 @@ func (ff *fromFlags) initFlags(fs tbnflag.FlagSet) {
 		&ff.sourceTag,
 		"source",
 		"",
-		`If set, specifies the source to use when submitting stats to backends. Equivalent to adding "--{{PREFIX}}tags=source=value" to the command line.`,
+		`If set, specifies the source to use when submitting stats to backends. Equivalent to adding "--{{PREFIX}}tags=source=value" to the command line. In either case, a UUID is appended to the value to insure that it is unique across proxies. Cannot be combined with --{{PREFIX}}unique-source.`,
+	)
+
+	fs.StringVar(
+		&ff.uniqueSourceTag,
+		"unique-source",
+		"",
+		`If set, specifies the source to use when submitting stats to backends. Equivalent to adding "--{{PREFIX}}tags=source=value" to the command line. Unlike --{{PREFIX}}source, failing to specify a unique value may prevent stats from being recorded correctly. Cannot be combined with --{{PREFIX}}source.`,
 	)
 
 	fs.StringVar(
@@ -161,48 +177,84 @@ func (ff *fromFlags) Validate() error {
 		}
 	}
 
-	seenNode := false
-	seenSource := false
-	for _, tag := range ff.parseTags() {
-		if tag.K == "node" {
-			if ff.nodeTag != "" {
-				return errors.New("cannot combine --tags=node=... and --node")
-			}
+	sourceTag, nodeTag, _, err := ff.parseTags()
+	if err != nil {
+		return err
+	}
 
-			if seenNode {
-				return errors.New("cannot specify multiple tags named node")
-			}
-
-			seenNode = true
+	if ff.nodeTag != "" {
+		if nodeTag != nil {
+			return fmt.Errorf("cannot combine --%stags=node=... with --%[1]snode", ff.flagScope)
 		}
 
-		if tag.K == "source" {
-			if ff.sourceTag != "" {
-				return errors.New("cannot combine --tags=source=... and --source")
-			}
+		nodeTag = &ff.nodeTag
+	}
 
-			if seenSource {
-				return errors.New("cannot specify multiple tags named source")
-			}
-
-			seenSource = true
+	if ff.sourceTag != "" || ff.uniqueSourceTag != "" {
+		if sourceTag != nil || (ff.sourceTag != "" && ff.uniqueSourceTag != "") {
+			return fmt.Errorf(
+				"cannot combine --%stags=source=... with --%[1]ssource or --%[1]sunique-source",
+				ff.flagScope,
+			)
 		}
+
+		sourceTag = &ff.sourceTag
+	}
+
+	if len(ptr.StringValue(nodeTag)) > maxNodeLen {
+		return fmt.Errorf(
+			"--%snode or --%[1]stags=node=... may not be longer than %d bytes",
+			ff.flagScope,
+			maxNodeLen,
+		)
+	}
+
+	if len(ptr.StringValue(sourceTag)) > maxSourceLen {
+		return fmt.Errorf(
+			"--%ssource or --%[1]stags=source=... may not be longer than %d bytes",
+			ff.flagScope,
+			maxSourceLen,
+		)
+	}
+
+	if len(ff.uniqueSourceTag) > maxSourceLen {
+		return fmt.Errorf(
+			"--%sunique-source may not be longer than %d bytes",
+			ff.flagScope,
+			maxSourceLen,
+		)
 	}
 
 	return nil
 }
 
-func (ff *fromFlags) parseTags() []Tag {
+func (ff *fromFlags) parseTags() (*string, *string, []Tag, error) {
+	var source, node *string
+
 	result := make([]Tag, 0, len(ff.tags.Strings))
 	for _, tag := range ff.tags.Strings {
 		key, value := tbnstrings.SplitFirstEqual(tag)
-		if value == "" {
-			result = append(result, NewTag(key))
-		} else {
+		switch key {
+		case SourceTag:
+			if value != "" {
+				if source != nil {
+					return nil, nil, nil, errors.New("cannot specify multiple tags named source")
+				}
+				source = &value
+			}
+		case NodeTag:
+			if value != "" {
+				if node != nil {
+					return nil, nil, nil, errors.New("cannot specify multiple tags named node")
+				}
+				node = &value
+			}
+		default:
 			result = append(result, NewKVTag(key, value))
 		}
 	}
-	return result
+
+	return source, node, result, nil
 }
 
 func (ff *fromFlags) Make() (Stats, error) {
@@ -219,14 +271,39 @@ func (ff *fromFlags) Make() (Stats, error) {
 	}
 
 	stats := NewMulti(statses...)
-	stats.AddTags(ff.parseTags()...)
+
+	sourceTag, nodeTag, tags, err := ff.parseTags()
+	if err != nil {
+		return nil, err
+	}
+
+	if sourceTag != nil {
+		ff.sourceTag = *sourceTag
+	}
+
+	if nodeTag != nil {
+		ff.nodeTag = *nodeTag
+	}
+
+	stats.AddTags(tags...)
 
 	if ff.nodeTag != "" {
 		stats.AddTags(NewKVTag(NodeTag, ff.nodeTag))
 	}
 
-	if ff.sourceTag != "" {
-		stats.AddTags(NewKVTag(SourceTag, ff.sourceTag))
+	if ff.uniqueSourceTag != "" {
+		stats.AddTags(NewKVTag(SourceTag, ff.uniqueSourceTag))
+	} else {
+		uuid, err := idgen.NewUUID()()
+		if err != nil {
+			return nil, err
+		}
+
+		if ff.sourceTag != "" {
+			stats.AddTags(NewKVTag(SourceTag, fmt.Sprintf("%s-%s", ff.sourceTag, uuid)))
+		} else {
+			stats.AddTags(NewKVTag(SourceTag, string(uuid)))
+		}
 	}
 
 	return stats, nil
