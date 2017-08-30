@@ -125,7 +125,7 @@ func (ff *apiStatsFromFlags) Make() (Stats, error) {
 
 	wrappedSender := ff.latchingSenderFromFlags.Make(sender, apiCleaner)
 
-	underlying := newFromSender(wrappedSender, apiCleaner, false)
+	underlying := newFromSender(wrappedSender, apiCleaner, "", false)
 
 	return &apiStats{underlying, sender}, nil
 }
@@ -134,6 +134,12 @@ type apiStats struct {
 	Stats
 
 	apiSender *apiSender
+}
+
+// Scope always returns this Stats implementation as API stats do not
+// support scoping.
+func (a *apiStats) Scope(s string, ss ...string) Stats {
+	return a
 }
 
 // AddTags filters out tags named source, node, and zone. The source
@@ -168,7 +174,7 @@ func NewAPIStats(svc stats.StatsServiceV2) Stats {
 		source: unspecified,
 		zone:   unspecified,
 	}
-	underlying := newFromSender(sender, apiCleaner, false)
+	underlying := newFromSender(sender, apiCleaner, "", false)
 
 	return &apiStats{underlying, sender}
 }
@@ -193,7 +199,7 @@ func NewLatchingAPIStats(
 		latchBuckets(baseValue, numBuckets),
 	)
 
-	underlying := newFromSender(wrappedSender, apiCleaner, false)
+	underlying := newFromSender(wrappedSender, apiCleaner, "", false)
 
 	return &apiStats{underlying, sender}
 }

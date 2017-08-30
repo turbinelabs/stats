@@ -39,6 +39,37 @@ func TestDogstatsdBackend(t *testing.T) {
 	assert.Equal(t, <-l.Msgs, fmt.Sprintf("prefix.gauge:%f|g\n", 3.0))
 }
 
+func TestDogstatsdBackendWithScope(t *testing.T) {
+	l := mkListener(t)
+	defer l.Close()
+
+	addr := l.Addr(t)
+	_, port, err := tbnstrings.SplitHostPort(addr)
+	assert.Nil(t, err)
+
+	dogstatsdFromFlags := &dogstatsdFromFlags{
+		&statsdFromFlags{
+			host:          "127.0.0.1",
+			port:          port,
+			flushInterval: 10 * time.Millisecond,
+			lsff:          &latchingSenderFromFlags{},
+			scope:         "x",
+		},
+	}
+
+	stats, err := dogstatsdFromFlags.Make()
+	assert.Nil(t, err)
+	defer stats.Close()
+
+	scope := stats.Scope("prefix")
+
+	scope.Count("count", 2.0, NewKVTag("taggity", "tag"))
+	assert.Equal(t, <-l.Msgs, fmt.Sprintf("x.prefix.count:%f|c|#taggity:tag\n", 2.0))
+
+	scope.Gauge("gauge", 3.0)
+	assert.Equal(t, <-l.Msgs, fmt.Sprintf("x.prefix.gauge:%f|g\n", 3.0))
+}
+
 func TestDogstatsdCleanerCleanStatName(t *testing.T) {
 	testCases := [][]string{
 		{"ok", "ok"},
@@ -74,6 +105,10 @@ func TestDogstatsdCleanerTagToString(t *testing.T) {
 		{
 			tag:      NewKVTag("x y", "x: \U0001F600"),
 			expected: "x y:x_ \U0001F600",
+		},
+		{
+			tag:      NewKVTag(TimestampTag, "1234567890"),
+			expected: "",
 		},
 	}
 

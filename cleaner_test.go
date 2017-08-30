@@ -122,3 +122,40 @@ func TestMkReplace(t *testing.T) {
 	)
 	assert.Equal(t, quad("ok"), "ok")
 }
+
+func TestMkExludeFilter(t *testing.T) {
+	assert.SameInstance(t, mkExcludeFilter(), identity)
+
+	single := mkExcludeFilter("abc")
+	assert.Equal(t, single("abc"), "")
+	assert.Equal(t, single("ABC"), "ABC")
+
+	n := mkExcludeFilter("abc", "def", "ghi")
+	assert.Equal(t, n("abc"), "")
+	assert.Equal(t, n("def"), "")
+	assert.Equal(t, n("ghi"), "")
+	assert.Equal(t, n("abcdefghi"), "abcdefghi")
+}
+
+func TestMkSequence(t *testing.T) {
+	assert.SameInstance(t, mkSequence(), identity)
+	assert.SameInstance(t, mkSequence(stripColons), stripColons)
+
+	uncalled := func(_ string) string {
+		assert.Failed(t, "unexpected call")
+		return "FAIL"
+	}
+
+	shortCircuit := mkSequence(mkExcludeFilter("abc"), uncalled)
+	assert.Equal(t, shortCircuit("abc"), "")
+
+	double := mkSequence(mkExcludeFilter("abc"), stripColons)
+	assert.Equal(t, double("a:b:c:"), "abc")
+
+	shortCircuit3 := mkSequence(stripColons, mkExcludeFilter("abc"), uncalled)
+	assert.Equal(t, shortCircuit3("a:b:c"), "")
+
+	triple := mkSequence(stripColons, stripCommas, mkExcludeFilter("abc"))
+	assert.Equal(t, triple("a,b:c"), "")
+	assert.Equal(t, triple("d:e,f"), "def")
+}

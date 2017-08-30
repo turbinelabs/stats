@@ -121,13 +121,7 @@ func (ff *statsdFromFlags) Make() (Stats, error) {
 		statsdCleaner,
 	)
 
-	stats := newFromSender(underlying, statsdCleaner, true)
-
-	if ff.scope != "" {
-		stats = stats.Scope(ff.scope)
-	}
-
-	return stats, nil
+	return newFromSender(underlying, statsdCleaner, ff.scope, true), nil
 }
 
 func (ff *statsdFromFlags) mkUDPWriter() (io.Writer, error) {

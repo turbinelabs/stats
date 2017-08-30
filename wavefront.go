@@ -49,10 +49,11 @@ var (
 // Tag values: quoted strings allow any value, including quotes (by
 //             backslash escaping)
 // The wavefront statsd plugin passes tags through without
-// modification or further escaping.
+// modification or further escaping. Unclear if timestamps can be
+// passed, so be safe and filter them out.
 var wavefrontCleaner = cleaner{
 	cleanStatName: cleanWavefront,
-	cleanTagName:  cleanWavefront,
+	cleanTagName:  mkSequence(filterTimestamp, cleanWavefront),
 	cleanTagValue: cleanWavefrontTagValue,
 	tagDelim:      "=",
 	scopeDelim:    ".",
@@ -121,5 +122,5 @@ func (ff *wavefrontFromFlags) Make() (Stats, error) {
 		wavefrontCleaner,
 	)
 
-	return newFromSender(underlying, wavefrontCleaner, true), nil
+	return newFromSender(underlying, wavefrontCleaner, ff.scope, true), nil
 }

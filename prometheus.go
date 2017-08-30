@@ -75,7 +75,7 @@ func CleanPrometheusStatName(s string) string {
 
 var prometheusCleaner = cleaner{
 	cleanStatName: CleanPrometheusStatName,
-	cleanTagName:  CleanPrometheusTagName,
+	cleanTagName:  mkSequence(filterTimestamp, CleanPrometheusTagName),
 	cleanTagValue: identity,
 	scopeDelim:    ":",
 	tagDelim:      ":",
@@ -116,9 +116,5 @@ func (ff *prometheusFromFlags) Validate() error {
 }
 
 func (ff *prometheusFromFlags) Make() (Stats, error) {
-	stats := newFromSender(prometheus.New(ff.addr), prometheusCleaner, true)
-	if ff.scope != "" {
-		stats = stats.Scope(ff.scope)
-	}
-	return stats, nil
+	return newFromSender(prometheus.New(ff.addr), prometheusCleaner, ff.scope, true), nil
 }

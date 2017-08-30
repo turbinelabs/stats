@@ -43,8 +43,12 @@ type Stats interface {
 	Close() error
 }
 
-func newFromSender(s xstats.Sender, c cleaner, classifyStatusCodes bool) Stats {
-	return &xStats{xstats.NewScoping(s, c.scopeDelim), s, c, classifyStatusCodes}
+func newFromSender(s xstats.Sender, c cleaner, scope string, classifyStatusCodes bool) Stats {
+	stats := &xStats{xstats.NewScoping(s, c.scopeDelim), s, c, classifyStatusCodes}
+	if scope != "" {
+		return stats.Scope(scope)
+	}
+	return stats
 }
 
 type xStats struct {

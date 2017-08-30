@@ -20,7 +20,7 @@ var (
 // use in tag names or tag values.
 var dogstatsdCleaner = cleaner{
 	cleanStatName: stripColons,
-	cleanTagName:  replaceColonsCommasAndPipes,
+	cleanTagName:  mkSequence(filterTimestamp, replaceColonsCommasAndPipes),
 	cleanTagValue: replaceColonsCommasAndPipes,
 	tagDelim:      ":",
 	scopeDelim:    ".",
@@ -45,5 +45,5 @@ func (ff *dogstatsdFromFlags) Make() (Stats, error) {
 		dogstatsdCleaner,
 	)
 
-	return newFromSender(underlying, dogstatsdCleaner, true), nil
+	return newFromSender(underlying, dogstatsdCleaner, ff.scope, true), nil
 }

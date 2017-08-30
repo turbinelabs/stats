@@ -57,6 +57,10 @@ func TestPrometheusCleanerTagToString(t *testing.T) {
 			tag:      NewKVTag("x y", "x: \U0001F600"),
 			expected: "x_y:x: \U0001F600",
 		},
+		{
+			tag:      NewKVTag(TimestampTag, "1234567890"),
+			expected: "",
+		},
 	}
 
 	for _, tc := range testCases {

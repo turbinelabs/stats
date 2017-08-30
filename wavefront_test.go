@@ -76,6 +76,37 @@ func TestWavefrontBackend(t *testing.T) {
 	assert.Equal(t, <-l.Msgs, fmt.Sprintf("prefix.gauge:%f|g\n", 3.0))
 }
 
+func TestWavefrontBackendWithScope(t *testing.T) {
+	l := mkListener(t)
+	defer l.Close()
+
+	addr := l.Addr(t)
+	_, port, err := tbnstrings.SplitHostPort(addr)
+	assert.Nil(t, err)
+
+	wavefrontFromFlags := &wavefrontFromFlags{
+		&statsdFromFlags{
+			host:          "127.0.0.1",
+			port:          port,
+			flushInterval: 10 * time.Millisecond,
+			lsff:          &latchingSenderFromFlags{},
+			scope:         "x",
+		},
+	}
+
+	stats, err := wavefrontFromFlags.Make()
+	assert.Nil(t, err)
+	defer stats.Close()
+
+	scope := stats.Scope("prefix")
+
+	scope.Count("count", 2.0, NewKVTag("taggity", "tag"))
+	assert.Equal(t, <-l.Msgs, fmt.Sprintf(`x.prefix.count~taggity="tag":%f|c`+"\n", 2.0))
+
+	scope.Gauge("gauge", 3.0)
+	assert.Equal(t, <-l.Msgs, fmt.Sprintf("x.prefix.gauge:%f|g\n", 3.0))
+}
+
 func TestWavefrontCleanerToTagString(t *testing.T) {
 	testCases := []struct {
 		tag      Tag
@@ -108,6 +139,10 @@ func TestWavefrontCleanerToTagString(t *testing.T) {
 		{
 			tag:      NewKVTag("x", `"quoted"`),
 			expected: `x="\"quoted\""`,
+		},
+		{
+			tag:      NewKVTag(TimestampTag, "1234567890"),
+			expected: "",
 		},
 	}
 

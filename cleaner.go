@@ -7,16 +7,26 @@ import (
 )
 
 var (
-	identity    = func(s string) string { return s }
-	strip       = func(_ string) string { return "" }
-	stripCommas = mkStrip(",")
-	stripColons = mkStrip(":")
+	identity        = func(s string) string { return s }
+	strip           = func(_ string) string { return "" }
+	stripCommas     = mkStrip(",")
+	stripColons     = mkStrip(":")
+	filterTimestamp = mkExcludeFilter(TimestampTag)
 )
 
+// mkStrip creates a function that removes any rune that appears in
+// set. See mkReplace.
 func mkStrip(set string) func(string) string {
 	return mkReplace(set, -1)
 }
 
+// mkReplace creates a function that replaces any rune that appears in
+// set with the replacement rune. If replacement is -1, the runes are
+// removed. If set is empty, identity is returned. The returned
+// function is optimized to run in O(n) time, where n is the input
+// string length, when set contains fewer than 4 runes. For 4 or more
+// runes, it operates in O(n*m) time, where m is the number of runes
+// in set.
 func mkReplace(set string, replacement rune) func(string) string {
 	switch utf8.RuneCountInString(set) {
 	case 0:
@@ -68,6 +78,65 @@ func mkReplace(set string, replacement rune) func(string) string {
 		return func(s string) string {
 			for _, part := range parts {
 				s = strings.Replace(s, part, r, -1)
+			}
+			return s
+		}
+	}
+}
+
+// mkExcludeFilter creates a function returns an empty string when its
+// input matches a member of exclusions exactly. If exclusions is
+// empty, identity is returned.
+func mkExcludeFilter(exclusions ...string) func(string) string {
+	switch len(exclusions) {
+	case 0:
+		return identity
+	case 1:
+		exclusion := exclusions[0]
+		return func(s string) string {
+			if s == exclusion {
+				return ""
+			}
+			return s
+		}
+	default:
+		return func(s string) string {
+			for _, e := range exclusions {
+				if s == e {
+					return ""
+				}
+			}
+			return s
+		}
+	}
+}
+
+// mkSequence combines multiple cleaner functions in sequence. It
+// terminates immediately if the result of one the functions is the
+// empty string. Optimized versions are returned for 0, 1, or 2
+// functions.
+func mkSequence(fs ...func(string) string) func(string) string {
+	switch len(fs) {
+	case 0:
+		return identity
+	case 1:
+		return fs[0]
+	case 2:
+		f1, f2 := fs[0], fs[1]
+		return func(s string) string {
+			s = f1(s)
+			if s != "" {
+				s = f2(s)
+			}
+			return s
+		}
+	default:
+		return func(s string) string {
+			for _, f := range fs {
+				s = f(s)
+				if s == "" {
+					break
+				}
 			}
 			return s
 		}

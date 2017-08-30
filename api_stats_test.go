@@ -82,6 +82,18 @@ func TestNewAPIStatsFromFlagsOptions(t *testing.T) {
 	assert.NonNil(t, s)
 }
 
+func TestAPIStatsScope(t *testing.T) {
+	ctrl := gomock.NewController(assert.Tracing(t))
+	defer ctrl.Finish()
+
+	underlying := NewMockStats(ctrl)
+	sender := &apiSender{source: "unspecified", zone: "unspecified"}
+
+	stats := &apiStats{underlying, sender}
+
+	assert.SameInstance(t, stats.Scope("XYZ"), stats)
+}
+
 func TestAPIStatsAddTags(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
