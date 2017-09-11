@@ -56,12 +56,12 @@ func TestNewAPIStatsFromFlagsOptions(t *testing.T) {
 	mockStatsClientFromFlags.EXPECT().Validate().Return(nil)
 	assert.Nil(t, ff.Validate())
 
-	mockStatsClientFromFlags.EXPECT().MakeV2(logger).Return(nil, e)
+	mockStatsClientFromFlags.EXPECT().Make(logger).Return(nil, e)
 	_, err := ff.Make()
 	assert.ErrorContains(t, err, "boom")
 
 	mockZoneKeyFromFlags.EXPECT().ZoneName().Return("zone")
-	mockStatsClientFromFlags.EXPECT().MakeV2(logger).Return(mockStatsClient, nil)
+	mockStatsClientFromFlags.EXPECT().Make(logger).Return(mockStatsClient, nil)
 	s, err := ff.Make()
 	assert.Nil(t, err)
 	assert.NonNil(t, s)
@@ -75,7 +75,7 @@ func TestNewAPIStatsFromFlagsOptions(t *testing.T) {
 	ffImpl = ff.(*apiStatsFromFlags)
 	assert.NonNil(t, ffImpl)
 	mockStatsClientFromFlags.EXPECT().
-		MakeV2(gomock.Not(gomock.Nil())).
+		Make(gomock.Not(gomock.Nil())).
 		Return(mockStatsClient, nil)
 	s, err = ff.Make()
 	assert.Nil(t, err)

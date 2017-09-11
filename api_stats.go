@@ -112,7 +112,7 @@ func (ff *apiStatsFromFlags) Make() (Stats, error) {
 		logger = log.New(os.Stderr, "stats: ", log.LstdFlags)
 	}
 
-	statsClient, err := ff.statsClientFromFlags.MakeV2(logger)
+	statsClient, err := ff.statsClientFromFlags.Make(logger)
 	if err != nil {
 		return nil, err
 	}
