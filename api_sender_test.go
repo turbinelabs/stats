@@ -210,11 +210,15 @@ func TestAPISenderTags(t *testing.T) {
 	payloadCaptor := matcher.CaptureType(reflect.TypeOf(&stats.PayloadV2{}))
 
 	mockSvc := stats.NewMockStatsServiceV2(ctrl)
-	mockSvc.EXPECT().ForwardV2(payloadCaptor).Return(nil, nil)
 
 	s := NewAPIStats(mockSvc)
-	s.AddTags(NewKVTag(SourceTag, "sourcery"), NewKVTag(ZoneTag, "zone"))
+	s.AddTags(
+		NewKVTag(SourceTag, "sourcery"),
+		NewKVTag(ZoneTag, "zone"),
+		NewKVTag(ProxyTag, "default-proxy"),
+	)
 
+	mockSvc.EXPECT().ForwardV2(payloadCaptor).Return(nil, nil)
 	s.Count(
 		"metric",
 		1,
@@ -229,6 +233,23 @@ func TestAPISenderTags(t *testing.T) {
 	assert.Equal(t, payload.Zone, "zone")
 	assert.Equal(t, ptr.StringValue(payload.Proxy), "proximate")
 	assert.Equal(t, ptr.StringValue(payload.ProxyVersion), "1.2.3")
+	assert.Equal(t, len(payload.Stats), 1)
+	assert.Equal(t, ptr.Float64Value(payload.Stats[0].Count), 1.0)
+	assert.MapEqual(t, payload.Stats[0].Tags, map[string]string{"a": "1", "b": "2"})
+
+	mockSvc.EXPECT().ForwardV2(payloadCaptor).Return(nil, nil)
+	s.Count(
+		"metric",
+		1,
+		NewKVTag("a", "1"),
+		NewKVTag("b", "2"),
+	)
+
+	payload = payloadCaptor.V.(*stats.PayloadV2)
+	assert.Equal(t, payload.Source, "sourcery")
+	assert.Equal(t, payload.Zone, "zone")
+	assert.Equal(t, ptr.StringValue(payload.Proxy), "default-proxy")
+	assert.Nil(t, payload.ProxyVersion)
 	assert.Equal(t, len(payload.Stats), 1)
 	assert.Equal(t, ptr.Float64Value(payload.Stats[0].Count), 1.0)
 	assert.MapEqual(t, payload.Stats[0].Tags, map[string]string{"a": "1", "b": "2"})

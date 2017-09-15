@@ -142,15 +142,18 @@ func (a *apiStats) Scope(s string, ss ...string) Stats {
 	return a
 }
 
-// AddTags filters out tags named source, node, and zone. The source
-// and zone tags alter the source and zone used when making API stats
-// forwarding calls. The node tag is ignored. All other tags are
-// treated normally.
+// AddTags filters out tags named source, proxy, node, and zone. The
+// source, proxy, and zone tags alter the source, proxy, and zone used
+// when making API stats forwarding calls. The node tag is
+// ignored. All other tags are treated normally.
 func (s *apiStats) AddTags(tags ...Tag) {
 	for _, tag := range tags {
 		switch tag.K {
 		case NodeTag:
 			// ignore
+
+		case ProxyTag:
+			s.apiSender.proxy = tag.V
 
 		case SourceTag:
 			s.apiSender.source = tag.V

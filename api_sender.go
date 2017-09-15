@@ -26,6 +26,7 @@ type apiSender struct {
 	svc    stats.StatsServiceV2
 	source string
 	zone   string
+	proxy  string
 }
 
 func (s *apiSender) toTagMap(tags []string) (map[string]string, *string, *string, time.Time) {
@@ -62,6 +63,10 @@ func (s *apiSender) toTagMap(tags []string) (map[string]string, *string, *string
 
 	if ts == nil {
 		ts = ptr.Time(time.Now())
+	}
+
+	if proxy == nil && s.proxy != "" {
+		proxy = &s.proxy
 	}
 
 	return tagsMap, proxy, proxyVersion, *ts

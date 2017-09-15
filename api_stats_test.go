@@ -114,8 +114,15 @@ func TestAPIStatsAddTags(t *testing.T) {
 
 	stats := &apiStats{underlying, sender}
 	stats.AddTags(tagA, tagB)
-	stats.AddTags(tagC, NewKVTag("source", "s"), NewKVTag("zone", "z"), tagD)
+	stats.AddTags(
+		tagC,
+		NewKVTag("proxy", "p"),
+		NewKVTag("source", "s"),
+		NewKVTag("zone", "z"),
+		tagD,
+	)
 
+	assert.Equal(t, sender.proxy, "p")
 	assert.Equal(t, sender.source, "s")
 	assert.Equal(t, sender.zone, "z")
 }
