@@ -21,14 +21,14 @@ func TestNewAPIStatsFromFlagsOptions(t *testing.T) {
 	logger := log.New(os.Stderr, "test: ", 0)
 	mockStatsClientFromFlags := apiflags.NewMockStatsClientFromFlags(ctrl)
 	mockStatsClient := stats.NewMockStatsServiceV2(ctrl)
-	mockZoneKeyFromFlags := apiflags.NewMockZoneKeyFromFlags(ctrl)
+	mockZoneFromFlags := apiflags.NewMockZoneFromFlags(ctrl)
 
 	fs := tbnflag.NewTestFlagSet().Scope("api", "")
 
 	ff := newAPIStatsFromFlags(
 		fs,
 		SetStatsClientFromFlags(mockStatsClientFromFlags),
-		SetZoneKeyFromFlags(mockZoneKeyFromFlags),
+		SetZoneFromFlags(mockZoneFromFlags),
 		SetLogger(logger),
 	)
 
@@ -42,17 +42,17 @@ func TestNewAPIStatsFromFlagsOptions(t *testing.T) {
 	assert.ErrorContains(t, ff.Validate(), "--api.key must be specified")
 
 	mockStatsClientFromFlags.EXPECT().APIKey().Return("key")
-	mockZoneKeyFromFlags.EXPECT().ZoneName().Return("")
+	mockZoneFromFlags.EXPECT().Name().Return("")
 	assert.ErrorContains(t, ff.Validate(), "--api.zone-name must be specified")
 
 	e := errors.New("boom")
 	mockStatsClientFromFlags.EXPECT().APIKey().Return("key")
-	mockZoneKeyFromFlags.EXPECT().ZoneName().Return("zone")
+	mockZoneFromFlags.EXPECT().Name().Return("zone")
 	mockStatsClientFromFlags.EXPECT().Validate().Return(e)
 	assert.ErrorContains(t, ff.Validate(), "boom")
 
 	mockStatsClientFromFlags.EXPECT().APIKey().Return("key")
-	mockZoneKeyFromFlags.EXPECT().ZoneName().Return("zone")
+	mockZoneFromFlags.EXPECT().Name().Return("zone")
 	mockStatsClientFromFlags.EXPECT().Validate().Return(nil)
 	assert.Nil(t, ff.Validate())
 
@@ -60,7 +60,7 @@ func TestNewAPIStatsFromFlagsOptions(t *testing.T) {
 	_, err := ff.Make()
 	assert.ErrorContains(t, err, "boom")
 
-	mockZoneKeyFromFlags.EXPECT().ZoneName().Return("zone")
+	mockZoneFromFlags.EXPECT().Name().Return("zone")
 	mockStatsClientFromFlags.EXPECT().Make(logger).Return(mockStatsClient, nil)
 	s, err := ff.Make()
 	assert.Nil(t, err)

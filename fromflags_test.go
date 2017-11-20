@@ -77,8 +77,8 @@ func TestFromFlagsOptions(t *testing.T) {
 	mockStatsClientFromFlags.EXPECT().APIKey().Return("key")
 	mockStatsClientFromFlags.EXPECT().Validate().Return(errors.New("passed thru"))
 
-	mockZoneKeyFromFlags := apiflags.NewMockZoneKeyFromFlags(ctrl)
-	mockZoneKeyFromFlags.EXPECT().ZoneName().Return("zone")
+	mockZoneFromFlags := apiflags.NewMockZoneFromFlags(ctrl)
+	mockZoneFromFlags.EXPECT().Name().Return("zone")
 
 	fs := tbnflag.NewTestFlagSet()
 
@@ -87,7 +87,7 @@ func TestFromFlagsOptions(t *testing.T) {
 		EnableAPIStatsBackend(),
 		APIStatsOptions(
 			SetStatsClientFromFlags(mockStatsClientFromFlags),
-			SetZoneKeyFromFlags(mockZoneKeyFromFlags),
+			SetZoneFromFlags(mockZoneFromFlags),
 		),
 	)
 	ffImpl := ff.(*fromFlags)

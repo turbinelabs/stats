@@ -31,11 +31,11 @@ func SetStatsClientFromFlags(statsClientFromFlags apiflags.StatsClientFromFlags)
 	}
 }
 
-// SetZoneKeyFromFlags specifies a pre-configured
-// apiflags.ZoneKeyFromFlags to use when creating an API stats sender.
-func SetZoneKeyFromFlags(zoneKeyFromFlags apiflags.ZoneKeyFromFlags) APIStatsOption {
+// SetZoneFromFlags specifies a pre-configured
+// apiflags.ZoneFromFlags to use when creating an API stats sender.
+func SetZoneFromFlags(zoneFromFlags apiflags.ZoneFromFlags) APIStatsOption {
 	return func(ff *apiStatsFromFlags) {
-		ff.zoneKeyFromFlags = zoneKeyFromFlags
+		ff.zoneFromFlags = zoneFromFlags
 	}
 }
 
@@ -57,8 +57,8 @@ func newAPIStatsFromFlags(fs tbnflag.FlagSet, options ...APIStatsOption) statsFr
 		apply(ff)
 	}
 
-	if ff.zoneKeyFromFlags == nil {
-		ff.zoneKeyFromFlags = apiflags.NewZoneKeyFromFlags(fs)
+	if ff.zoneFromFlags == nil {
+		ff.zoneFromFlags = apiflags.NewZoneFromFlags(fs)
 	}
 
 	if ff.statsClientFromFlags == nil {
@@ -85,7 +85,7 @@ func newAPIStatsFromFlags(fs tbnflag.FlagSet, options ...APIStatsOption) statsFr
 type apiStatsFromFlags struct {
 	flagScope               string
 	logger                  *log.Logger
-	zoneKeyFromFlags        apiflags.ZoneKeyFromFlags
+	zoneFromFlags           apiflags.ZoneFromFlags
 	statsClientFromFlags    apiflags.StatsClientFromFlags
 	latchingSenderFromFlags *latchingSenderFromFlags
 }
@@ -95,7 +95,7 @@ func (ff *apiStatsFromFlags) Validate() error {
 		return fmt.Errorf("--%skey must be specified", ff.flagScope)
 	}
 
-	if ff.zoneKeyFromFlags.ZoneName() == "" {
+	if ff.zoneFromFlags.Name() == "" {
 		return fmt.Errorf("--%szone-name must be specified", ff.flagScope)
 	}
 
@@ -120,7 +120,7 @@ func (ff *apiStatsFromFlags) Make() (Stats, error) {
 	sender := &apiSender{
 		svc:    statsClient,
 		source: unspecified,
-		zone:   ff.zoneKeyFromFlags.ZoneName(),
+		zone:   ff.zoneFromFlags.Name(),
 	}
 
 	wrappedSender := ff.latchingSenderFromFlags.Make(sender, apiCleaner)
@@ -146,23 +146,23 @@ func (a *apiStats) Scope(s string, ss ...string) Stats {
 // source, proxy, and zone tags alter the source, proxy, and zone used
 // when making API stats forwarding calls. The node tag is
 // ignored. All other tags are treated normally.
-func (s *apiStats) AddTags(tags ...Tag) {
+func (a *apiStats) AddTags(tags ...Tag) {
 	for _, tag := range tags {
 		switch tag.K {
 		case NodeTag:
 			// ignore
 
 		case ProxyTag:
-			s.apiSender.proxy = tag.V
+			a.apiSender.proxy = tag.V
 
 		case SourceTag:
-			s.apiSender.source = tag.V
+			a.apiSender.source = tag.V
 
 		case ZoneTag:
-			s.apiSender.zone = tag.V
+			a.apiSender.zone = tag.V
 
 		default:
-			s.Stats.AddTags(tag)
+			a.Stats.AddTags(tag)
 		}
 	}
 }
