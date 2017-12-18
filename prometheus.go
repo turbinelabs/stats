@@ -1,14 +1,12 @@
 package stats
 
 import (
-	"fmt"
 	"strings"
 	"unicode"
 
 	"github.com/rs/xstats/prometheus"
 
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
-	tbnstrings "github.com/turbinelabs/nonstdlib/strings"
 )
 
 // CleanPrometheusTagName strips characters which prometheus considers
@@ -83,17 +81,17 @@ var prometheusCleaner = cleaner{
 
 type prometheusFromFlags struct {
 	flagScope string
-	addr      string
+	addr      tbnflag.HostPort
 	scope     string
 }
 
 func newPrometheusFromFlags(fs tbnflag.FlagSet) statsFromFlags {
 	ff := &prometheusFromFlags{flagScope: fs.GetScope()}
 
-	fs.StringVar(
+	fs.HostPortVar(
 		&ff.addr,
 		"addr",
-		"0.0.0.0:9102",
+		tbnflag.NewHostPort("0.0.0.0:9102"),
 		"Specifies the listener address for Prometheus scraping.",
 	)
 
@@ -108,13 +106,9 @@ func newPrometheusFromFlags(fs tbnflag.FlagSet) statsFromFlags {
 }
 
 func (ff *prometheusFromFlags) Validate() error {
-	_, _, err := tbnstrings.SplitHostPort(ff.addr)
-	if err != nil {
-		return fmt.Errorf("--%saddr is invalid: %s", ff.flagScope, err.Error())
-	}
 	return nil
 }
 
 func (ff *prometheusFromFlags) Make() (Stats, error) {
-	return newFromSender(prometheus.New(ff.addr), prometheusCleaner, ff.scope, true), nil
+	return newFromSender(prometheus.New(ff.addr.Addr()), prometheusCleaner, ff.scope, true), nil
 }

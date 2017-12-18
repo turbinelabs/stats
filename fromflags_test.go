@@ -2,6 +2,7 @@ package stats
 
 import (
 	"errors"
+	"flag"
 	"reflect"
 	"strings"
 	"testing"
@@ -22,9 +23,15 @@ type validateTestCase struct {
 func (vtc *validateTestCase) check(t *testing.T) {
 	desc := strings.Join(vtc.args, " ")
 	assert.Group(desc, t, func(g *assert.G) {
-		fs := tbnflag.NewTestFlagSet()
-		ff := NewFromFlags(fs, EnableAPIStatsBackend())
+		fs := flag.NewFlagSet("stats test flags", flag.ContinueOnError)
+		ff := NewFromFlags(tbnflag.Wrap(fs), EnableAPIStatsBackend())
 		err := fs.Parse(vtc.args)
+		if strings.HasPrefix(vtc.expectErrorContains, "PARSER:") {
+			expectedErr := strings.TrimSpace(vtc.expectErrorContains[7:])
+			assert.ErrorContains(t, err, expectedErr)
+			return
+		}
+
 		assert.Nil(g, err)
 		if vtc.expectErrorContains != "" {
 			assert.ErrorContains(g, ff.Validate(), vtc.expectErrorContains)
@@ -185,7 +192,7 @@ func TestFromFlagsValidate(t *testing.T) {
 				"--backends=prometheus",
 				"--prometheus.addr=nope",
 			},
-			"--prometheus.addr is invalid",
+			"PARSER: -prometheus.addr: address nope: missing port",
 		},
 		{
 			[]string{
