@@ -20,7 +20,7 @@ func TestNewAPIStatsFromFlagsOptions(t *testing.T) {
 
 	logger := log.New(os.Stderr, "test: ", 0)
 	mockStatsClientFromFlags := apiflags.NewMockStatsClientFromFlags(ctrl)
-	mockStatsClient := stats.NewMockStatsServiceV2(ctrl)
+	mockStatsClient := stats.NewMockStatsService(ctrl)
 	mockZoneFromFlags := apiflags.NewMockZoneFromFlags(ctrl)
 
 	fs := tbnflag.NewTestFlagSet().Scope("api", "")
@@ -131,7 +131,7 @@ func TestNewLatchingAPIStats(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	mockStatsClient := stats.NewMockStatsServiceV2(ctrl)
+	mockStatsClient := stats.NewMockStatsService(ctrl)
 
 	stats := NewLatchingAPIStats(
 		mockStatsClient,

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/turbinelabs/api/service/stats"
+	"github.com/turbinelabs/api/service/stats/v2"
 	"github.com/turbinelabs/nonstdlib/ptr"
 	tbnstrings "github.com/turbinelabs/nonstdlib/strings"
 	tbntime "github.com/turbinelabs/nonstdlib/time"
@@ -23,7 +24,7 @@ var (
 )
 
 type apiSender struct {
-	svc    stats.StatsServiceV2
+	svc    stats.StatsService
 	source string
 	zone   string
 	proxy  string
@@ -76,12 +77,12 @@ func (s *apiSender) Count(stat string, value float64, tags ...string) {
 	tagMap, proxy, proxyVersion, ts := s.toTagMap(tags)
 
 	s.svc.ForwardV2(
-		&stats.PayloadV2{
+		&stats.Payload{
 			Source:       s.source,
 			Zone:         s.zone,
 			Proxy:        proxy,
 			ProxyVersion: proxyVersion,
-			Stats: []stats.StatV2{
+			Stats: []stats.Stat{
 				{
 					Name:      stat,
 					Count:     &value,
@@ -97,12 +98,12 @@ func (s *apiSender) Gauge(stat string, value float64, tags ...string) {
 	tagMap, proxy, proxyVersion, ts := s.toTagMap(tags)
 
 	s.svc.ForwardV2(
-		&stats.PayloadV2{
+		&stats.Payload{
 			Source:       s.source,
 			Zone:         s.zone,
 			Proxy:        proxy,
 			ProxyVersion: proxyVersion,
-			Stats: []stats.StatV2{
+			Stats: []stats.Stat{
 				{
 					Name:      stat,
 					Gauge:     &value,
@@ -118,12 +119,12 @@ func (s *apiSender) Histogram(stat string, value float64, tags ...string) {
 	tagMap, proxy, proxyVersion, ts := s.toTagMap(tags)
 
 	s.svc.ForwardV2(
-		&stats.PayloadV2{
+		&stats.Payload{
 			Source:       s.source,
 			Zone:         s.zone,
 			Proxy:        proxy,
 			ProxyVersion: proxyVersion,
-			Stats: []stats.StatV2{
+			Stats: []stats.Stat{
 				{
 					Name:      stat,
 					Gauge:     &value,
@@ -142,7 +143,7 @@ func (s *apiSender) Timing(stat string, value time.Duration, tags ...string) {
 func (s *apiSender) LatchedHistogram(stat string, h LatchedHistogram, tags ...string) {
 	tagMap, proxy, proxyVersion, ts := s.toTagMap(tags)
 
-	histo := &stats.HistogramV2{
+	histo := &stats.Histogram{
 		Buckets: make([]int64, len(h.Buckets)),
 		Count:   h.Count,
 		Sum:     h.Sum,
@@ -161,13 +162,13 @@ func (s *apiSender) LatchedHistogram(stat string, h LatchedHistogram, tags ...st
 	}
 
 	s.svc.ForwardV2(
-		&stats.PayloadV2{
+		&stats.Payload{
 			Source:       s.source,
 			Zone:         s.zone,
 			Proxy:        proxy,
 			ProxyVersion: proxyVersion,
-			Limits:       map[string][]float64{stats.DefaultLimitName: limits},
-			Stats: []stats.StatV2{
+			Limits:       map[string][]float64{v2.DefaultLimitName: limits},
+			Stats: []stats.Stat{
 				{
 					Name:      stat,
 					Histogram: histo,

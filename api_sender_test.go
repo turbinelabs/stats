@@ -18,7 +18,7 @@ func TestNewAPIStats(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	mockSvc := stats.NewMockStatsServiceV2(ctrl)
+	mockSvc := stats.NewMockStatsService(ctrl)
 
 	s := NewAPIStats(mockSvc)
 	s.AddTags(NewKVTag(SourceTag, "sourcery"), NewKVTag(ZoneTag, "zone"))
@@ -35,13 +35,13 @@ func TestNewAPIStats(t *testing.T) {
 	assert.Equal(t, apiStatsImpl.apiSender.zone, "zone")
 }
 
-func testAPISender(t *testing.T, f func(Stats)) stats.PayloadV2 {
+func testAPISender(t *testing.T, f func(Stats)) stats.Payload {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	payloadCaptor := matcher.CaptureType(reflect.TypeOf(&stats.PayloadV2{}))
+	payloadCaptor := matcher.CaptureType(reflect.TypeOf(&stats.Payload{}))
 
-	mockSvc := stats.NewMockStatsServiceV2(ctrl)
+	mockSvc := stats.NewMockStatsService(ctrl)
 	mockSvc.EXPECT().ForwardV2(payloadCaptor).Return(nil, nil)
 
 	s := NewAPIStats(mockSvc)
@@ -51,7 +51,7 @@ func testAPISender(t *testing.T, f func(Stats)) stats.PayloadV2 {
 	f(s)
 	after := tbntime.ToUnixMilli(time.Now())
 
-	payload := payloadCaptor.V.(*stats.PayloadV2)
+	payload := payloadCaptor.V.(*stats.Payload)
 	assert.Equal(t, payload.Source, "sourcery")
 	assert.Equal(t, payload.Zone, "zone")
 	assert.Equal(t, len(payload.Stats), 1)
@@ -62,13 +62,13 @@ func testAPISender(t *testing.T, f func(Stats)) stats.PayloadV2 {
 	return *payload
 }
 
-func testAPISenderWithTimestampTag(t *testing.T, f func(Stats)) stats.PayloadV2 {
+func testAPISenderWithTimestampTag(t *testing.T, f func(Stats)) stats.Payload {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	payloadCaptor := matcher.CaptureType(reflect.TypeOf(&stats.PayloadV2{}))
+	payloadCaptor := matcher.CaptureType(reflect.TypeOf(&stats.Payload{}))
 
-	mockSvc := stats.NewMockStatsServiceV2(ctrl)
+	mockSvc := stats.NewMockStatsService(ctrl)
 	mockSvc.EXPECT().ForwardV2(payloadCaptor).Return(nil, nil)
 
 	s := NewAPIStats(mockSvc)
@@ -76,7 +76,7 @@ func testAPISenderWithTimestampTag(t *testing.T, f func(Stats)) stats.PayloadV2 
 
 	f(s)
 
-	payload := payloadCaptor.V.(*stats.PayloadV2)
+	payload := payloadCaptor.V.(*stats.Payload)
 	assert.Equal(t, payload.Source, "sourcery")
 	assert.Equal(t, payload.Zone, "zone")
 	assert.Equal(t, len(payload.Stats), 1)
@@ -207,9 +207,9 @@ func TestAPISenderTags(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	payloadCaptor := matcher.CaptureType(reflect.TypeOf(&stats.PayloadV2{}))
+	payloadCaptor := matcher.CaptureType(reflect.TypeOf(&stats.Payload{}))
 
-	mockSvc := stats.NewMockStatsServiceV2(ctrl)
+	mockSvc := stats.NewMockStatsService(ctrl)
 
 	s := NewAPIStats(mockSvc)
 	s.AddTags(
@@ -228,7 +228,7 @@ func TestAPISenderTags(t *testing.T) {
 		NewKVTag(ProxyVersionTag, "1.2.3"),
 	)
 
-	payload := payloadCaptor.V.(*stats.PayloadV2)
+	payload := payloadCaptor.V.(*stats.Payload)
 	assert.Equal(t, payload.Source, "sourcery")
 	assert.Equal(t, payload.Zone, "zone")
 	assert.Equal(t, ptr.StringValue(payload.Proxy), "proximate")
@@ -245,7 +245,7 @@ func TestAPISenderTags(t *testing.T) {
 		NewKVTag("b", "2"),
 	)
 
-	payload = payloadCaptor.V.(*stats.PayloadV2)
+	payload = payloadCaptor.V.(*stats.Payload)
 	assert.Equal(t, payload.Source, "sourcery")
 	assert.Equal(t, payload.Zone, "zone")
 	assert.Equal(t, ptr.StringValue(payload.Proxy), "default-proxy")
@@ -264,7 +264,7 @@ func TestAPISenderTags(t *testing.T) {
 		NewKVTag(ProxyVersionTag, "2.3.4"),
 	)
 
-	payload = payloadCaptor.V.(*stats.PayloadV2)
+	payload = payloadCaptor.V.(*stats.Payload)
 	assert.Equal(t, ptr.StringValue(payload.Proxy), "proximal")
 	assert.Equal(t, ptr.StringValue(payload.ProxyVersion), "2.3.4")
 	assert.Equal(t, len(payload.Stats), 1)
@@ -274,7 +274,7 @@ func TestAPISenderTags(t *testing.T) {
 	mockSvc.EXPECT().ForwardV2(payloadCaptor).Return(nil, nil)
 	s.Timing("metric", 2*time.Second, NewKVTag("e", "1"), NewKVTag("f", "2"))
 
-	payload = payloadCaptor.V.(*stats.PayloadV2)
+	payload = payloadCaptor.V.(*stats.Payload)
 	assert.Equal(t, len(payload.Stats), 1)
 	assert.Equal(t, ptr.Float64Value(payload.Stats[0].Gauge), 2.0)
 	assert.MapEqual(t, payload.Stats[0].Tags, map[string]string{"e": "1", "f": "2"})
@@ -284,7 +284,7 @@ func TestApiSenderClose(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
 
-	mockSvc := stats.NewMockStatsServiceV2(ctrl)
+	mockSvc := stats.NewMockStatsService(ctrl)
 	mockSvc.EXPECT().Close().Return(nil)
 
 	s := NewAPIStats(mockSvc)

@@ -167,11 +167,11 @@ func (a *apiStats) AddTags(tags ...Tag) {
 	}
 }
 
-// NewAPIStats creates a Stats that uses the given stats.StatsServiceV2
+// NewAPIStats creates a Stats that uses the given stats.StatsService
 // to forward arbitrary stats with an unspecified source and zone. The
 // source and zone may be subsequently overridden by invoking AddTags
 // with tags named SourceTag and ZoneTag.
-func NewAPIStats(svc stats.StatsServiceV2) Stats {
+func NewAPIStats(svc stats.StatsService) Stats {
 	sender := &apiSender{
 		svc:    svc,
 		source: unspecified,
@@ -184,7 +184,7 @@ func NewAPIStats(svc stats.StatsServiceV2) Stats {
 
 // NewLatchingAPIStats creates a Stats as in NewAPIStats, but with latching enabled.
 func NewLatchingAPIStats(
-	svc stats.StatsServiceV2,
+	svc stats.StatsService,
 	window time.Duration,
 	baseValue float64,
 	numBuckets int,
