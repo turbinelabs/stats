@@ -18,10 +18,20 @@ import (
 )
 
 const (
-	DefaultLatchWindow         = 1 * time.Minute
-	DefaultHistogramNumBuckets = 10
-	DefaultHistogramBaseValue  = 0.001 // 1 millisecond in fractional seconds
+	// DefaultLatchWindow specifies the default window over which stats are
+	// aggregated.
+	DefaultLatchWindow = 1 * time.Minute
 
+	// DefaultHistogramNumBuckets specifies the number buckets used when aggregating
+	// timing/histogram values.
+	DefaultHistogramNumBuckets = 20
+
+	// DefaultHistogramBaseValue controls the upper bound of the lower bucket used
+	// when aggregating timing/histogram values.
+	DefaultHistogramBaseValue = 0.001 // 1 millisecond in fractional seconds
+
+	// LatchedAtMetric is the name of the synthetic metric used to report when the
+	// latch occurred.
 	LatchedAtMetric = "latched_at"
 )
 
@@ -87,8 +97,8 @@ func latchWindow(d time.Duration) latchingSenderOption {
 	}
 }
 
-// latchBuckets controls generation of histograms. Each bucket of the
-// histogram has a maximum value of 2^numBucket * the base value.
+// latchBuckets controls generation of histograms. Each bucket of the histogram has
+// an upper bound of 2^N * baseValue where N is in the range [0, numBuckets).
 func latchBuckets(baseValue float64, numBuckets int) latchingSenderOption {
 	return func(f *latchingSender) {
 		f.baseHistogramValue = baseValue

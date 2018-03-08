@@ -168,7 +168,13 @@ func runSimpleLatchTest(
 	}
 
 	tbntime.WithTimeAt(start, func(tc tbntime.ControlledSource) {
-		s := newLatchingSender(underlying, testCleaner, latchWindow(time.Second), timeSource(tc))
+		s := newLatchingSender(
+			underlying,
+			testCleaner,
+			latchWindow(time.Second),
+			latchBuckets(0.001, 10),
+			timeSource(tc),
+		)
 
 		for _, v := range inputValues {
 			tags := make([]string, 0, 1)
@@ -369,7 +375,13 @@ func runHistogramLatchTestBase(
 	}
 
 	tbntime.WithTimeAt(start, func(tc tbntime.ControlledSource) {
-		s := newLatchingSender(underlying, testCleaner, latchWindow(time.Second), timeSource(tc))
+		s := newLatchingSender(
+			underlying,
+			testCleaner,
+			latchWindow(time.Second),
+			latchBuckets(0.001, 10),
+			timeSource(tc),
+		)
 
 		for _, v := range inputValues {
 			tags := []string{
@@ -482,7 +494,12 @@ func TestLatchedTags(t *testing.T) {
 				defer ctrl.Finish()
 
 				underlying := newMockXstatsSender(ctrl)
-				s := newLatchingSender(underlying, testCleaner, latchWindow(time.Second))
+				s := newLatchingSender(
+					underlying,
+					testCleaner,
+					latchWindow(time.Second),
+					latchBuckets(0.001, 10),
+				)
 				sImpl := s.(*latchingSender)
 				gotTags, gotTime := sImpl.latchedTags(tc.tags)
 				assert.ArrayEqual(t, gotTags, tc.expectedTags)
@@ -513,7 +530,13 @@ func TestLatchingSenderLatchesOverMultipleMetrics(t *testing.T) {
 	}
 
 	tbntime.WithTimeAt(start, func(tc tbntime.ControlledSource) {
-		s := newLatchingSender(underlying, testCleaner, latchWindow(time.Second), timeSource(tc))
+		s := newLatchingSender(
+			underlying,
+			testCleaner,
+			latchWindow(time.Second),
+			latchBuckets(0.001, 10),
+			timeSource(tc),
+		)
 
 		for n := 0; n < 10; n++ {
 			tsTag := fmt.Sprintf(
