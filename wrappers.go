@@ -1,6 +1,9 @@
 package stats
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // NewNoopStats returns a Stats implementation that does nothing.
 func NewNoopStats() Stats { return &noop{} }
@@ -35,4 +38,70 @@ func (a *async) Timing(s string, d time.Duration, t ...Tag) { go a.Stats.Timing(
 
 func (a *async) Scope(scope string, scopes ...string) Stats {
 	return &async{a.Stats.Scope(scope, scopes...)}
+}
+
+// NewRecordingStats returns a Stats implementation that records calls on the given
+// channel.
+func NewRecordingStats(ch chan<- Recorded) Stats {
+	return &recorder{ch: ch}
+}
+
+// Recorded represents a stats call recorded by a Stats object returned from
+// NewRecordingStats.
+type Recorded struct {
+	Method string
+	Scope  string
+	Metric string
+	Value  float64
+	Timing time.Duration
+	Tags   []Tag
+}
+
+type recorder struct {
+	ch chan<- Recorded
+
+	scope string
+	tags  []Tag
+}
+
+func (r *recorder) recV(method, metric string, value float64, tags []Tag) {
+	r.ch <- Recorded{
+		Method: method,
+		Scope:  r.scope,
+		Metric: metric,
+		Value:  value,
+		Tags:   append(r.tags, tags...),
+	}
+}
+
+func (r *recorder) recT(method, metric string, timing time.Duration, tags []Tag) {
+	r.ch <- Recorded{
+		Method: method,
+		Scope:  r.scope,
+		Metric: metric,
+		Timing: timing,
+		Tags:   append(r.tags, tags...),
+	}
+}
+
+func (r *recorder) Gauge(m string, v float64, t ...Tag)        { r.recV("gauge", m, v, t) }
+func (r *recorder) Count(m string, v float64, t ...Tag)        { r.recV("count", m, v, t) }
+func (r *recorder) Histogram(m string, v float64, t ...Tag)    { r.recV("histogram", m, v, t) }
+func (r *recorder) Timing(m string, d time.Duration, t ...Tag) { r.recT("timing", m, d, t) }
+func (r *recorder) AddTags(t ...Tag)                           { r.tags = append(r.tags, t...) }
+func (r *recorder) Close() error                               { close(r.ch); return nil }
+
+func (r *recorder) Scope(scope string, scopes ...string) Stats {
+	final := make([]string, 0, len(scopes)+2)
+	if r.scope != "" {
+		final = append(final, r.scope)
+	}
+	final = append(final, scope)
+	final = append(final, scopes...)
+
+	return &recorder{
+		ch:    r.ch,
+		scope: strings.Join(final, "."),
+		tags:  r.tags,
+	}
 }
