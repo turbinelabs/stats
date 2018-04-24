@@ -60,6 +60,31 @@ func TestLatencyWithSimulatedClockReset(t *testing.T) {
 	})
 }
 
+func TestLatencyWithTags(t *testing.T) {
+	defer resetLatencyTimeSource()
+
+	tbntime.WithCurrentTimeFrozen(func(cs tbntime.ControlledSource) {
+		ctrl := gomock.NewController(assert.Tracing(t))
+		defer ctrl.Finish()
+
+		latencyTimeSource = cs
+
+		mockStats := NewMockStats(ctrl)
+
+		f := Latency(mockStats, NewKVTag("a", "b"), NewKVTag("c", "d"))
+
+		cs.Advance(100 * time.Millisecond)
+
+		mockStats.EXPECT().Timing(
+			LatencyStat,
+			100*time.Millisecond,
+			[]Tag{NewKVTag("a", "b"), NewKVTag("c", "d")},
+		)
+
+		f()
+	})
+}
+
 func TestSuccessRate(t *testing.T) {
 	ctrl := gomock.NewController(assert.Tracing(t))
 	defer ctrl.Finish()
@@ -73,6 +98,25 @@ func TestSuccessRate(t *testing.T) {
 	mockStats.EXPECT().Count(RequestStat, 1.0)
 	mockStats.EXPECT().Count(FailureStat, 1.0, NewKVTag(ErrorTypeTag, "stats.srError"))
 	SuccessRate(mockStats, &srError{})
+}
+
+func TestSuccessRateWithTags(t *testing.T) {
+	ctrl := gomock.NewController(assert.Tracing(t))
+	defer ctrl.Finish()
+
+	mockStats := NewMockStats(ctrl)
+
+	mockStats.EXPECT().Count(RequestStat, 1.0, []Tag{NewKVTag("a", "b"), NewKVTag("c", "d")})
+	mockStats.EXPECT().Count(SuccessStat, 1.0, []Tag{NewKVTag("a", "b"), NewKVTag("c", "d")})
+	SuccessRate(mockStats, nil, NewKVTag("a", "b"), NewKVTag("c", "d"))
+
+	mockStats.EXPECT().Count(RequestStat, 1.0, []Tag{NewKVTag("a", "b"), NewKVTag("c", "d")})
+	mockStats.EXPECT().Count(
+		FailureStat,
+		1.0,
+		[]Tag{NewKVTag("a", "b"), NewKVTag("c", "d"), NewKVTag(ErrorTypeTag, "stats.srError")},
+	)
+	SuccessRate(mockStats, &srError{}, NewKVTag("a", "b"), NewKVTag("c", "d"))
 }
 
 func TestLatencyWithSuccessRate(t *testing.T) {
@@ -103,6 +147,39 @@ func TestLatencyWithSuccessRate(t *testing.T) {
 		f(&srError{})
 	})
 
+}
+
+func TestLatencyWithSuccessRateWithTags(t *testing.T) {
+	defer resetLatencyTimeSource()
+
+	tbntime.WithCurrentTimeFrozen(func(cs tbntime.ControlledSource) {
+		ctrl := gomock.NewController(assert.Tracing(t))
+		defer ctrl.Finish()
+
+		latencyTimeSource = cs
+
+		mockStats := NewMockStats(ctrl)
+
+		f := LatencyWithSuccessRate(mockStats, NewKVTag("a", "b"))
+		cs.Advance(100 * time.Millisecond)
+
+		mockStats.EXPECT().Timing(LatencyStat, 100*time.Millisecond, NewKVTag("a", "b"))
+		mockStats.EXPECT().Count(RequestStat, 1.0, NewKVTag("a", "b"))
+		mockStats.EXPECT().Count(SuccessStat, 1.0, NewKVTag("a", "b"))
+		f(nil)
+
+		f = LatencyWithSuccessRate(mockStats, NewKVTag("a", "b"))
+		cs.Advance(100 * time.Millisecond)
+
+		mockStats.EXPECT().Timing(LatencyStat, 100*time.Millisecond, NewKVTag("a", "b"))
+		mockStats.EXPECT().Count(RequestStat, 1.0, NewKVTag("a", "b"))
+		mockStats.EXPECT().Count(
+			FailureStat,
+			1.0,
+			[]Tag{NewKVTag("a", "b"), NewKVTag(ErrorTypeTag, "stats.srError")},
+		)
+		f(&srError{})
+	})
 }
 
 func TestSanitizeErrorType(t *testing.T) {

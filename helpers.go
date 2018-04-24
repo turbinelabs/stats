@@ -24,7 +24,7 @@ var (
 // Latency measures the time between its invocation and the invocation
 // of the function it returns. The timing is recorded as "latency" on
 // the given Stats.
-func Latency(s Stats) func() {
+func Latency(s Stats, tags ...Tag) func() {
 	start := latencyTimeSource.Now()
 	return func() {
 		delta := latencyTimeSource.Now().Sub(start)
@@ -36,7 +36,7 @@ func Latency(s Stats) func() {
 			delta = 0
 		}
 
-		s.Timing(LatencyStat, delta)
+		s.Timing(LatencyStat, delta, tags...)
 	}
 }
 
@@ -58,24 +58,31 @@ func SanitizeErrorType(err error) string {
 // invocation counts a "request". If err is nil, a "success" is
 // counted. If err is non-nil, a "failure" is counted with an
 // "error_type" tag indicating the error's type.
-func SuccessRate(s Stats, err error) {
-	s.Count(RequestStat, 1)
+func SuccessRate(s Stats, err error, tags ...Tag) {
+	s.Count(RequestStat, 1, tags...)
 	if err != nil {
-		s.Count(FailureStat, 1, NewKVTag(ErrorTypeTag, SanitizeErrorType(err)))
-	} else {
-		s.Count(SuccessStat, 1)
+		errorTag := NewKVTag(ErrorTypeTag, SanitizeErrorType(err))
+		if len(tags) == 0 {
+			s.Count(FailureStat, 1, errorTag)
+			return
+		}
+
+		s.Count(FailureStat, 1, append(tags, errorTag)...)
+		return
 	}
+
+	s.Count(SuccessStat, 1, tags...)
 }
 
 // LatencyWithSuccessRate combines Latency and SuccessRate. Like
 // Latency, is measures time from its invocation until the returned
 // function is invoked. The returned function uses its error parameter
 // to distinguish between successful and failed requests.
-func LatencyWithSuccessRate(s Stats) func(error) {
-	latency := Latency(s)
+func LatencyWithSuccessRate(s Stats, tags ...Tag) func(error) {
+	latency := Latency(s, tags...)
 
 	return func(err error) {
 		latency()
-		SuccessRate(s, err)
+		SuccessRate(s, err, tags...)
 	}
 }
