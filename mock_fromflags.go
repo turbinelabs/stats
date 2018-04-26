@@ -56,3 +56,27 @@ func (m *MockFromFlags) Make() (Stats, error) {
 func (mr *MockFromFlagsMockRecorder) Make() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Make", reflect.TypeOf((*MockFromFlags)(nil).Make))
 }
+
+// Node mocks base method
+func (m *MockFromFlags) Node() string {
+	ret := m.ctrl.Call(m, "Node")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Node indicates an expected call of Node
+func (mr *MockFromFlagsMockRecorder) Node() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Node", reflect.TypeOf((*MockFromFlags)(nil).Node))
+}
+
+// Source mocks base method
+func (m *MockFromFlags) Source() string {
+	ret := m.ctrl.Call(m, "Source")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Source indicates an expected call of Source
+func (mr *MockFromFlagsMockRecorder) Source() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Source", reflect.TypeOf((*MockFromFlags)(nil).Source))
+}

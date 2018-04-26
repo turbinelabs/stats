@@ -25,10 +25,19 @@ const (
 	maxSourceLen = 256
 )
 
-// FromFlags produces a Stats from configuration flags
+// FromFlags produces a Stats from command line flags.
 type FromFlags interface {
+	// Validate validates the command line flags.
 	Validate() error
+
+	// Make constructs a Stats from command line flags.
 	Make() (Stats, error)
+
+	// Node returns the value of the node tag (must be called after Make).
+	Node() string
+
+	// Source returns the value of the source tag (must be called after Make).
+	Source() string
 }
 
 // Option is an opaquely-typed option for NewFromFlags.
@@ -121,6 +130,11 @@ type fromFlags struct {
 	sourceTag        string
 	uniqueSourceTag  string
 	tags             tbnflag.Strings
+
+	resolved          bool
+	resolvedNodeTag   string
+	resolvedSourceTag string
+	resolvedTags      []Tag
 }
 
 type fromFlagsOptions struct {
@@ -272,39 +286,57 @@ func (ff *fromFlags) Make() (Stats, error) {
 
 	stats := NewMulti(statses...)
 
-	sourceTag, nodeTag, tags, err := ff.parseTags()
-	if err != nil {
-		return nil, err
-	}
-
-	if sourceTag != nil {
-		ff.sourceTag = *sourceTag
-	}
-
-	if nodeTag != nil {
-		ff.nodeTag = *nodeTag
-	}
-
-	stats.AddTags(tags...)
-
-	if ff.nodeTag != "" {
-		stats.AddTags(NewKVTag(NodeTag, ff.nodeTag))
-	}
-
-	if ff.uniqueSourceTag != "" {
-		stats.AddTags(NewKVTag(SourceTag, ff.uniqueSourceTag))
-	} else {
-		uuid, err := idgen.NewUUID()()
+	if !ff.resolved {
+		sourceTag, nodeTag, tags, err := ff.parseTags()
 		if err != nil {
 			return nil, err
 		}
 
-		if ff.sourceTag != "" {
-			stats.AddTags(NewKVTag(SourceTag, fmt.Sprintf("%s-%s", ff.sourceTag, uuid)))
-		} else {
-			stats.AddTags(NewKVTag(SourceTag, string(uuid)))
+		if sourceTag != nil {
+			ff.sourceTag = *sourceTag
 		}
+
+		ff.resolvedNodeTag = ff.nodeTag
+		if nodeTag != nil {
+			ff.resolvedNodeTag = *nodeTag
+		}
+
+		if ff.uniqueSourceTag != "" {
+			ff.resolvedSourceTag = ff.uniqueSourceTag
+		} else {
+			uuid, err := idgen.NewUUID()()
+			if err != nil {
+				return nil, err
+			}
+
+			if ff.sourceTag != "" {
+				ff.resolvedSourceTag = fmt.Sprintf("%s-%s", ff.sourceTag, uuid)
+			} else {
+				ff.resolvedSourceTag = string(uuid)
+			}
+		}
+
+		ff.resolvedTags = tags
+		ff.resolved = true
+	}
+
+	stats.AddTags(ff.resolvedTags...)
+
+	if ff.resolvedNodeTag != "" {
+		stats.AddTags(NewKVTag(NodeTag, ff.resolvedNodeTag))
+	}
+
+	if ff.resolvedSourceTag != "" {
+		stats.AddTags(NewKVTag(SourceTag, ff.resolvedSourceTag))
 	}
 
 	return stats, nil
+}
+
+func (ff *fromFlags) Node() string {
+	return ff.resolvedNodeTag
+}
+
+func (ff *fromFlags) Source() string {
+	return ff.resolvedSourceTag
 }

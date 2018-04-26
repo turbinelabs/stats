@@ -53,6 +53,7 @@ func testAPISender(t *testing.T, f func(Stats)) stats.Payload {
 
 	payload := payloadCaptor.V.(*stats.Payload)
 	assert.Equal(t, payload.Source, "sourcery")
+	assert.Nil(t, payload.Node)
 	assert.Equal(t, payload.Zone, "zone")
 	assert.Equal(t, len(payload.Stats), 1)
 	assert.LessThanEqual(t, before, payload.Stats[0].Timestamp)
@@ -72,12 +73,13 @@ func testAPISenderWithTimestampTag(t *testing.T, f func(Stats)) stats.Payload {
 	mockSvc.EXPECT().ForwardV2(payloadCaptor).Return(nil, nil)
 
 	s := NewAPIStats(mockSvc)
-	s.AddTags(NewKVTag(SourceTag, "sourcery"), NewKVTag(ZoneTag, "zone"))
+	s.AddTags(NewKVTag(SourceTag, "sourcery"), NewKVTag(ZoneTag, "zone"), NewKVTag(NodeTag, "node"))
 
 	f(s)
 
 	payload := payloadCaptor.V.(*stats.Payload)
 	assert.Equal(t, payload.Source, "sourcery")
+	assert.Equal(t, ptr.StringValue(payload.Node), "node")
 	assert.Equal(t, payload.Zone, "zone")
 	assert.Equal(t, len(payload.Stats), 1)
 
@@ -224,12 +226,14 @@ func TestAPISenderTags(t *testing.T) {
 		1,
 		NewKVTag("a", "1"),
 		NewKVTag("b", "2"),
+		NewKVTag(NodeTag, "nodule"),
 		NewKVTag(ProxyTag, "proximate"),
 		NewKVTag(ProxyVersionTag, "1.2.3"),
 	)
 
 	payload := payloadCaptor.V.(*stats.Payload)
 	assert.Equal(t, payload.Source, "sourcery")
+	assert.Equal(t, ptr.StringValue(payload.Node), "nodule")
 	assert.Equal(t, payload.Zone, "zone")
 	assert.Equal(t, ptr.StringValue(payload.Proxy), "proximate")
 	assert.Equal(t, ptr.StringValue(payload.ProxyVersion), "1.2.3")

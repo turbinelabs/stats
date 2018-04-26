@@ -75,6 +75,7 @@ func newLatchingSender(
 		numHistogramBuckets: DefaultHistogramNumBuckets,
 		baseHistogramValue:  DefaultHistogramBaseValue,
 		timeSource:          tbntime.NewSource(),
+		latchingNodes:       map[string]*latchingNode{},
 	}
 
 	for _, opt := range options {
@@ -123,6 +124,12 @@ type latchingSender struct {
 	baseHistogramValue  float64
 	timeSource          tbntime.Source
 
+	latchingNodes map[string]*latchingNode
+}
+
+type latchingNode struct {
+	lock *sync.Mutex
+
 	latchStart time.Time
 	counters   map[string]*counter
 	gauges     map[string]*gauge
@@ -130,55 +137,49 @@ type latchingSender struct {
 }
 
 func (s *latchingSender) Count(stat string, count float64, tags ...string) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	latchingNode, statID, latchedTags := s.prepareLatch(stat, tags)
+	defer latchingNode.lock.Unlock()
 
-	statID, latchedTags := s.prepareLatch(stat, tags)
-
-	c := s.counters[statID]
+	c := latchingNode.counters[statID]
 	if c == nil {
 		c = &counter{
 			stat: stat,
 			tags: latchedTags,
 		}
-		s.counters[statID] = c
+		latchingNode.counters[statID] = c
 	}
 
 	c.add(int64(count))
 }
 
 func (s *latchingSender) Gauge(stat string, value float64, tags ...string) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	latchingNode, statID, latchedTags := s.prepareLatch(stat, tags)
+	defer latchingNode.lock.Unlock()
 
-	statID, latchedTags := s.prepareLatch(stat, tags)
-
-	g := s.gauges[statID]
+	g := latchingNode.gauges[statID]
 	if g == nil {
 		g = &gauge{
 			stat: stat,
 			tags: latchedTags,
 		}
-		s.gauges[statID] = g
+		latchingNode.gauges[statID] = g
 	}
 
 	g.set(value)
 }
 
 func (s *latchingSender) Histogram(stat string, value float64, tags ...string) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	latchingNode, statID, latchedTags := s.prepareLatch(stat, tags)
+	defer latchingNode.lock.Unlock()
 
-	statID, latchedTags := s.prepareLatch(stat, tags)
-
-	h := s.histograms[statID]
+	h := latchingNode.histograms[statID]
 	if h == nil {
 		h = &histogram{
 			stat:    stat,
 			tags:    latchedTags,
 			buckets: make([]int64, s.numHistogramBuckets),
 		}
-		s.histograms[statID] = h
+		latchingNode.histograms[statID] = h
 	}
 
 	h.add(value, s.baseHistogramValue)
@@ -189,28 +190,43 @@ func (s *latchingSender) Timing(stat string, value time.Duration, tags ...string
 }
 
 func (s *latchingSender) Close() error {
-	s.completeLatch(s.timeSource.Now())
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	for nodeTag, latchingNode := range s.latchingNodes {
+		latchingNode.lock.Lock()
+		latchingNode.completeLatch(s.timeSource.Now(), nodeTag, s)
+		latchingNode.lock.Unlock()
+	}
+	s.latchingNodes = nil
+
 	return xstats.CloseSender(s.underlying)
 }
 
-func (s *latchingSender) prepareLatch(stat string, tags []string) (string, []string) {
-	var ts *time.Time
-	tags, ts = s.latchedTags(tags)
-	if ts == nil {
-		ts = ptr.Time(s.timeSource.Now())
+func (s *latchingSender) latchingNode(nodeTag string) *latchingNode {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	node := s.latchingNodes[nodeTag]
+	if node == nil {
+		node = &latchingNode{lock: &sync.Mutex{}}
+		s.latchingNodes[nodeTag] = node
 	}
 
-	newStart := ts.Truncate(s.latchWindow)
-	if !newStart.Equal(s.latchStart) {
-		if s.latchStart.IsZero() {
-			s.completeLatch(newStart)
-		} else {
-			nextStart := s.latchStart.Add(s.latchWindow)
-			for nextStart.Before(newStart) || nextStart.Equal(newStart) {
-				s.completeLatch(nextStart)
-				nextStart = nextStart.Add(s.latchWindow)
-			}
-		}
+	return node
+}
+
+func (s *latchingSender) prepareLatch(
+	stat string,
+	tags []string,
+) (*latchingNode, string, []string) {
+	var (
+		nodeTag string
+		ts      *time.Time
+	)
+	tags, nodeTag, ts = s.latchedTags(tags)
+	if ts == nil {
+		ts = ptr.Time(s.timeSource.Now())
 	}
 
 	hasher := md5.New()
@@ -220,9 +236,25 @@ func (s *latchingSender) prepareLatch(stat string, tags []string) (string, []str
 		hasher.Write([]byte{'|'})
 		hasher.Write([]byte(tag))
 	}
-
 	id := string(hasher.Sum(make([]byte, 0, md5.Size)))
-	return id, tags
+
+	node := s.latchingNode(nodeTag)
+	node.lock.Lock()
+
+	newStart := ts.Truncate(s.latchWindow)
+	if !newStart.Equal(node.latchStart) {
+		if node.latchStart.IsZero() {
+			node.completeLatch(newStart, nodeTag, s)
+		} else {
+			nextStart := node.latchStart.Add(s.latchWindow)
+			for nextStart.Before(newStart) || nextStart.Equal(newStart) {
+				node.completeLatch(nextStart, nodeTag, s)
+				nextStart = nextStart.Add(s.latchWindow)
+			}
+		}
+	}
+
+	return node, id, tags
 }
 
 func (s *latchingSender) stat(stat, suffix string) string {
@@ -234,29 +266,29 @@ func (s *latchingSender) stat(stat, suffix string) string {
 // 2. Generating a latched_at gauge, and
 // 3. Sending all stats metrics via the underlying Stats. Initializes
 //    the next latch window with the given time.
-func (s *latchingSender) completeLatch(nextLatchStart time.Time) {
+func (n *latchingNode) completeLatch(nextLatchStart time.Time, nodeTag string, s *latchingSender) {
 	sent := 0
-	for _, c := range s.counters {
-		s.underlying.Count(c.stat, float64(c.value), s.tagsWithTimestamp(c.tags)...)
+	for _, c := range n.counters {
+		s.underlying.Count(c.stat, float64(c.value), n.tagsWithTimestamp(s, c.tags)...)
 		sent++
 	}
 
-	for _, g := range s.gauges {
-		s.underlying.Gauge(g.stat, g.value, s.tagsWithTimestamp(g.tags)...)
+	for _, g := range n.gauges {
+		s.underlying.Gauge(g.stat, g.value, n.tagsWithTimestamp(s, g.tags)...)
 		sent++
 	}
 
 	if latchableSender, ok := s.underlying.(latchableSender); ok {
-		for _, h := range s.histograms {
-			tags := s.tagsWithTimestamp(h.tags)
+		for _, h := range n.histograms {
+			tags := n.tagsWithTimestamp(s, h.tags)
 			latched := h.latch(s.baseHistogramValue)
 
 			latchableSender.LatchedHistogram(h.stat, latched, tags...)
 			sent++
 		}
 	} else {
-		for _, h := range s.histograms {
-			tags := s.tagsWithTimestamp(h.tags)
+		for _, h := range n.histograms {
+			tags := n.tagsWithTimestamp(s, h.tags)
 
 			baseValue := s.baseHistogramValue
 			total := int64(0)
@@ -280,43 +312,69 @@ func (s *latchingSender) completeLatch(nextLatchStart time.Time) {
 	}
 
 	if sent > 0 {
-		s.underlying.Gauge(LatchedAtMetric, float64(s.latchStart.Unix()), s.tagsWithTimestamp(nil)...)
+		var latchedAtTags []string
+		if nodeTag != "" {
+			latchedAtTags = []string{fmt.Sprintf("%s=%s", NodeTag, nodeTag)}
+		}
+		s.underlying.Gauge(
+			LatchedAtMetric,
+			float64(n.latchStart.Unix()),
+			n.tagsWithTimestamp(s, latchedAtTags)...,
+		)
 	}
 
-	s.latchStart = nextLatchStart
-	s.counters = map[string]*counter{}
-	s.gauges = map[string]*gauge{}
-	s.histograms = map[string]*histogram{}
+	n.latchStart = nextLatchStart
+	n.counters = map[string]*counter{}
+	n.gauges = map[string]*gauge{}
+	n.histograms = map[string]*histogram{}
 }
 
-func (s *latchingSender) tagsWithTimestamp(tags []string) []string {
-	ts := tbntime.ToUnixMilli(s.latchStart)
+func (n *latchingNode) tagsWithTimestamp(s *latchingSender, tags []string) []string {
+	ts := tbntime.ToUnixMilli(n.latchStart)
 	return append(
 		tags,
 		s.cleaner.tagToString(NewKVTag(TimestampTag, strconv.FormatInt(ts, 10))),
 	)
 }
 
-func (s *latchingSender) latchedTags(tags []string) ([]string, *time.Time) {
+// Returns sorted tags, with TimestampTag removed. If NodeTag is present, it's value
+// is returned (but it remains in tags). If TimestampTag is present, it's value is
+// returned.
+func (s *latchingSender) latchedTags(tags []string) ([]string, string, *time.Time) {
 	sort.Strings(tags)
 
-	tsIdx := sort.Search(
+	var ts *time.Time
+	idx := sort.Search(
 		len(tags),
 		func(i int) bool {
 			return tags[i] >= TimestampTag
 		},
 	)
-
-	if tsIdx < len(tags) {
-		k, v := tbnstrings.Split2(tags[tsIdx], s.cleaner.tagDelim)
+	if idx < len(tags) {
+		k, v := tbnstrings.Split2(tags[idx], s.cleaner.tagDelim)
 		if k == TimestampTag {
-			if ts, err := strconv.ParseInt(v, 10, 64); err == nil {
-				t := tbntime.FromUnixMilli(ts)
-				copy(tags[tsIdx:], tags[tsIdx+1:])
-				return tags[0 : len(tags)-1], &t
+			if i, err := strconv.ParseInt(v, 10, 64); err == nil {
+				t := tbntime.FromUnixMilli(i)
+				copy(tags[idx:], tags[idx+1:])
+				tags = tags[0 : len(tags)-1]
+				ts = &t
 			}
 		}
 	}
 
-	return tags, nil
+	node := ""
+	idx = sort.Search(
+		len(tags),
+		func(i int) bool {
+			return tags[i] >= NodeTag
+		},
+	)
+	if idx < len(tags) {
+		k, v := tbnstrings.Split2(tags[idx], s.cleaner.tagDelim)
+		if k == NodeTag {
+			node = v
+		}
+	}
+
+	return tags, node, ts
 }

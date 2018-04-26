@@ -91,10 +91,7 @@ func TestNewLatchingSender(t *testing.T) {
 	assert.Equal(t, sImpl.numHistogramBuckets, DefaultHistogramNumBuckets)
 	assert.Equal(t, sImpl.baseHistogramValue, DefaultHistogramBaseValue)
 	assert.NonNil(t, sImpl.timeSource)
-	assert.True(t, sImpl.latchStart.IsZero())
-	assert.Nil(t, sImpl.counters)
-	assert.Nil(t, sImpl.gauges)
-	assert.Nil(t, sImpl.histograms)
+	assert.NonNil(t, sImpl.latchingNodes)
 
 	s = newLatchingSender(underlying, testCleaner, latchWindow(10*time.Second))
 	sImpl = s.(*latchingSender)
@@ -447,6 +444,7 @@ func TestLatchedTags(t *testing.T) {
 	testCases := []struct {
 		tags         []string
 		expectedTags []string
+		expectedNode string
 		expectedTime *time.Time
 	}{
 		{
@@ -501,8 +499,9 @@ func TestLatchedTags(t *testing.T) {
 					latchBuckets(0.001, 10),
 				)
 				sImpl := s.(*latchingSender)
-				gotTags, gotTime := sImpl.latchedTags(tc.tags)
+				gotTags, gotNode, gotTime := sImpl.latchedTags(tc.tags)
 				assert.ArrayEqual(t, gotTags, tc.expectedTags)
+				assert.Equal(t, gotNode, tc.expectedNode)
 				assert.DeepEqual(t, gotTime, tc.expectedTime)
 			},
 		)
@@ -549,6 +548,62 @@ func TestLatchingSenderLatchesOverMultipleMetrics(t *testing.T) {
 			s.Count("c2", float64(n+3), tsTag)
 			s.Gauge("g", float64(n), tsTag, "a=1")
 			s.Gauge("g", float64(n+3), tsTag, "a=2")
+
+			tc.Advance(500 * time.Millisecond)
+		}
+
+		assert.Nil(t, s.(io.Closer).Close())
+	})
+}
+
+func TestLatchingSenderLatchesOverMultipleNodes(t *testing.T) {
+	ctrl := gomock.NewController(assert.Tracing(t))
+	defer ctrl.Finish()
+
+	underlying := newMockXstatsSender(ctrl)
+
+	start := time.Now().Truncate(time.Second).Add(100 * time.Millisecond)
+
+	node1Tag := "node=1"
+	node2Tag := "node=2"
+
+	for n := 0; n < 5; n++ {
+		ts := start.Truncate(time.Second).Add(time.Duration(n) * time.Second)
+
+		tsTag := fmt.Sprintf("%s=%d", TimestampTag, tbntime.ToUnixMilli(ts))
+
+		underlying.EXPECT().Count("c1", float64(4*n+3), []string{node1Tag, tsTag})
+		underlying.EXPECT().Count("c2", float64(4*n+7), []string{node2Tag, tsTag})
+		underlying.EXPECT().Count("cn", float64(4*n+3), []string{node1Tag, tsTag})
+		underlying.EXPECT().Count("cn", float64(4*n+7), []string{node2Tag, tsTag})
+		underlying.EXPECT().Gauge("g", float64(2*n+1), []string{"a=1", node1Tag, tsTag})
+		underlying.EXPECT().Gauge("g", float64(2*n+4), []string{"a=2", node2Tag, tsTag})
+		underlying.EXPECT().Gauge("latched_at", float64(ts.Unix()), []string{node1Tag, tsTag})
+		underlying.EXPECT().Gauge("latched_at", float64(ts.Unix()), []string{node2Tag, tsTag})
+	}
+
+	tbntime.WithTimeAt(start, func(tc tbntime.ControlledSource) {
+		s := newLatchingSender(
+			underlying,
+			testCleaner,
+			latchWindow(time.Second),
+			latchBuckets(0.001, 10),
+			timeSource(tc),
+		)
+
+		for n := 0; n < 10; n++ {
+			tsTag := fmt.Sprintf(
+				"%s=%d",
+				TimestampTag,
+				tbntime.ToUnixMilli(tc.Now()),
+			)
+
+			s.Count("c1", float64(n+1), tsTag, node1Tag)
+			s.Count("c2", float64(n+3), tsTag, node2Tag)
+			s.Count("cn", float64(n+1), tsTag, node1Tag)
+			s.Count("cn", float64(n+3), tsTag, node2Tag)
+			s.Gauge("g", float64(n), tsTag, "a=1", node1Tag)
+			s.Gauge("g", float64(n+3), tsTag, "a=2", node2Tag)
 
 			tc.Advance(500 * time.Millisecond)
 		}

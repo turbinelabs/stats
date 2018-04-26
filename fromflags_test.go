@@ -3,7 +3,8 @@ package stats
 import (
 	"errors"
 	"flag"
-	"reflect"
+	"fmt"
+	reflect "reflect"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,8 @@ import (
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 	"github.com/turbinelabs/test/assert"
 )
+
+const uuidRegex = "[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}"
 
 type validateTestCase struct {
 	args                []string
@@ -531,6 +534,94 @@ func TestFromFlagsMake(t *testing.T) {
 	assert.Equal(t, getXstatsSenderType(t, multiStats[0]), "*dogstatsd.sender")
 	assert.Equal(t, getXstatsSenderType(t, multiStats[1]), "*statsd.sender")
 	assert.Nil(t, multiStats.Close())
+
+	assert.Equal(t, ff.Node(), "")
+	assert.NotEqual(t, ff.Source(), "")
+}
+
+type tagsTestCase struct {
+	args                 []string
+	expectedNode         string
+	expectedSource       string
+	expectedSourcePrefix string
+}
+
+func (ttc *tagsTestCase) check(t *testing.T) {
+	desc := strings.Join(ttc.args, " ")
+	assert.Group(desc, t, func(g *assert.G) {
+		fs := flag.NewFlagSet("stats test flags", flag.ContinueOnError)
+		ff := NewFromFlags(tbnflag.Wrap(fs))
+		assert.Nil(
+			g,
+			fs.Parse(
+				append(
+					ttc.args,
+					"--backends=statsd",
+					"--statsd.host=localhost",
+					"--statsd.port=9000",
+				),
+			),
+		)
+		assert.Nil(g, ff.Validate())
+		stats, err := ff.Make()
+		assert.Nil(g, err)
+		defer stats.Close()
+
+		assert.Equal(g, ff.Node(), ttc.expectedNode)
+		if ttc.expectedSource != "" {
+			assert.Equal(t, ff.Source(), ttc.expectedSource)
+		} else {
+			assert.MatchesRegex(
+				g,
+				ff.Source(),
+				fmt.Sprintf(
+					`^%s[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$`,
+					ttc.expectedSourcePrefix,
+				),
+			)
+		}
+	})
+}
+
+func TestFromFlagsNodeAndSource(t *testing.T) {
+	testCases := []tagsTestCase{
+		// no tags
+		{},
+
+		// node set by flag
+		{
+			args:         []string{"--node=the-node"},
+			expectedNode: "the-node",
+		},
+
+		// node set by tag
+		{
+			args:         []string{"--tags=node=the-node"},
+			expectedNode: "the-node",
+		},
+
+		// source set by flag
+		{
+			args:                 []string{"--source=the-source"},
+			expectedSourcePrefix: "the-source-",
+		},
+
+		// source set by tag
+		{
+			args:                 []string{"--tags=source=the-source"},
+			expectedSourcePrefix: "the-source-",
+		},
+
+		// unique source set by flag
+		{
+			args:           []string{"--unique-source=the-unique-source"},
+			expectedSource: "the-unique-source",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc.check(t)
+	}
 }
 
 func TestFromFlagsMakeWithLatching(t *testing.T) {
@@ -558,70 +649,131 @@ func TestFromFlagsMakeWithLatching(t *testing.T) {
 	assert.Nil(t, multiStats.Close())
 }
 
+type makeAddTagsTestCase struct {
+	tags            []string
+	node            string
+	source          string
+	uniqueSource    string
+	expectedAddTags [][]interface{}
+}
+
+func (mattc *makeAddTagsTestCase) check(t *testing.T) {
+	desc := strings.Join(mattc.tags, " ")
+	assert.Group(desc, t, func(g *assert.G) {
+		ctrl := gomock.NewController(assert.Tracing(t))
+		defer ctrl.Finish()
+
+		mockStats := NewMockStats(ctrl)
+
+		mockStatsFromFlags := newMockStatsFromFlags(ctrl)
+		mockStatsFromFlags.EXPECT().Make().AnyTimes().Return(mockStats, nil)
+
+		ff := &fromFlags{
+			backends: tbnflag.NewStringsWithConstraint(
+				"mock",
+			),
+			tags: tbnflag.NewStrings(),
+			statsFromFlagses: map[string]statsFromFlags{
+				"mock": mockStatsFromFlags,
+			},
+		}
+		ff.backends.Set("mock")
+
+		if mattc.node != "" {
+			ff.nodeTag = mattc.node
+		}
+
+		if mattc.source != "" {
+			ff.sourceTag = mattc.source
+		}
+
+		if mattc.uniqueSource != "" {
+			ff.uniqueSourceTag = mattc.uniqueSource
+		}
+
+		if len(mattc.tags) > 0 {
+			ff.tags.ResetDefault(mattc.tags...)
+		}
+
+		for _, tags := range mattc.expectedAddTags {
+			if tags == nil {
+				mockStats.EXPECT().AddTags().Times(2)
+			} else {
+				mockStats.EXPECT().AddTags(tags...).Times(2)
+			}
+		}
+
+		s, err := ff.Make()
+		assert.NonNil(t, s)
+		assert.Nil(t, err)
+
+		currentSource, currentNode := ff.Source(), ff.Node()
+
+		// Make another Stats with the same config
+		s, err = ff.Make()
+		assert.NonNil(t, s)
+		assert.Nil(t, err)
+
+		// These should not change.
+		assert.Equal(t, ff.Source(), currentSource)
+		assert.Equal(t, ff.Node(), currentNode)
+	})
+}
 func TestFromFlagsMakeAddsTags(t *testing.T) {
-	const uuidRegex = "[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}"
+	testCases := []makeAddTagsTestCase{
+		// no tags
+		{
+			expectedAddTags: [][]interface{}{
+				nil,
+				{TagMatches("source", uuidRegex)},
+			},
+		},
 
-	ctrl := gomock.NewController(assert.Tracing(t))
-	defer ctrl.Finish()
+		// non-special tags
+		{
+			tags: []string{"a=b", "c=d"},
+			expectedAddTags: [][]interface{}{
+				{NewKVTag("a", "b"), NewKVTag("c", "d")},
+				{TagMatches("source", uuidRegex)},
+			},
+		},
 
-	mockStats := NewMockStats(ctrl)
+		// source, node, and tags
+		{
+			tags: []string{"a=b", "source=s", "node=n", "c=d"},
+			expectedAddTags: [][]interface{}{
+				{NewKVTag("a", "b"), NewKVTag("c", "d")},
+				{NewKVTag("node", "n")},
+				{TagMatches("source", "s-"+uuidRegex)},
+			},
+		},
 
-	mockStatsFromFlags := newMockStatsFromFlags(ctrl)
-	mockStatsFromFlags.EXPECT().Make().AnyTimes().Return(mockStats, nil)
+		// source, node from flags
+		{
+			tags:   []string{"a=b", "c=d"},
+			node:   "n",
+			source: "s",
+			expectedAddTags: [][]interface{}{
+				{NewKVTag("a", "b"), NewKVTag("c", "d")},
+				{NewKVTag("node", "n")},
+				{TagMatches("source", "s-"+uuidRegex)},
+			},
+		},
 
-	ff := &fromFlags{
-		backends: tbnflag.NewStringsWithConstraint(
-			"mock",
-		),
-		tags: tbnflag.NewStrings(),
-		statsFromFlagses: map[string]statsFromFlags{
-			"mock": mockStatsFromFlags,
+		// unique source, node from flags
+		{
+			tags:         []string{"a=b", "c=d"},
+			node:         "n",
+			uniqueSource: "s",
+			expectedAddTags: [][]interface{}{
+				{NewKVTag("a", "b"), NewKVTag("c", "d")},
+				{NewKVTag("node", "n")},
+				{NewKVTag("source", "s")},
+			},
 		},
 	}
-	ff.backends.Set("mock")
 
-	mockStats.EXPECT().AddTags()
-	mockStats.EXPECT().AddTags(TagMatches("source", uuidRegex))
-	s, err := ff.Make()
-	assert.NonNil(t, s)
-	assert.Nil(t, err)
-
-	ff.tags.ResetDefault("a=b", "c=d")
-	mockStats.EXPECT().AddTags(NewKVTag("a", "b"), NewKVTag("c", "d"))
-	mockStats.EXPECT().AddTags(TagMatches("source", uuidRegex))
-	s, err = ff.Make()
-	assert.NonNil(t, s)
-	assert.Nil(t, err)
-
-	ff.tags.ResetDefault("a=b", "source=s", "node=n", "c=d")
-	mockStats.EXPECT().AddTags(
-		NewKVTag("a", "b"),
-		NewKVTag("c", "d"),
-	)
-	mockStats.EXPECT().AddTags(NewKVTag("node", "n"))
-	mockStats.EXPECT().AddTags(TagMatches("source", "s-"+uuidRegex))
-
-	s, err = ff.Make()
-	assert.NonNil(t, s)
-	assert.Nil(t, err)
-
-	ff.tags.ResetDefault("a=b", "c=d")
-	ff.sourceTag = "s"
-	ff.nodeTag = "n"
-	mockStats.EXPECT().AddTags(NewKVTag("a", "b"), NewKVTag("c", "d"))
-	mockStats.EXPECT().AddTags(TagMatches("source", "s-"+uuidRegex))
-	mockStats.EXPECT().AddTags(NewKVTag("node", "n"))
-	s, err = ff.Make()
-	assert.NonNil(t, s)
-	assert.Nil(t, err)
-
-	ff.tags.ResetDefault("a=b", "c=d")
-	ff.uniqueSourceTag = "s"
-	ff.nodeTag = "n"
-	mockStats.EXPECT().AddTags(NewKVTag("a", "b"), NewKVTag("c", "d"))
-	mockStats.EXPECT().AddTags(NewKVTag("source", "s"))
-	mockStats.EXPECT().AddTags(NewKVTag("node", "n"))
-	s, err = ff.Make()
-	assert.NonNil(t, s)
-	assert.Nil(t, err)
+	for _, tc := range testCases {
+		tc.check(t)
+	}
 }

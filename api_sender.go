@@ -28,66 +28,81 @@ type apiSender struct {
 	source string
 	zone   string
 	proxy  string
+	node   string
 }
 
-func (s *apiSender) toTagMap(tags []string) (map[string]string, *string, *string, time.Time) {
-	var (
-		proxy        *string
-		proxyVersion *string
-		tagsMap      map[string]string
-		ts           *time.Time
-	)
+type resolvedTags struct {
+	tagMap       map[string]string
+	node         *string
+	proxy        *string
+	proxyVersion *string
+	ts           time.Time
+}
+
+func (s *apiSender) toTagMap(tags []string) resolvedTags {
+	var ts *time.Time
+	resolved := resolvedTags{}
 
 	if len(tags) > 0 {
-		tagsMap = make(map[string]string, len(tags))
+		resolved.tagMap = make(map[string]string, len(tags))
 		for _, tag := range tags {
 			k, v := tbnstrings.SplitFirstEqual(tag)
 			switch k {
+			case NodeTag:
+				resolved.node = &v
+
 			case ProxyTag:
-				proxy = &v
+				resolved.proxy = &v
 
 			case ProxyVersionTag:
-				proxyVersion = &v
+				resolved.proxyVersion = &v
 
 			case TimestampTag:
 				if tsv, err := strconv.ParseInt(v, 10, 64); err == nil {
 					ts = ptr.Time(tbntime.FromUnixMilli(tsv))
 				} else {
-					tagsMap[k] = v
+					resolved.tagMap[k] = v
 				}
 
 			default:
-				tagsMap[k] = v
+				resolved.tagMap[k] = v
 			}
 		}
 	}
 
-	if ts == nil {
-		ts = ptr.Time(time.Now())
+	if ts != nil {
+		resolved.ts = *ts
+	} else {
+		resolved.ts = time.Now()
 	}
 
-	if proxy == nil && s.proxy != "" {
-		proxy = &s.proxy
+	if resolved.node == nil && s.node != "" {
+		resolved.node = &s.node
 	}
 
-	return tagsMap, proxy, proxyVersion, *ts
+	if resolved.proxy == nil && s.proxy != "" {
+		resolved.proxy = &s.proxy
+	}
+
+	return resolved
 }
 
 func (s *apiSender) Count(stat string, value float64, tags ...string) {
-	tagMap, proxy, proxyVersion, ts := s.toTagMap(tags)
+	resolvedTags := s.toTagMap(tags)
 
 	s.svc.ForwardV2(
 		&stats.Payload{
 			Source:       s.source,
+			Node:         resolvedTags.node,
 			Zone:         s.zone,
-			Proxy:        proxy,
-			ProxyVersion: proxyVersion,
+			Proxy:        resolvedTags.proxy,
+			ProxyVersion: resolvedTags.proxyVersion,
 			Stats: []stats.Stat{
 				{
 					Name:      stat,
 					Count:     &value,
-					Timestamp: tbntime.ToUnixMilli(ts),
-					Tags:      tagMap,
+					Timestamp: tbntime.ToUnixMilli(resolvedTags.ts),
+					Tags:      resolvedTags.tagMap,
 				},
 			},
 		},
@@ -95,20 +110,21 @@ func (s *apiSender) Count(stat string, value float64, tags ...string) {
 }
 
 func (s *apiSender) Gauge(stat string, value float64, tags ...string) {
-	tagMap, proxy, proxyVersion, ts := s.toTagMap(tags)
+	resolvedTags := s.toTagMap(tags)
 
 	s.svc.ForwardV2(
 		&stats.Payload{
 			Source:       s.source,
+			Node:         resolvedTags.node,
 			Zone:         s.zone,
-			Proxy:        proxy,
-			ProxyVersion: proxyVersion,
+			Proxy:        resolvedTags.proxy,
+			ProxyVersion: resolvedTags.proxyVersion,
 			Stats: []stats.Stat{
 				{
 					Name:      stat,
 					Gauge:     &value,
-					Timestamp: tbntime.ToUnixMilli(ts),
-					Tags:      tagMap,
+					Timestamp: tbntime.ToUnixMilli(resolvedTags.ts),
+					Tags:      resolvedTags.tagMap,
 				},
 			},
 		},
@@ -116,20 +132,21 @@ func (s *apiSender) Gauge(stat string, value float64, tags ...string) {
 }
 
 func (s *apiSender) Histogram(stat string, value float64, tags ...string) {
-	tagMap, proxy, proxyVersion, ts := s.toTagMap(tags)
+	resolvedTags := s.toTagMap(tags)
 
 	s.svc.ForwardV2(
 		&stats.Payload{
 			Source:       s.source,
+			Node:         resolvedTags.node,
 			Zone:         s.zone,
-			Proxy:        proxy,
-			ProxyVersion: proxyVersion,
+			Proxy:        resolvedTags.proxy,
+			ProxyVersion: resolvedTags.proxyVersion,
 			Stats: []stats.Stat{
 				{
 					Name:      stat,
 					Gauge:     &value,
-					Timestamp: tbntime.ToUnixMilli(ts),
-					Tags:      tagMap,
+					Timestamp: tbntime.ToUnixMilli(resolvedTags.ts),
+					Tags:      resolvedTags.tagMap,
 				},
 			},
 		},
@@ -141,7 +158,7 @@ func (s *apiSender) Timing(stat string, value time.Duration, tags ...string) {
 }
 
 func (s *apiSender) LatchedHistogram(stat string, h LatchedHistogram, tags ...string) {
-	tagMap, proxy, proxyVersion, ts := s.toTagMap(tags)
+	resolvedTags := s.toTagMap(tags)
 
 	histo := &stats.Histogram{
 		Buckets: make([]int64, len(h.Buckets)),
@@ -164,16 +181,17 @@ func (s *apiSender) LatchedHistogram(stat string, h LatchedHistogram, tags ...st
 	s.svc.ForwardV2(
 		&stats.Payload{
 			Source:       s.source,
+			Node:         resolvedTags.node,
 			Zone:         s.zone,
-			Proxy:        proxy,
-			ProxyVersion: proxyVersion,
+			Proxy:        resolvedTags.proxy,
+			ProxyVersion: resolvedTags.proxyVersion,
 			Limits:       map[string][]float64{v2.DefaultLimitName: limits},
 			Stats: []stats.Stat{
 				{
 					Name:      stat,
 					Histogram: histo,
-					Timestamp: tbntime.ToUnixMilli(ts),
-					Tags:      tagMap,
+					Timestamp: tbntime.ToUnixMilli(resolvedTags.ts),
+					Tags:      resolvedTags.tagMap,
 				},
 			},
 		},
