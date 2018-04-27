@@ -80,6 +80,32 @@ func TestNewAPIStatsFromFlagsOptions(t *testing.T) {
 	s, err = ff.Make()
 	assert.Nil(t, err)
 	assert.NonNil(t, s)
+
+	fs = tbnflag.NewTestFlagSet().Scope("api", "")
+	ff = newAPIStatsFromFlags(
+		fs,
+		SetStatsClientFromFlags(mockStatsClientFromFlags),
+		SetZoneFromFlags(mockZoneFromFlags),
+		AllowEmptyAPIKey(),
+	)
+
+	mockStatsClientFromFlags.EXPECT().APIKey().Return("")
+	assert.Nil(t, ff.Validate())
+
+	// validation proceeds if api key is set
+	mockStatsClientFromFlags.EXPECT().APIKey().Return("key")
+	mockZoneFromFlags.EXPECT().Name().Return("")
+	assert.ErrorContains(t, ff.Validate(), "zone-name must be specified for API stats backend")
+
+	mockStatsClientFromFlags.EXPECT().APIKey().Return("")
+
+	ffImpl = ff.(*apiStatsFromFlags)
+	assert.NonNil(t, ffImpl)
+	s, err = ff.Make()
+	assert.Nil(t, err)
+	assert.NonNil(t, s)
+	_, ok := s.(*noop)
+	assert.True(t, ok)
 }
 
 func TestAPIStatsScope(t *testing.T) {

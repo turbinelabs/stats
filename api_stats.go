@@ -9,6 +9,7 @@ import (
 	apiflags "github.com/turbinelabs/api/client/flags"
 	"github.com/turbinelabs/api/service/stats"
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
+	"github.com/turbinelabs/nonstdlib/log/console"
 )
 
 const (
@@ -44,6 +45,14 @@ func SetZoneFromFlags(zoneFromFlags apiflags.ZoneFromFlags) APIStatsOption {
 func SetLogger(logger *log.Logger) APIStatsOption {
 	return func(ff *apiStatsFromFlags) {
 		ff.logger = logger
+	}
+}
+
+// AllowEmptyAPIKey configures the API StatsFromFlags to produce a NopStats in
+// the case where no API key is specified
+func AllowEmptyAPIKey() APIStatsOption {
+	return func(ff *apiStatsFromFlags) {
+		ff.allowEmptyAPIKey = true
 	}
 }
 
@@ -84,10 +93,14 @@ type apiStatsFromFlags struct {
 	zoneFromFlags           apiflags.ZoneFromFlags
 	statsClientFromFlags    apiflags.StatsClientFromFlags
 	latchingSenderFromFlags *latchingSenderFromFlags
+	allowEmptyAPIKey        bool
 }
 
 func (ff *apiStatsFromFlags) Validate() error {
 	if ff.statsClientFromFlags.APIKey() == "" {
+		if ff.allowEmptyAPIKey {
+			return nil
+		}
 		return errors.New("API key must be specified for API stats backend")
 	}
 
@@ -105,6 +118,10 @@ func (ff *apiStatsFromFlags) Validate() error {
 }
 
 func (ff *apiStatsFromFlags) Make() (Stats, error) {
+	if ff.allowEmptyAPIKey && ff.statsClientFromFlags.APIKey() == "" {
+		console.Info().Println("No API key specified, the API stats backend will not be configured.")
+		return NewNoopStats(), nil
+	}
 	logger := ff.logger
 	if logger == nil {
 		logger = log.New(os.Stderr, "stats: ", log.LstdFlags)
