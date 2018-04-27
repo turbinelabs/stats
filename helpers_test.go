@@ -39,27 +39,6 @@ func TestLatency(t *testing.T) {
 	})
 }
 
-func TestLatencyWithSimulatedClockReset(t *testing.T) {
-	defer resetLatencyTimeSource()
-
-	tbntime.WithCurrentTimeFrozen(func(cs tbntime.ControlledSource) {
-		ctrl := gomock.NewController(assert.Tracing(t))
-		defer ctrl.Finish()
-
-		latencyTimeSource = cs
-
-		mockStats := NewMockStats(ctrl)
-
-		f := Latency(mockStats)
-
-		cs.Advance(-100 * time.Millisecond)
-
-		mockStats.EXPECT().Timing(LatencyStat, 0*time.Millisecond)
-
-		f()
-	})
-}
-
 func TestLatencyWithTags(t *testing.T) {
 	defer resetLatencyTimeSource()
 
