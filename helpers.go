@@ -30,7 +30,7 @@ func Latency(s Stats, tags ...Tag) func() {
 		delta := latencyTimeSource.Now().Sub(start)
 
 		// Handle clock resets with something approximating grace.
-		// TODO: go1.9 may obviate this:
+		// TODO: go1.10.1 may obviate this:
 		// https://github.com/golang/proposal/blob/master/design/12914-monotonic.md
 		if delta < 0 {
 			delta = 0
