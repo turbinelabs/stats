@@ -1,7 +1,7 @@
 package stats
 
 import (
-	"fmt"
+	"errors"
 	"log"
 	"os"
 	"time"
@@ -57,10 +57,6 @@ func newAPIStatsFromFlags(fs tbnflag.FlagSet, options ...APIStatsOption) statsFr
 		apply(ff)
 	}
 
-	if ff.zoneFromFlags == nil {
-		ff.zoneFromFlags = apiflags.NewZoneFromFlags(fs)
-	}
-
 	if ff.statsClientFromFlags == nil {
 		apiConfigFromFlags := apiflags.NewAPIConfigFromFlags(
 			fs,
@@ -92,11 +88,13 @@ type apiStatsFromFlags struct {
 
 func (ff *apiStatsFromFlags) Validate() error {
 	if ff.statsClientFromFlags.APIKey() == "" {
-		return fmt.Errorf("--%skey must be specified", ff.flagScope)
+		return errors.New("API key must be specified for API stats backend")
 	}
 
-	if ff.zoneFromFlags.Name() == "" {
-		return fmt.Errorf("--%szone-name must be specified", ff.flagScope)
+	// ok for zone to be empty, but if a zoneFromFlags was configured, it had
+	// better have a value.
+	if ff.zoneFromFlags != nil && ff.zoneFromFlags.Name() == "" {
+		return errors.New("zone-name must be specified for API stats backend")
 	}
 
 	if err := ff.statsClientFromFlags.Validate(); err != nil {
@@ -117,10 +115,15 @@ func (ff *apiStatsFromFlags) Make() (Stats, error) {
 		return nil, err
 	}
 
+	var zone string
+	if ff.zoneFromFlags != nil {
+		zone = ff.zoneFromFlags.Name()
+	}
+
 	sender := &apiSender{
 		svc:    statsClient,
 		source: unspecified,
-		zone:   ff.zoneFromFlags.Name(),
+		zone:   zone,
 	}
 
 	wrappedSender := ff.latchingSenderFromFlags.Make(sender, apiCleaner)

@@ -36,6 +36,7 @@ type resolvedTags struct {
 	node         *string
 	proxy        *string
 	proxyVersion *string
+	zone         string
 	ts           time.Time
 }
 
@@ -64,6 +65,9 @@ func (s *apiSender) toTagMap(tags []string) resolvedTags {
 					resolved.tagMap[k] = v
 				}
 
+			case ZoneTag:
+				resolved.zone = v
+
 			default:
 				resolved.tagMap[k] = v
 			}
@@ -84,6 +88,10 @@ func (s *apiSender) toTagMap(tags []string) resolvedTags {
 		resolved.proxy = &s.proxy
 	}
 
+	if resolved.zone == "" && s.zone != "" {
+		resolved.zone = s.zone
+	}
+
 	return resolved
 }
 
@@ -94,7 +102,7 @@ func (s *apiSender) Count(stat string, value float64, tags ...string) {
 		&stats.Payload{
 			Source:       s.source,
 			Node:         resolvedTags.node,
-			Zone:         s.zone,
+			Zone:         resolvedTags.zone,
 			Proxy:        resolvedTags.proxy,
 			ProxyVersion: resolvedTags.proxyVersion,
 			Stats: []stats.Stat{
@@ -116,7 +124,7 @@ func (s *apiSender) Gauge(stat string, value float64, tags ...string) {
 		&stats.Payload{
 			Source:       s.source,
 			Node:         resolvedTags.node,
-			Zone:         s.zone,
+			Zone:         resolvedTags.zone,
 			Proxy:        resolvedTags.proxy,
 			ProxyVersion: resolvedTags.proxyVersion,
 			Stats: []stats.Stat{
@@ -138,7 +146,7 @@ func (s *apiSender) Histogram(stat string, value float64, tags ...string) {
 		&stats.Payload{
 			Source:       s.source,
 			Node:         resolvedTags.node,
-			Zone:         s.zone,
+			Zone:         resolvedTags.zone,
 			Proxy:        resolvedTags.proxy,
 			ProxyVersion: resolvedTags.proxyVersion,
 			Stats: []stats.Stat{
@@ -182,7 +190,7 @@ func (s *apiSender) LatchedHistogram(stat string, h LatchedHistogram, tags ...st
 		&stats.Payload{
 			Source:       s.source,
 			Node:         resolvedTags.node,
-			Zone:         s.zone,
+			Zone:         resolvedTags.zone,
 			Proxy:        resolvedTags.proxy,
 			ProxyVersion: resolvedTags.proxyVersion,
 			Limits:       map[string][]float64{v2.DefaultLimitName: limits},

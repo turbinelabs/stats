@@ -216,7 +216,7 @@ func TestAPISenderTags(t *testing.T) {
 	s := NewAPIStats(mockSvc)
 	s.AddTags(
 		NewKVTag(SourceTag, "sourcery"),
-		NewKVTag(ZoneTag, "zone"),
+		NewKVTag(ZoneTag, "default-zone"),
 		NewKVTag(ProxyTag, "default-proxy"),
 	)
 
@@ -229,12 +229,13 @@ func TestAPISenderTags(t *testing.T) {
 		NewKVTag(NodeTag, "nodule"),
 		NewKVTag(ProxyTag, "proximate"),
 		NewKVTag(ProxyVersionTag, "1.2.3"),
+		NewKVTag(ZoneTag, "zonimate"),
 	)
 
 	payload := payloadCaptor.V.(*stats.Payload)
 	assert.Equal(t, payload.Source, "sourcery")
 	assert.Equal(t, ptr.StringValue(payload.Node), "nodule")
-	assert.Equal(t, payload.Zone, "zone")
+	assert.Equal(t, payload.Zone, "zonimate")
 	assert.Equal(t, ptr.StringValue(payload.Proxy), "proximate")
 	assert.Equal(t, ptr.StringValue(payload.ProxyVersion), "1.2.3")
 	assert.Equal(t, len(payload.Stats), 1)
@@ -251,7 +252,7 @@ func TestAPISenderTags(t *testing.T) {
 
 	payload = payloadCaptor.V.(*stats.Payload)
 	assert.Equal(t, payload.Source, "sourcery")
-	assert.Equal(t, payload.Zone, "zone")
+	assert.Equal(t, payload.Zone, "default-zone")
 	assert.Equal(t, ptr.StringValue(payload.Proxy), "default-proxy")
 	assert.Nil(t, payload.ProxyVersion)
 	assert.Equal(t, len(payload.Stats), 1)
@@ -266,11 +267,13 @@ func TestAPISenderTags(t *testing.T) {
 		NewKVTag("d", "2"),
 		NewKVTag(ProxyTag, "proximal"),
 		NewKVTag(ProxyVersionTag, "2.3.4"),
+		NewKVTag(ZoneTag, "zonimate"),
 	)
 
 	payload = payloadCaptor.V.(*stats.Payload)
 	assert.Equal(t, ptr.StringValue(payload.Proxy), "proximal")
 	assert.Equal(t, ptr.StringValue(payload.ProxyVersion), "2.3.4")
+	assert.Equal(t, payload.Zone, "zonimate")
 	assert.Equal(t, len(payload.Stats), 1)
 	assert.Equal(t, ptr.Float64Value(payload.Stats[0].Gauge), 2.0)
 	assert.MapEqual(t, payload.Stats[0].Tags, map[string]string{"c": "1", "d": "2"})

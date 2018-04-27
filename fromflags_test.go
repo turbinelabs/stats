@@ -21,13 +21,20 @@ const uuidRegex = "[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}"
 type validateTestCase struct {
 	args                []string
 	expectErrorContains string
+	noZoneFromFlags     bool
 }
 
 func (vtc *validateTestCase) check(t *testing.T) {
 	desc := strings.Join(vtc.args, " ")
 	assert.Group(desc, t, func(g *assert.G) {
 		fs := flag.NewFlagSet("stats test flags", flag.ContinueOnError)
-		ff := NewFromFlags(tbnflag.Wrap(fs), EnableAPIStatsBackend())
+		options := []Option{EnableAPIStatsBackend()}
+		tbnfs := tbnflag.Wrap(fs)
+		if !vtc.noZoneFromFlags {
+			zoneFromFlags := apiflags.NewZoneFromFlags(tbnfs.Scope("api", "API"))
+			options = append(options, APIStatsOptions(SetZoneFromFlags(zoneFromFlags)))
+		}
+		ff := NewFromFlags(tbnfs, options...)
 		err := fs.Parse(vtc.args)
 		if strings.HasPrefix(vtc.expectErrorContains, "PARSER:") {
 			expectedErr := strings.TrimSpace(vtc.expectErrorContains[7:])
@@ -130,269 +137,267 @@ func TestFromFlagsValidate(t *testing.T) {
 	testCases := []validateTestCase{
 		// no backends
 		{
-			[]string{},
-			"no backends specified",
+			args:                []string{},
+			expectErrorContains: "no backends specified",
 		},
 		// dogstatsd
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--dogstatsd.host=nope:nope",
 			},
-			"--dogstatsd.host or --dogstatsd.port is invalid",
+			expectErrorContains: "--dogstatsd.host or --dogstatsd.port is invalid",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--dogstatsd.flush-interval=0",
 			},
-			"--dogstatsd.flush-interval must be greater than zero",
+			expectErrorContains: "--dogstatsd.flush-interval must be greater than zero",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--dogstatsd.latch=true",
 			},
-			"",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--dogstatsd.latch=true",
 				"--dogstatsd.latch.window=0",
 			},
-			"--dogstatsd.latch.window must be greater than 0",
+			expectErrorContains: "--dogstatsd.latch.window must be greater than 0",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--dogstatsd.latch=true",
 				"--dogstatsd.latch.base-value=0",
 			},
-			"--dogstatsd.latch.base-value must be greater than 0",
+			expectErrorContains: "--dogstatsd.latch.base-value must be greater than 0",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--dogstatsd.latch=true",
 				"--dogstatsd.latch.buckets=1",
 			},
-			"--dogstatsd.latch.buckets must be greater than 1",
+			expectErrorContains: "--dogstatsd.latch.buckets must be greater than 1",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--dogstatsd.latch=true",
 				"--dogstatsd.latch.window=1m",
 				"--dogstatsd.latch.base-value=1",
 				"--dogstatsd.latch.buckets=8",
 			},
-			"",
 		},
 		// prometheus
 		{
-			[]string{
+			args: []string{
 				"--backends=prometheus",
 				"--prometheus.addr=nope",
 			},
-			"PARSER: -prometheus.addr: address nope: missing port",
+			expectErrorContains: "PARSER: -prometheus.addr: address nope: missing port",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=prometheus",
 				"--prometheus.addr=127.0.0.1:9000",
 			},
-			"",
 		},
 		// statsd
 		{
-			[]string{
+			args: []string{
 				"--backends=statsd",
 				"--statsd.host=nope:nope",
 			},
-			"--statsd.host or --statsd.port is invalid",
+			expectErrorContains: "--statsd.host or --statsd.port is invalid",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=statsd",
 				"--statsd.flush-interval=0",
 			},
-			"--statsd.flush-interval must be greater than zero",
+			expectErrorContains: "--statsd.flush-interval must be greater than zero",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=statsd",
 				"--statsd.flush-interval=1s",
 			},
-			"",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=statsd",
 				"--statsd.latch=true",
 			},
-			"",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=statsd",
 				"--statsd.latch=true",
 				"--statsd.latch.window=0",
 			},
-			"--statsd.latch.window must be greater than 0",
+			expectErrorContains: "--statsd.latch.window must be greater than 0",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=statsd",
 				"--statsd.latch=true",
 				"--statsd.latch.base-value=0",
 			},
-			"--statsd.latch.base-value must be greater than 0",
+			expectErrorContains: "--statsd.latch.base-value must be greater than 0",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=statsd",
 				"--statsd.latch=true",
 				"--statsd.latch.buckets=1",
 			},
-			"--statsd.latch.buckets must be greater than 1",
+			expectErrorContains: "--statsd.latch.buckets must be greater than 1",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=statsd",
 				"--statsd.latch=true",
 				"--statsd.latch.window=1m",
 				"--statsd.latch.base-value=1",
 				"--statsd.latch.buckets=8",
 			},
-			"",
 		},
 		// wavefront
 		{
-			[]string{
+			args: []string{
 				"--backends=wavefront",
 				"--wavefront.host=nope:nope",
 			},
-			"--wavefront.host or --wavefront.port is invalid",
+			expectErrorContains: "--wavefront.host or --wavefront.port is invalid",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=wavefront",
 				"--wavefront.flush-interval=0",
 			},
-			"--wavefront.flush-interval must be greater than zero",
+			expectErrorContains: "--wavefront.flush-interval must be greater than zero",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=wavefront",
 				"--wavefront.flush-interval=1s",
 			},
-			"",
+			expectErrorContains: "",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=wavefront",
 				"--wavefront.latch=true",
 			},
-			"",
+			expectErrorContains: "",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=wavefront",
 				"--wavefront.latch=true",
 				"--wavefront.latch.window=0",
 			},
-			"--wavefront.latch.window must be greater than 0",
+			expectErrorContains: "--wavefront.latch.window must be greater than 0",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=wavefront",
 				"--wavefront.latch=true",
 				"--wavefront.latch.base-value=0",
 			},
-			"--wavefront.latch.base-value must be greater than 0",
+			expectErrorContains: "--wavefront.latch.base-value must be greater than 0",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=wavefront",
 				"--wavefront.latch=true",
 				"--wavefront.latch.buckets=1",
 			},
-			"--wavefront.latch.buckets must be greater than 1",
+			expectErrorContains: "--wavefront.latch.buckets must be greater than 1",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=wavefront",
 				"--wavefront.latch=true",
 				"--wavefront.latch.window=1m",
 				"--wavefront.latch.base-value=1",
 				"--wavefront.latch.buckets=8",
 			},
-			"",
 		},
 		// api
 		{
-			[]string{
+			args: []string{
 				"--backends=api",
 			},
-			"--api.key must be specified",
+			expectErrorContains: "API key must be specified for API stats backend",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=api",
 				"--api.key=keyzor",
 			},
-			"--api.zone-name must be specified",
+			expectErrorContains: "zone-name must be specified for API stats backend",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=api",
 				"--api.key=keyzor",
 				"--api.zone-name=zoner",
 			},
-			"",
 		},
 		{
-			[]string{
+			args: []string{
+				"--backends=api",
+				"--api.key=keyzor",
+			},
+			noZoneFromFlags: true,
+		},
+		{
+			args: []string{
 				"--backends=api",
 				"--api.key=keyzor",
 				"--api.zone-name=zoner",
 				"--api.latch=true",
 			},
-			"",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=api",
 				"--api.key=keyzor",
 				"--api.zone-name=zoner",
 				"--api.latch=true",
 				"--api.latch.window=0",
 			},
-			"--api.latch.window must be greater than 0",
+			expectErrorContains: "--api.latch.window must be greater than 0",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=api",
 				"--api.key=keyzor",
 				"--api.zone-name=zoner",
 				"--api.latch=true",
 				"--api.latch.base-value=0",
 			},
-			"--api.latch.base-value must be greater than 0",
+			expectErrorContains: "--api.latch.base-value must be greater than 0",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=api",
 				"--api.key=keyzor",
 				"--api.zone-name=zoner",
 				"--api.latch=true",
 				"--api.latch.buckets=1",
 			},
-			"--api.latch.buckets must be greater than 1",
+			expectErrorContains: "--api.latch.buckets must be greater than 1",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=api",
 				"--api.key=keyzor",
 				"--api.zone-name=zoner",
@@ -401,99 +406,96 @@ func TestFromFlagsValidate(t *testing.T) {
 				"--api.latch.base-value=1",
 				"--api.latch.buckets=8",
 			},
-			"",
 		},
-
 		// node, source, unique-source, and tags
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--node=xyz",
 				"--source=pdq",
 				"--tags=other",
 			},
-			"",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--node=xyz",
 				"--tags=node=notxyz",
 			},
-			"cannot combine --tags=node=... with --node",
+			expectErrorContains: "cannot combine --tags=node=... with --node",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--tags=node=xyz,node=notxyz",
 			},
-			"cannot specify multiple tags named node",
+			expectErrorContains: "cannot specify multiple tags named node",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--node=" + strings.Repeat("X", maxSourceLen+1),
 			},
-			"--node or --tags=node=... may not be longer than 256 bytes",
+			expectErrorContains: "--node or --tags=node=... may not be longer than 256 bytes",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--tags=node=" + strings.Repeat("X", maxSourceLen+1),
 			},
-			"--node or --tags=node=... may not be longer than 256 bytes",
+			expectErrorContains: "--node or --tags=node=... may not be longer than 256 bytes",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--source=xyz",
 				"--tags=source=notxyz",
 			},
-			"cannot combine --tags=source=... with --source or --unique-source",
+			expectErrorContains: "cannot combine --tags=source=... with --source or --unique-source",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--tags=source=xyz,source=notxyz",
 			},
-			"cannot specify multiple tags named source",
+			expectErrorContains: "cannot specify multiple tags named source",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--unique-source=xyz",
 				"--tags=source=notxyz",
 			},
-			"cannot combine --tags=source=... with --source or --unique-source",
+			expectErrorContains: "cannot combine --tags=source=... with --source or --unique-source",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--source=xyz",
 				"--unique-source=pdq",
 			},
-			"cannot combine --tags=source=... with --source or --unique-source",
+			expectErrorContains: "cannot combine --tags=source=... with --source or --unique-source",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--source=" + strings.Repeat("X", maxSourceLen+1),
 			},
-			"--source or --tags=source=... may not be longer than 256 bytes",
+			expectErrorContains: "--source or --tags=source=... may not be longer than 256 bytes",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--tags=source=" + strings.Repeat("X", maxSourceLen+1),
 			},
-			"--source or --tags=source=... may not be longer than 256 bytes",
+			expectErrorContains: "--source or --tags=source=... may not be longer than 256 bytes",
 		},
 		{
-			[]string{
+			args: []string{
 				"--backends=dogstatsd",
 				"--unique-source=" + strings.Repeat("X", maxSourceLen+1),
 			},
-			"--unique-source may not be longer than 256 bytes",
+			expectErrorContains: "--unique-source may not be longer than 256 bytes",
 		},
 	}
 

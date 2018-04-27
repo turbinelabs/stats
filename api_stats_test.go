@@ -39,11 +39,11 @@ func TestNewAPIStatsFromFlagsOptions(t *testing.T) {
 	assert.SameInstance(t, ffImpl.statsClientFromFlags, mockStatsClientFromFlags)
 
 	mockStatsClientFromFlags.EXPECT().APIKey().Return("")
-	assert.ErrorContains(t, ff.Validate(), "--api.key must be specified")
+	assert.ErrorContains(t, ff.Validate(), "API key must be specified for API stats backend")
 
 	mockStatsClientFromFlags.EXPECT().APIKey().Return("key")
 	mockZoneFromFlags.EXPECT().Name().Return("")
-	assert.ErrorContains(t, ff.Validate(), "--api.zone-name must be specified")
+	assert.ErrorContains(t, ff.Validate(), "zone-name must be specified for API stats backend")
 
 	e := errors.New("boom")
 	mockStatsClientFromFlags.EXPECT().APIKey().Return("key")
