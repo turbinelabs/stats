@@ -1,0 +1,12 @@
+ignored = [
+  "github.com/turbinelabs/api*",
+  "github.com/turbinelabs/idgen*",
+  "github.com/turbinelabs/nonstdlib*",
+  "github.com/turbinelabs/test*",
+  "github.com/golang/mock*",
+  "golang.org/x/net*",
+]
+
+[[constraint]]
+  name = "github.com/rs/xstats"
+  revision = "c67367528e160e557423e4d87059614d8c31a582"
