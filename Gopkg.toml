@@ -4,8 +4,11 @@ ignored = [
   "github.com/turbinelabs/nonstdlib*",
   "github.com/turbinelabs/test*",
   "github.com/golang/mock*",
-  "golang.org/x/net*",
 ]
+
+[prune]
+  unused-packages = true
+  go-tests = true
 
 [[constraint]]
   name = "github.com/rs/xstats"
