@@ -1,6 +1,7 @@
 package stats
 
-//go:generate $TBN_HOME/scripts/mockgen_internal.sh -type latchableSender -source $GOFILE -destination mock_$GOFILE -package $GOPACKAGE -aux_files xstats=$TBN_HOME/vendor/github.com/rs/xstats/sender.go
+// TODO currently this can't be executed from the open source project
+//go:generate $TBN_HOME/scripts/mockgen_internal.sh -type latchableSender -source $GOFILE -destination mock_$GOFILE -package $GOPACKAGE -aux_files xstats=vendor/github.com/rs/xstats/sender.go
 
 import (
 	"crypto/md5"
