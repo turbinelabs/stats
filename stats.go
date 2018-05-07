@@ -1,3 +1,21 @@
+/*
+Copyright 2018 Turbine Labs, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package stats provides a standard Stats interface to a variety of underlying
+// backends, along with a means to configure it from command line flags.
 package stats
 
 import (
@@ -7,7 +25,7 @@ import (
 	"github.com/rs/xstats"
 )
 
-//go:generate mockgen -source $GOFILE -destination mock_$GOFILE -package $GOPACKAGE
+//go:generate mockgen -source $GOFILE -destination mock_$GOFILE -package $GOPACKAGE --write_package_comment=false
 
 // Stats is an interface to an underlying stats backend. Tags are ignored
 // for backends that do not support them.
