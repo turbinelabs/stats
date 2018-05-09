@@ -51,15 +51,5 @@ func newDogstatsdFromFlags(fs tbnflag.FlagSet) statsFromFlags {
 }
 
 func (ff *dogstatsdFromFlags) Make() (Stats, error) {
-	w, err := ff.mkUDPWriter()
-	if err != nil {
-		return nil, err
-	}
-
-	underlying := ff.lsff.Make(
-		dogstatsd.NewMaxPacket(w, ff.flushInterval, ff.maxPacketLen),
-		dogstatsdCleaner,
-	)
-
-	return newFromSender(underlying, dogstatsdCleaner, ff.scope, true), nil
+	return ff.makeInternal(dogstatsd.NewMaxPacket, dogstatsdCleaner)
 }

@@ -128,15 +128,10 @@ func newWavefrontFromFlags(fs tbnflag.FlagSet) statsFromFlags {
 }
 
 func (ff *wavefrontFromFlags) Make() (Stats, error) {
-	w, err := ff.mkUDPWriter()
-	if err != nil {
-		return nil, err
-	}
-
-	underlying := ff.lsff.Make(
-		&wavefrontSender{statsd.NewMaxPacket(w, ff.flushInterval, ff.maxPacketLen)},
+	return ff.makeInternal(
+		func(w io.Writer, flushInterval time.Duration, maxPacketLen int) xstats.Sender {
+			return &wavefrontSender{statsd.NewMaxPacket(w, ff.flushInterval, ff.maxPacketLen)}
+		},
 		wavefrontCleaner,
 	)
-
-	return newFromSender(underlying, wavefrontCleaner, ff.scope, true), nil
 }

@@ -23,6 +23,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/rs/xstats"
 	"github.com/rs/xstats/statsd"
 
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
@@ -52,13 +53,22 @@ type statsdFromFlags struct {
 	maxPacketLen  int
 	flushInterval time.Duration
 	scope         string
+	dsff          *demuxingSenderFromFlags
 	lsff          *latchingSenderFromFlags
 	debug         bool
 }
 
+// mkStatsdSenderFunc allows alternate statsd-look-alike APIs to reuse statsdFromFlags.
+type mkStatsdSenderFunc func(
+	netWriter io.Writer,
+	flushInterval time.Duration,
+	maxPacketLen int,
+) xstats.Sender
+
 func newStatsdFromFlags(fs tbnflag.FlagSet) *statsdFromFlags {
 	ff := &statsdFromFlags{
 		flagScope: fs.GetScope(),
+		dsff:      newDemuxingSenderFromFlags(fs),
 		lsff:      newLatchingSenderFromFlags(fs, false),
 	}
 
@@ -123,21 +133,35 @@ func (ff *statsdFromFlags) Validate() error {
 		return fmt.Errorf("--%sflush-interval must be greater than zero", ff.flagScope)
 	}
 
+	if err := ff.dsff.Validate(); err != nil {
+		return err
+	}
+
 	return ff.lsff.Validate()
 }
 
 func (ff *statsdFromFlags) Make() (Stats, error) {
+	return ff.makeInternal(statsd.NewMaxPacket, statsdCleaner)
+}
+
+func (ff *statsdFromFlags) makeInternal(mkSender mkStatsdSenderFunc, c cleaner) (Stats, error) {
 	w, err := ff.mkUDPWriter()
 	if err != nil {
 		return nil, err
 	}
 
-	underlying := ff.lsff.Make(
-		statsd.NewMaxPacket(w, ff.flushInterval, ff.maxPacketLen),
-		statsdCleaner,
-	)
+	underlying := mkSender(w, ff.flushInterval, ff.maxPacketLen)
 
-	return newFromSender(underlying, statsdCleaner, ff.scope, true), nil
+	// If latching is disabled, underlying is returned unchanged.
+	underlying = ff.lsff.Make(underlying, c)
+
+	// If demuxing is disabled, underlying is returned unchanged.
+	underlying, err = ff.dsff.Make(underlying, c)
+	if err != nil {
+		return nil, err
+	}
+
+	return newFromSender(underlying, c, ff.scope, true), nil
 }
 
 func (ff *statsdFromFlags) mkUDPWriter() (io.Writer, error) {

@@ -30,6 +30,7 @@ import (
 	apiflags "github.com/turbinelabs/api/client/flags"
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 	"github.com/turbinelabs/test/assert"
+	testio "github.com/turbinelabs/test/io"
 )
 
 const uuidRegex = "[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}"
@@ -44,6 +45,7 @@ func (vtc *validateTestCase) check(t *testing.T) {
 	desc := strings.Join(vtc.args, " ")
 	assert.Group(desc, t, func(g *assert.G) {
 		fs := flag.NewFlagSet("stats test flags", flag.ContinueOnError)
+		fs.SetOutput(testio.NewNoopWriter())
 		options := []Option{EnableAPIStatsBackend()}
 		tbnfs := tbnflag.Wrap(fs)
 		if !vtc.noZoneFromFlags {
