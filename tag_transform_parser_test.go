@@ -23,7 +23,6 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/golang/mock/gomock"
 	"github.com/turbinelabs/test/assert"
 )
 
@@ -229,11 +228,11 @@ func TestReadUntilDelimNoEOF(t *testing.T) {
 	}
 }
 
-func TestDemuxingSenderFromFlagsParseConfig(t *testing.T) {
+func TestParseTagTransforms(t *testing.T) {
 	testCases := []struct {
-		input             string
-		expectedDemuxTags []demuxTag
-		expectedErr       string
+		input                 string
+		expectedTagTransforms []tagTransform
+		expectedErr           string
 	}{
 		{
 			// no input
@@ -242,7 +241,7 @@ func TestDemuxingSenderFromFlagsParseConfig(t *testing.T) {
 		{
 			// simple
 			input: "name=/foo:(.+)/,foo",
-			expectedDemuxTags: []demuxTag{
+			expectedTagTransforms: []tagTransform{
 				{
 					name:        "name",
 					regex:       regexp.MustCompile("foo:(.+)"),
@@ -253,7 +252,7 @@ func TestDemuxingSenderFromFlagsParseConfig(t *testing.T) {
 		{
 			// simple ends with semicolon
 			input: "name=/foo:(.+)/,foo;",
-			expectedDemuxTags: []demuxTag{
+			expectedTagTransforms: []tagTransform{
 				{
 					name:        "name",
 					regex:       regexp.MustCompile("foo:(.+)"),
@@ -264,7 +263,7 @@ func TestDemuxingSenderFromFlagsParseConfig(t *testing.T) {
 		{
 			// escaped name
 			input: `na\=me=/foo:(.+)/,foo`,
-			expectedDemuxTags: []demuxTag{
+			expectedTagTransforms: []tagTransform{
 				{
 					name:        "na=me",
 					regex:       regexp.MustCompile("foo:(.+)"),
@@ -275,7 +274,7 @@ func TestDemuxingSenderFromFlagsParseConfig(t *testing.T) {
 		{
 			// backslashes in name
 			input: `na\\me=/foo:(.+)/,foo`,
-			expectedDemuxTags: []demuxTag{
+			expectedTagTransforms: []tagTransform{
 				{
 					name:        `na\me`,
 					regex:       regexp.MustCompile("foo:(.+)"),
@@ -286,7 +285,7 @@ func TestDemuxingSenderFromFlagsParseConfig(t *testing.T) {
 		{
 			// escaped mapped name
 			input: `na\=me=/foo:(.+)/,foo\,bar`,
-			expectedDemuxTags: []demuxTag{
+			expectedTagTransforms: []tagTransform{
 				{
 					name:        "na=me",
 					regex:       regexp.MustCompile("foo:(.+)"),
@@ -297,7 +296,7 @@ func TestDemuxingSenderFromFlagsParseConfig(t *testing.T) {
 		{
 			// two mapped names
 			input: "name=/foo:(.+),bar:(.+)/,foo,bar",
-			expectedDemuxTags: []demuxTag{
+			expectedTagTransforms: []tagTransform{
 				{
 					name:        "name",
 					regex:       regexp.MustCompile("foo:(.+),bar:(.+)"),
@@ -308,7 +307,7 @@ func TestDemuxingSenderFromFlagsParseConfig(t *testing.T) {
 		{
 			// alternate regex delimiter
 			input: "name=@foo:(.+)/bar:(.+)@,foo,bar",
-			expectedDemuxTags: []demuxTag{
+			expectedTagTransforms: []tagTransform{
 				{
 					name:        "name",
 					regex:       regexp.MustCompile("foo:(.+)/bar:(.+)"),
@@ -319,7 +318,7 @@ func TestDemuxingSenderFromFlagsParseConfig(t *testing.T) {
 		{
 			// escaped regex delimiter
 			input: `name=/foo:(.+)\/bar:(.+)/,foo,bar`,
-			expectedDemuxTags: []demuxTag{
+			expectedTagTransforms: []tagTransform{
 				{
 					name:        "name",
 					regex:       regexp.MustCompile("foo:(.+)/bar:(.+)"),
@@ -370,7 +369,7 @@ func TestDemuxingSenderFromFlagsParseConfig(t *testing.T) {
 		{
 			// multiple transforms
 			input: "a=/x:(.+)/,x;b=/y:(.+)/,y",
-			expectedDemuxTags: []demuxTag{
+			expectedTagTransforms: []tagTransform{
 				{
 					name:        "a",
 					regex:       regexp.MustCompile("x:(.+)"),
@@ -395,52 +394,20 @@ func TestDemuxingSenderFromFlagsParseConfig(t *testing.T) {
 			fmt.Sprintf("testCase[%d]: %s", i, testCase.input),
 			t,
 			func(g *assert.G) {
-				ff := &demuxingSenderFromFlags{
-					config: testCase.input,
-				}
-
-				demuxTags, err := ff.parseConfig()
-				assert.ArrayEqual(g, demuxTags, testCase.expectedDemuxTags)
+				transformer, err := parseTagTransforms(testCase.input)
 				if testCase.expectedErr != "" {
+					assert.Nil(t, transformer)
 					assert.ErrorContains(g, err, testCase.expectedErr)
 				} else {
+					assert.DeepEqual(
+						g,
+						transformer,
+						newTagTransformer(testCase.expectedTagTransforms),
+					)
 					assert.Nil(g, err)
 				}
 			},
 		)
 
 	}
-}
-
-func TestDemuxingSenderFromFlagsValidate(t *testing.T) {
-	ff := &demuxingSenderFromFlags{}
-	assert.Nil(t, ff.Validate())
-
-	ff = &demuxingSenderFromFlags{config: "valid=/a(bc)/,xyz"}
-	assert.Nil(t, ff.Validate())
-
-	ff = &demuxingSenderFromFlags{config: "this is invalid"}
-	assert.ErrorContains(t, ff.Validate(), "unexpected end of transformation")
-}
-
-func TestDemuxingSenderFromFlagsMake(t *testing.T) {
-	ctrl := gomock.NewController(assert.Tracing(t))
-	defer ctrl.Finish()
-
-	underlying := newMockXstatsSender(ctrl)
-
-	ff := &demuxingSenderFromFlags{}
-	s, err := ff.Make(underlying, testCleaner)
-	assert.SameInstance(t, s, underlying)
-	assert.Nil(t, err)
-
-	ff = &demuxingSenderFromFlags{config: "valid=/a(bc)/,xyz"}
-	s, err = ff.Make(underlying, testCleaner)
-	assert.NotSameInstance(t, s, underlying)
-	assert.Nil(t, err)
-
-	ff = &demuxingSenderFromFlags{config: "this is invalid"}
-	s, err = ff.Make(underlying, testCleaner)
-	assert.Nil(t, s)
-	assert.NonNil(t, err)
 }

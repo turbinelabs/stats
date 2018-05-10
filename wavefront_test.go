@@ -75,7 +75,6 @@ func TestWavefrontBackend(t *testing.T) {
 			host:          "127.0.0.1",
 			port:          port,
 			flushInterval: 10 * time.Millisecond,
-			dsff:          &demuxingSenderFromFlags{},
 			lsff:          &latchingSenderFromFlags{},
 		},
 	}
@@ -106,7 +105,6 @@ func TestWavefrontBackendWithScope(t *testing.T) {
 			host:          "127.0.0.1",
 			port:          port,
 			flushInterval: 10 * time.Millisecond,
-			dsff:          &demuxingSenderFromFlags{},
 			lsff:          &latchingSenderFromFlags{},
 			scope:         "x",
 		},

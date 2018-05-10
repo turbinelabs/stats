@@ -76,7 +76,9 @@ func TestClose(t *testing.T) {
 	defer ctrl.Finish()
 	mockSender := &closeableSender{Sender: newMockXstatsSender(ctrl)}
 
-	s := newFromSender(mockSender, newIdentityCleaner(), "", false).Scope("foo").Scope("bar", "baz")
+	s := newFromSender(mockSender, newIdentityCleaner(), "", nil, false).
+		Scope("foo").
+		Scope("bar", "baz")
 	assert.Nil(t, s.Close())
 	assert.True(t, mockSender.wasClosed)
 }
@@ -90,7 +92,9 @@ func TestCloseErr(t *testing.T) {
 		closeErr: errors.New("gah"),
 	}
 
-	s := newFromSender(mockSender, newIdentityCleaner(), "", false).Scope("foo").Scope("bar", "baz")
+	s := newFromSender(mockSender, newIdentityCleaner(), "", nil, false).
+		Scope("foo").
+		Scope("bar", "baz")
 	assert.ErrorContains(t, s.Close(), "could not close sender: gah")
 	assert.True(t, mockSender.wasClosed)
 }
@@ -107,7 +111,7 @@ func TestTypes(t *testing.T) {
 		mockSender.EXPECT().Timing("t", time.Second),
 	)
 
-	s := newFromSender(mockSender, newPrefixStrippingCleaner(), "", false)
+	s := newFromSender(mockSender, newPrefixStrippingCleaner(), "", nil, false)
 
 	s.Gauge("abc:g", 1.0)
 	s.Count("def:c", 2.0)
@@ -125,7 +129,9 @@ func TestScope(t *testing.T) {
 	mockSender.EXPECT().Histogram("foo.bar.baz.histo", 3.0)
 	mockSender.EXPECT().Timing("foo.bar.baz.time", time.Second)
 
-	s := newFromSender(mockSender, newIdentityCleaner(), "", false).Scope("foo").Scope("bar", "baz")
+	s := newFromSender(mockSender, newIdentityCleaner(), "", nil, false).
+		Scope("foo").
+		Scope("bar", "baz")
 	s.Gauge("gauge", 1.0)
 	s.Count("count", 2.0)
 	s.Histogram("histo", 3.0)
@@ -137,7 +143,7 @@ func TestScope(t *testing.T) {
 		StatusCodeTag+"=200",
 		StatusClassTag+"="+StatusClassSuccess,
 	)
-	s = newFromSender(mockSender, newIdentityCleaner(), "foo", true).Scope("bar", "baz")
+	s = newFromSender(mockSender, newIdentityCleaner(), "foo", nil, true).Scope("bar", "baz")
 	s.Gauge("gauge", 1.0, NewKVTag(StatusCodeTag, "200"))
 }
 
@@ -155,7 +161,7 @@ func TestTags(t *testing.T) {
 	mockSender.EXPECT().Histogram("histo", 3.0, "type=histogram", cleanCodeTag)
 	mockSender.EXPECT().Timing("time", time.Second, "type=timing", cleanCodeTag)
 
-	s := newFromSender(mockSender, newIdentityCleaner(), "", false)
+	s := newFromSender(mockSender, newIdentityCleaner(), "", nil, false)
 	s.Gauge("gauge", 1.0, NewKVTag("type", "gauge"), codeTag)
 	s.Count("count", 2.0, NewKVTag("type", "counter"), codeTag)
 	s.Histogram("histo", 3.0, NewKVTag("type", "histogram"), codeTag)
@@ -166,7 +172,7 @@ func TestTags(t *testing.T) {
 	mockSender.EXPECT().Histogram("histo", 3.0, "type=histogram", cleanCodeTag, cleanClassTag)
 	mockSender.EXPECT().Timing("time", time.Second, "type=timing", cleanCodeTag, cleanClassTag)
 
-	s = newFromSender(mockSender, newIdentityCleaner(), "", true)
+	s = newFromSender(mockSender, newIdentityCleaner(), "", nil, true)
 	s.Gauge("gauge", 1.0, NewKVTag("type", "gauge"), codeTag)
 	s.Count("count", 2.0, NewKVTag("type", "counter"), codeTag)
 	s.Histogram("histo", 3.0, NewKVTag("type", "histogram"), codeTag)
@@ -180,7 +186,7 @@ func TestAddTags(t *testing.T) {
 	mockSender := newMockXstatsSender(ctrl)
 	mockSender.EXPECT().Gauge("gauge", 1.0, "type=gauge", StatusCodeTag+"=200")
 
-	s := newFromSender(mockSender, newIdentityCleaner(), "", false)
+	s := newFromSender(mockSender, newIdentityCleaner(), "", nil, false)
 	s.AddTags(NewKVTag(StatusCodeTag, "200"))
 
 	s.Gauge("gauge", 1.0, NewKVTag("type", "gauge"))
@@ -193,7 +199,7 @@ func TestAddTags(t *testing.T) {
 		StatusClassTag+"="+StatusClassSuccess,
 	)
 
-	s = newFromSender(mockSender, newIdentityCleaner(), "", true)
+	s = newFromSender(mockSender, newIdentityCleaner(), "", nil, true)
 	s.AddTags(NewKVTag(StatusCodeTag, "200"))
 
 	s.Gauge("gauge", 1.0, NewKVTag("type", "gauge"))

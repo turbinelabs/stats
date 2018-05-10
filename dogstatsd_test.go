@@ -38,7 +38,6 @@ func TestDogstatsdBackend(t *testing.T) {
 			host:          "127.0.0.1",
 			port:          port,
 			flushInterval: 10 * time.Millisecond,
-			dsff:          &demuxingSenderFromFlags{},
 			lsff:          &latchingSenderFromFlags{},
 		},
 	}
@@ -69,7 +68,6 @@ func TestDogstatsdBackendWithScope(t *testing.T) {
 			host:          "127.0.0.1",
 			port:          port,
 			flushInterval: 10 * time.Millisecond,
-			dsff:          &demuxingSenderFromFlags{},
 			lsff:          &latchingSenderFromFlags{},
 			scope:         "x",
 		},
@@ -88,7 +86,7 @@ func TestDogstatsdBackendWithScope(t *testing.T) {
 	assert.Equal(t, <-l.Msgs, fmt.Sprintf("x.prefix.gauge:%f|g\n", 3.0))
 }
 
-func TestDogstatsdBackendWithTagDemuxing(t *testing.T) {
+func TestDogstatsdBackendWithTagTransform(t *testing.T) {
 	l := mkListener(t)
 	defer l.Close()
 
@@ -101,7 +99,7 @@ func TestDogstatsdBackendWithTagDemuxing(t *testing.T) {
 			host:          "127.0.0.1",
 			port:          port,
 			flushInterval: 10 * time.Millisecond,
-			dsff:          &demuxingSenderFromFlags{config: "taggity=/(.).*/,t"},
+			transforms:    "taggity=/(.).*/,t",
 			lsff:          &latchingSenderFromFlags{},
 			scope:         "x",
 		},
@@ -116,8 +114,14 @@ func TestDogstatsdBackendWithTagDemuxing(t *testing.T) {
 	scope.Count("count", 2.0, NewKVTag("taggity", "tag"))
 	assert.Equal(t, <-l.Msgs, fmt.Sprintf("x.prefix.count:%f|c|#taggity:tag,t:t\n", 2.0))
 
-	scope.Gauge("gauge", 3.0)
-	assert.Equal(t, <-l.Msgs, fmt.Sprintf("x.prefix.gauge:%f|g\n", 3.0))
+	scope.Gauge("gauge", 3.0, NewKVTag("taggity", "tag"))
+	assert.Equal(t, <-l.Msgs, fmt.Sprintf("x.prefix.gauge:%f|g|#taggity:tag,t:t\n", 3.0))
+
+	scope.Histogram("histo", 4.0, NewKVTag("taggity", "tag"))
+	assert.Equal(t, <-l.Msgs, fmt.Sprintf("x.prefix.histo:%f|h|#taggity:tag,t:t\n", 4.0))
+
+	scope.Histogram("timing", 5.0, NewKVTag("taggity", "tag"))
+	assert.Equal(t, <-l.Msgs, fmt.Sprintf("x.prefix.timing:%f|h|#taggity:tag,t:t\n", 5.0))
 }
 
 func TestDogstatsdCleanerCleanStatName(t *testing.T) {

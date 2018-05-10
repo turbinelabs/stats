@@ -88,7 +88,6 @@ func TestStatsdBackend(t *testing.T) {
 		host:          "127.0.0.1",
 		port:          port,
 		flushInterval: 10 * time.Millisecond,
-		dsff:          &demuxingSenderFromFlags{},
 		lsff:          &latchingSenderFromFlags{},
 	}
 
@@ -117,7 +116,6 @@ func TestStatsdBackendWithScope(t *testing.T) {
 		host:          "127.0.0.1",
 		port:          port,
 		flushInterval: 10 * time.Millisecond,
-		dsff:          &demuxingSenderFromFlags{},
 		lsff:          &latchingSenderFromFlags{},
 		scope:         "x",
 	}
@@ -135,12 +133,12 @@ func TestStatsdBackendWithScope(t *testing.T) {
 	assert.Equal(t, <-l.Msgs, fmt.Sprintf("x.prefix.gauge:%f|g\n", 3.0))
 }
 
-func TestStatsdBackendWithDemuxingSenderMakeError(t *testing.T) {
+func TestStatsdBackendWithTagTransformMakeError(t *testing.T) {
 	statsdFromFlags := &statsdFromFlags{
 		host:          "127.0.0.1",
 		port:          1,
 		flushInterval: 10 * time.Millisecond,
-		dsff:          &demuxingSenderFromFlags{config: "such invalid, so fail"},
+		transforms:    "such invalid, so fail",
 		lsff:          &latchingSenderFromFlags{},
 		scope:         "x",
 	}
@@ -172,7 +170,6 @@ func TestStatsdStdoutHook(t *testing.T) {
 		port:          port,
 		flushInterval: 10 * time.Millisecond,
 		debug:         true,
-		dsff:          &demuxingSenderFromFlags{},
 		lsff:          &latchingSenderFromFlags{},
 	}
 

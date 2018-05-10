@@ -21,49 +21,7 @@ import (
 	"io"
 	"strings"
 	"unicode/utf8"
-
-	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 )
-
-const (
-	transformTagsDesc = `
-Defines one or more transformations for tags. A tag with a specific name whose value matches
-a regular expression can be transformed into one or more tags with values extracted from
-subexpressions of the regular expression. Transformations are specified as follows:
-
-    tag=/regex/,n1,n2...
-
-where tag is the name of the tag to be transformed, regex is a regular expression with 1 or
-more subexpressions, and n1,n2... is a sequence of names for the tags formed from the regular
-expression's subexpressions (matching groups). Any character may be used in place of the
-slashes (/) to delimit the regular expression. There must be at least one subexpression in the
-regular expression. There must be exactly as many names as subexpressions. If one of the names
-is the original tag name, the original tag is replaced with the transformed value. Otherwise,
-the original tag is passed through unchanged. Multiple transformations may be separated by
-semicolons (;). Any character may be escaped with a backslash (\).
-
-Examples:
-    foo=/^(.+):.*x=([0-9]+)/,foo,bar
-    foo=@.*y=([A-Za-z_]+)@,yval
-`
-)
-
-type demuxingSenderFromFlags struct {
-	config string
-}
-
-func newDemuxingSenderFromFlags(fs tbnflag.FlagSet) *demuxingSenderFromFlags {
-	ff := &demuxingSenderFromFlags{}
-
-	fs.StringVar(
-		&ff.config,
-		"transform-tags",
-		"",
-		transformTagsDesc,
-	)
-
-	return ff
-}
 
 // readRune reads a single rune from reader and increments *pos. Returns the rune, a
 // EOF flag, and an error.
@@ -147,16 +105,16 @@ func readUntilDelimNoEOF(reader *strings.Reader, pos *int, delims ...rune) (stri
 	return s, r, err
 }
 
-// parseConfig parses the value of the configuration flag into 0 or more demuxTag
-// instances.
-func (ff *demuxingSenderFromFlags) parseConfig() ([]demuxTag, error) {
-	if ff.config == "" {
-		return nil, nil
+// parseTagTransforms parses the value of the tag transform configuration flag into a
+// tagTransformer.
+func parseTagTransforms(config string) (*tagTransformer, error) {
+	if config == "" {
+		return newTagTransformer(nil), nil
 	}
 
-	demuxTags := []demuxTag{}
+	tagTransforms := []tagTransform{}
 
-	reader := strings.NewReader(ff.config)
+	reader := strings.NewReader(config)
 	pos := 0
 	for reader.Len() > 0 {
 		startPos := pos
@@ -209,27 +167,12 @@ func (ff *demuxingSenderFromFlags) parseConfig() ([]demuxTag, error) {
 			names = append(names, name)
 		}
 
-		dt, err := newDemuxTag(tag, regex, names)
+		tt, err := newTagTransform(tag, regex, names)
 		if err != nil {
 			return nil, fmt.Errorf("char %d-%d: %s", startPos, pos, err.Error())
 		}
-		demuxTags = append(demuxTags, dt)
+		tagTransforms = append(tagTransforms, tt)
 	}
 
-	return demuxTags, nil
-}
-
-func (ff *demuxingSenderFromFlags) Validate() error {
-	_, err := ff.parseConfig()
-	return err
-}
-
-func (ff *demuxingSenderFromFlags) Make(underlying xstatsSender, c cleaner) (xstatsSender, error) {
-	configs, err := ff.parseConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	// The configs may be empty, in which case this will just return underlying.
-	return newDemuxingSender(underlying, c, configs), nil
+	return newTagTransformer(tagTransforms), nil
 }

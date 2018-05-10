@@ -53,7 +53,7 @@ type statsdFromFlags struct {
 	maxPacketLen  int
 	flushInterval time.Duration
 	scope         string
-	dsff          *demuxingSenderFromFlags
+	transforms    string
 	lsff          *latchingSenderFromFlags
 	debug         bool
 }
@@ -68,7 +68,6 @@ type mkStatsdSenderFunc func(
 func newStatsdFromFlags(fs tbnflag.FlagSet) *statsdFromFlags {
 	ff := &statsdFromFlags{
 		flagScope: fs.GetScope(),
-		dsff:      newDemuxingSenderFromFlags(fs),
 		lsff:      newLatchingSenderFromFlags(fs, false),
 	}
 
@@ -107,6 +106,13 @@ func newStatsdFromFlags(fs tbnflag.FlagSet) *statsdFromFlags {
 		"If specified, prepends the given scope to metric names.",
 	)
 
+	fs.StringVar(
+		&ff.transforms,
+		"transform-tags",
+		"",
+		transformTagsDesc,
+	)
+
 	fs.BoolVar(
 		&ff.debug,
 		"debug",
@@ -133,8 +139,8 @@ func (ff *statsdFromFlags) Validate() error {
 		return fmt.Errorf("--%sflush-interval must be greater than zero", ff.flagScope)
 	}
 
-	if err := ff.dsff.Validate(); err != nil {
-		return err
+	if _, err := parseTagTransforms(ff.transforms); err != nil {
+		return fmt.Errorf("--%stransform-tags invalid: %s", ff.flagScope, err.Error())
 	}
 
 	return ff.lsff.Validate()
@@ -145,6 +151,11 @@ func (ff *statsdFromFlags) Make() (Stats, error) {
 }
 
 func (ff *statsdFromFlags) makeInternal(mkSender mkStatsdSenderFunc, c cleaner) (Stats, error) {
+	tagTransformer, err := parseTagTransforms(ff.transforms)
+	if err != nil {
+		return nil, err
+	}
+
 	w, err := ff.mkUDPWriter()
 	if err != nil {
 		return nil, err
@@ -155,13 +166,7 @@ func (ff *statsdFromFlags) makeInternal(mkSender mkStatsdSenderFunc, c cleaner) 
 	// If latching is disabled, underlying is returned unchanged.
 	underlying = ff.lsff.Make(underlying, c)
 
-	// If demuxing is disabled, underlying is returned unchanged.
-	underlying, err = ff.dsff.Make(underlying, c)
-	if err != nil {
-		return nil, err
-	}
-
-	return newFromSender(underlying, c, ff.scope, true), nil
+	return newFromSender(underlying, c, ff.scope, tagTransformer, true), nil
 }
 
 func (ff *statsdFromFlags) mkUDPWriter() (io.Writer, error) {

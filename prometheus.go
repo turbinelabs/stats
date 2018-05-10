@@ -126,5 +126,7 @@ func (ff *prometheusFromFlags) Validate() error {
 }
 
 func (ff *prometheusFromFlags) Make() (Stats, error) {
-	return newFromSender(prometheus.New(ff.addr.Addr()), prometheusCleaner, ff.scope, true), nil
+	return newFromSender(
+		prometheus.New(ff.addr.Addr()), prometheusCleaner, ff.scope, nil, true,
+	), nil
 }

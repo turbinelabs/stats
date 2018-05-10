@@ -161,7 +161,7 @@ func (ff *apiStatsFromFlags) Make() (Stats, error) {
 
 	wrappedSender := ff.latchingSenderFromFlags.Make(sender, apiCleaner)
 
-	underlying := newFromSender(wrappedSender, apiCleaner, "", false)
+	underlying := newFromSender(wrappedSender, apiCleaner, "", nil, false)
 
 	return &apiStats{underlying, sender}, nil
 }
@@ -212,7 +212,7 @@ func NewAPIStats(svc stats.StatsService) Stats {
 		source: unspecified,
 		zone:   unspecified,
 	}
-	underlying := newFromSender(sender, apiCleaner, "", false)
+	underlying := newFromSender(sender, apiCleaner, "", nil, false)
 
 	return &apiStats{underlying, sender}
 }
@@ -237,7 +237,7 @@ func NewLatchingAPIStats(
 		latchBuckets(baseValue, numBuckets),
 	)
 
-	underlying := newFromSender(wrappedSender, apiCleaner, "", false)
+	underlying := newFromSender(wrappedSender, apiCleaner, "", nil, false)
 
 	return &apiStats{underlying, sender}
 }

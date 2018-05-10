@@ -206,6 +206,13 @@ func TestFromFlagsValidate(t *testing.T) {
 		{
 			args: []string{
 				"--backends=dogstatsd",
+				"--dogstatsd.transform-tags=invalid",
+			},
+			expectErrorContains: "--dogstatsd.transform-tags invalid",
+		},
+		{
+			args: []string{
+				"--backends=dogstatsd",
 				"--dogstatsd.latch=true",
 				"--dogstatsd.latch.window=1m",
 				"--dogstatsd.latch.base-value=1",

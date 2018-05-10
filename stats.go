@@ -61,8 +61,24 @@ type Stats interface {
 	Close() error
 }
 
-func newFromSender(s xstats.Sender, c cleaner, scope string, classifyStatusCodes bool) Stats {
-	stats := &xStats{xstats.NewScoping(s, c.scopeDelim), s, c, classifyStatusCodes}
+func newFromSender(
+	s xstats.Sender,
+	c cleaner,
+	scope string,
+	tagTransformer *tagTransformer,
+	classifyStatusCodes bool,
+) Stats {
+	if tagTransformer == nil {
+		tagTransformer = newTagTransformer(nil)
+	}
+
+	stats := &xStats{
+		xstater:             xstats.NewScoping(s, c.scopeDelim),
+		sender:              s,
+		cleaner:             c,
+		classifyStatusCodes: classifyStatusCodes,
+		tagTransformer:      tagTransformer,
+	}
 	if scope != "" {
 		return stats.Scope(scope)
 	}
@@ -74,9 +90,11 @@ type xStats struct {
 	sender              xstats.Sender
 	cleaner             cleaner
 	classifyStatusCodes bool
+	tagTransformer      *tagTransformer
 }
 
 func (xs *xStats) Gauge(stat string, value float64, tags ...Tag) {
+	tags = xs.tagTransformer.transform(tags)
 	if xs.classifyStatusCodes {
 		tags = statusCodeClassifier(tags)
 	}
@@ -84,6 +102,7 @@ func (xs *xStats) Gauge(stat string, value float64, tags ...Tag) {
 }
 
 func (xs *xStats) Count(stat string, count float64, tags ...Tag) {
+	tags = xs.tagTransformer.transform(tags)
 	if xs.classifyStatusCodes {
 		tags = statusCodeClassifier(tags)
 	}
@@ -91,6 +110,7 @@ func (xs *xStats) Count(stat string, count float64, tags ...Tag) {
 }
 
 func (xs *xStats) Histogram(stat string, value float64, tags ...Tag) {
+	tags = xs.tagTransformer.transform(tags)
 	if xs.classifyStatusCodes {
 		tags = statusCodeClassifier(tags)
 	}
@@ -98,6 +118,7 @@ func (xs *xStats) Histogram(stat string, value float64, tags ...Tag) {
 }
 
 func (xs *xStats) Timing(stat string, value time.Duration, tags ...Tag) {
+	tags = xs.tagTransformer.transform(tags)
 	if xs.classifyStatusCodes {
 		tags = statusCodeClassifier(tags)
 	}
@@ -105,6 +126,7 @@ func (xs *xStats) Timing(stat string, value time.Duration, tags ...Tag) {
 }
 
 func (xs *xStats) AddTags(tags ...Tag) {
+	tags = xs.tagTransformer.transform(tags)
 	if xs.classifyStatusCodes {
 		tags = statusCodeClassifier(tags)
 	}
@@ -120,5 +142,5 @@ func (xs *xStats) Close() error {
 
 func (xs *xStats) Scope(scope string, scopes ...string) Stats {
 	xsr := xstats.Scope(xs.xstater, scope, scopes...)
-	return &xStats{xsr, xs.sender, xs.cleaner, xs.classifyStatusCodes}
+	return &xStats{xsr, xs.sender, xs.cleaner, xs.classifyStatusCodes, xs.tagTransformer}
 }
