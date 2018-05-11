@@ -19,8 +19,12 @@ package stats
 import (
 	"fmt"
 	"time"
+
+	tbntime "github.com/turbinelabs/nonstdlib/time"
 )
 
+// MinimumStatsInterval is the minimum interval at which PublishOnInterval will
+// publish stats.
 const MinimumStatsInterval = 1 * time.Second
 
 // PublishOnInterval calls some function that will publish stats on a given
@@ -30,24 +34,31 @@ func PublishOnInterval(
 	interval time.Duration,
 	publishFn func(),
 ) error {
+	return publishOnInterval(interval, publishFn, tbntime.NewSource())
+}
+
+func publishOnInterval(
+	interval time.Duration,
+	publishFn func(),
+	source tbntime.Source,
+) error {
 	if interval < MinimumStatsInterval {
 		return fmt.Errorf(
-			"%v is less than minimum stats interval of %v\n",
+			"%v is less than minimum stats interval of %v",
 			interval,
 			MinimumStatsInterval,
 		)
 	}
 
-	tmr := time.NewTimer(interval)
+	tmr := source.NewTimer(interval)
 
-	trigger := func() {
+	go func() {
 		for {
-			<-tmr.C
+			<-tmr.C()
 			publishFn()
 			tmr.Reset(interval)
 		}
-	}
+	}()
 
-	go trigger()
 	return nil
 }

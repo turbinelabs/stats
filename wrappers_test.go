@@ -23,6 +23,24 @@ import (
 	"github.com/turbinelabs/test/assert"
 )
 
+func TestNewNoopStats(t *testing.T) {
+	tag := NewKVTag("x", "y")
+
+	s := NewNoopStats()
+	s.Count("anything", 1.0, tag)
+	s.Gauge("anything", 1.0, tag)
+	s.Histogram("anything", 1.0, tag)
+	s.Timing("anything", 1.0, tag)
+	s.AddTags(NewKVTag("a", "b"))
+
+	s2 := s.Scope("x")
+	assert.SameInstance(t, s2, s)
+
+	assert.Nil(t, s.Close())
+
+	assert.DeepEqual(t, s, NewNoopStats())
+}
+
 func TestNewRecordingStatsGauge(t *testing.T) {
 	ch := make(chan Recorded, 10)
 
@@ -172,4 +190,50 @@ func TestNewRecordingStatsTiming(t *testing.T) {
 	})
 
 	assert.ChannelEmpty(t, ch)
+}
+
+func TestNewAsyncStats(t *testing.T) {
+	tag := NewKVTag("a", "b")
+
+	ch := make(chan Recorded, 10)
+	underlying := NewRecordingStats(ch)
+	defer underlying.Close()
+
+	s := NewAsyncStats(underlying).Scope("s")
+
+	s.Count("a", 1.0, tag)
+	assert.DeepEqual(t, <-ch, Recorded{
+		Scope:  "s",
+		Method: "count",
+		Metric: "a",
+		Value:  1.0,
+		Tags:   []Tag{tag},
+	})
+
+	s.Gauge("b", 1.0, tag)
+	assert.DeepEqual(t, <-ch, Recorded{
+		Scope:  "s",
+		Method: "gauge",
+		Metric: "b",
+		Value:  1.0,
+		Tags:   []Tag{tag},
+	})
+
+	s.Histogram("c", 1.0, tag)
+	assert.DeepEqual(t, <-ch, Recorded{
+		Scope:  "s",
+		Method: "histogram",
+		Metric: "c",
+		Value:  1.0,
+		Tags:   []Tag{tag},
+	})
+
+	s.Timing("d", 1*time.Second, tag)
+	assert.DeepEqual(t, <-ch, Recorded{
+		Scope:  "s",
+		Method: "timing",
+		Metric: "d",
+		Timing: 1 * time.Second,
+		Tags:   []Tag{tag},
+	})
 }

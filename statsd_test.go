@@ -133,6 +133,19 @@ func TestStatsdBackendWithScope(t *testing.T) {
 	assert.Equal(t, <-l.Msgs, fmt.Sprintf("x.prefix.gauge:%f|g\n", 3.0))
 }
 
+func TestStatsdBackendMakeError(t *testing.T) {
+	statsdFromFlags := &statsdFromFlags{
+		host:          "127.0.0.1",
+		port:          -1,
+		flushInterval: 10 * time.Millisecond,
+		lsff:          &latchingSenderFromFlags{},
+	}
+
+	stats, err := statsdFromFlags.Make()
+	assert.Nil(t, stats)
+	assert.NonNil(t, err)
+}
+
 func TestStatsdBackendWithTagTransformMakeError(t *testing.T) {
 	statsdFromFlags := &statsdFromFlags{
 		host:          "127.0.0.1",

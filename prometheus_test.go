@@ -19,6 +19,7 @@ package stats
 import (
 	"testing"
 
+	tbnflag "github.com/turbinelabs/nonstdlib/flag"
 	"github.com/turbinelabs/test/assert"
 )
 
@@ -83,4 +84,16 @@ func TestPrometheusCleanerTagToString(t *testing.T) {
 		got := prometheusCleaner.tagToString(tc.tag)
 		assert.Equal(t, got, tc.expected)
 	}
+}
+
+func TestPrometheusMake(t *testing.T) {
+	flags := &prometheusFromFlags{
+		flagScope: "prometheus",
+		addr:      tbnflag.NewHostPort(":0"),
+		scope:     "",
+	}
+
+	s, err := flags.Make()
+	assert.NonNil(t, s)
+	assert.Nil(t, err)
 }

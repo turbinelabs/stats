@@ -133,12 +133,12 @@ func TestWavefrontCleanerToTagString(t *testing.T) {
 			expected: `x="y"`,
 		},
 		{
-			tag:      NewKVTag("has space", "y"),
-			expected: `hasspace="y"`,
+			tag:      NewKVTag("has Space", "y"),
+			expected: `hasSpace="y"`,
 		},
 		{
-			tag:      NewKVTag("x!@#$%^&*x", "y"),
-			expected: `xx="y"`,
+			tag:      NewKVTag("x!@#$%^&*x0", "y"),
+			expected: `xx0="y"`,
 		},
 		{
 			tag:      NewKVTag("x-x_x.x", "y"),
