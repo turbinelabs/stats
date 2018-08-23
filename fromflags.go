@@ -36,6 +36,8 @@ const (
 	prometheusName = "prometheus"
 	statsdName     = "statsd"
 	wavefrontName  = "wavefront"
+	honeycombName  = "honeycomb"
+	consoleName    = "console"
 
 	maxNodeLen   = 256
 	maxSourceLen = 256
@@ -91,6 +93,10 @@ func NewFromFlags(fs tbnflag.FlagSet, options ...Option) FromFlags {
 		apply(ffOpts)
 	}
 
+	eventBackends := []string{
+		honeycombName,
+		consoleName,
+	}
 	backends := []string{
 		dogstatsdName,
 		prometheusName,
@@ -104,6 +110,23 @@ func NewFromFlags(fs tbnflag.FlagSet, options ...Option) FromFlags {
 		wavefrontName:  newWavefrontFromFlags(fs.Scope(wavefrontName, "")),
 		statsdName:     newStatsdFromFlags(fs.Scope(statsdName, "")),
 	}
+
+	effMap := map[string]statsFromFlags{
+		honeycombName: newHoneycombFromFlags(fs.Scope(honeycombName, "")),
+		consoleName:   newConsoleFromFlags(fs.Scope(consoleName, "")),
+	}
+
+	var defaultEventBackends []string
+	if len(ffOpts.defaultEventBackends) > 0 {
+		for _, backend := range ffOpts.defaultEventBackends {
+			backend = strings.ToLower(backend)
+			if _, ok := effMap[backend]; ok {
+				defaultEventBackends = append(defaultEventBackends, backend)
+			}
+		}
+	}
+
+	sort.Strings(eventBackends)
 
 	if ffOpts.enableAPIStats {
 		backends = append(backends, apiStatsName)
@@ -127,10 +150,12 @@ func NewFromFlags(fs tbnflag.FlagSet, options ...Option) FromFlags {
 	sort.Strings(backends)
 
 	ff := &fromFlags{
-		statsFromFlagses: sffMap,
-		flagScope:        fs.GetScope(),
-		backends:         tbnflag.NewStringsWithConstraint(backends...),
-		tags:             tbnflag.NewStrings(),
+		statsFromFlagses:  sffMap,
+		eventsFromFlagses: effMap,
+		flagScope:         fs.GetScope(),
+		backends:          tbnflag.NewStringsWithConstraint(backends...),
+		eventBackends:     tbnflag.NewStringsWithConstraint(eventBackends...),
+		tags:              tbnflag.NewStrings(),
 	}
 	ff.backends.ResetDefault(defaultBackends...)
 
@@ -139,13 +164,15 @@ func NewFromFlags(fs tbnflag.FlagSet, options ...Option) FromFlags {
 }
 
 type fromFlags struct {
-	statsFromFlagses map[string]statsFromFlags
-	flagScope        string
-	backends         tbnflag.Strings
-	nodeTag          string
-	sourceTag        string
-	uniqueSourceTag  string
-	tags             tbnflag.Strings
+	statsFromFlagses  map[string]statsFromFlags
+	eventsFromFlagses map[string]statsFromFlags
+	flagScope         string
+	backends          tbnflag.Strings
+	eventBackends     tbnflag.Strings
+	nodeTag           string
+	sourceTag         string
+	uniqueSourceTag   string
+	tags              tbnflag.Strings
 
 	resolved          bool
 	resolvedNodeTag   string
@@ -154,9 +181,10 @@ type fromFlags struct {
 }
 
 type fromFlagsOptions struct {
-	enableAPIStats  bool
-	apiStatsOptions []APIStatsOption
-	defaultBackends []string
+	enableAPIStats       bool
+	apiStatsOptions      []APIStatsOption
+	defaultBackends      []string
+	defaultEventBackends []string
 }
 
 func (ff *fromFlags) initFlags(fs tbnflag.FlagSet) {
@@ -164,6 +192,12 @@ func (ff *fromFlags) initFlags(fs tbnflag.FlagSet) {
 		&ff.backends,
 		"backends",
 		"Selects which stats backend(s) to use.",
+	)
+
+	fs.Var(
+		&ff.eventBackends,
+		"event-backends",
+		"Selects which stats backend(s) to use for structured events.",
 	)
 
 	fs.StringVar(
@@ -195,13 +229,21 @@ func (ff *fromFlags) initFlags(fs tbnflag.FlagSet) {
 }
 
 func (ff *fromFlags) Validate() error {
-	if len(ff.backends.Strings) == 0 {
+	if len(ff.backends.Strings) == 0 && len(ff.eventBackends.Strings) == 0 {
 		return errors.New("no backends specified")
 	}
 
 	for _, backend := range ff.backends.Strings {
 		if sff, ok := ff.statsFromFlagses[backend]; ok {
 			if err := sff.Validate(); err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, backend := range ff.eventBackends.Strings {
+		if eff, ok := ff.eventsFromFlagses[backend]; ok {
+			if err := eff.Validate(); err != nil {
 				return err
 			}
 		}
@@ -292,6 +334,17 @@ func (ff *fromFlags) Make() (Stats, error) {
 	for _, backend := range ff.backends.Strings {
 		if sff, ok := ff.statsFromFlagses[backend]; ok {
 			sender, err := sff.Make()
+			if err != nil {
+				return nil, err
+			}
+
+			statses = append(statses, sender)
+		}
+	}
+
+	for _, backend := range ff.eventBackends.Strings {
+		if eff, ok := ff.eventsFromFlagses[backend]; ok {
+			sender, err := eff.Make()
 			if err != nil {
 				return nil, err
 			}

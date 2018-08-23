@@ -8,10 +8,33 @@
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/facebookgo/clock"
+  packages = ["."]
+  revision = "600d898af40aa09a7a93ecb9265d87b0504b6f03"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/facebookgo/limitgroup"
+  packages = ["."]
+  revision = "6abd8d71ec01451d7f1929eacaa263bbe2935d05"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/facebookgo/muster"
+  packages = ["."]
+  revision = "fd3d7953fd52354a74b9f6b3d70d0c9650c4ec2a"
+
+[[projects]]
   name = "github.com/golang/protobuf"
   packages = ["proto"]
   revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
   version = "v1.1.0"
+
+[[projects]]
+  name = "github.com/honeycombio/libhoney-go"
+  packages = ["."]
+  revision = "v1.7.0"
 
 [[projects]]
   name = "github.com/matttproud/golang_protobuf_extensions"
@@ -74,9 +97,15 @@
   packages = ["context"]
   revision = "640f4622ab692b87c2f3a94265e6f579fe38263d"
 
+[[projects]]
+  name = "gopkg.in/alexcesaro/statsd.v2"
+  packages = ["."]
+  revision = "7fea3f0d2fab1ad973e641e51dba45443a311a90"
+  version = "v2.0.0"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b47fa34fe386c0e0f94e1074bdd1663386ac25fe1e9e09f7fd98603f210a06aa"
+  inputs-digest = "33c4f10d4224d5bdf649affa1acb455a5f4a864daa6603971d29bd0c4d3e14aa"
   solver-name = "gps-cdcl"
   solver-version = 1

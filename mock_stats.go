@@ -92,6 +92,21 @@ func (mr *MockStatsMockRecorder) Timing(stat, value interface{}, tags ...interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Timing", reflect.TypeOf((*MockStats)(nil).Timing), varargs...)
 }
 
+// Event mocks base method
+func (m *MockStats) Event(stat string, fields ...Field) {
+	varargs := []interface{}{stat}
+	for _, a := range fields {
+		varargs = append(varargs, a)
+	}
+	m.ctrl.Call(m, "Event", varargs...)
+}
+
+// Event indicates an expected call of Event
+func (mr *MockStatsMockRecorder) Event(stat interface{}, fields ...interface{}) *gomock.Call {
+	varargs := append([]interface{}{stat}, fields...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Event", reflect.TypeOf((*MockStats)(nil).Event), varargs...)
+}
+
 // AddTags mocks base method
 func (m *MockStats) AddTags(tags ...Tag) {
 	varargs := []interface{}{}

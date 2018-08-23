@@ -432,6 +432,67 @@ func TestFromFlagsValidate(t *testing.T) {
 				"--api.latch.buckets=8",
 			},
 		},
+		// honeycomb
+		{
+			args: []string{
+				"--event-backends=honeycomb",
+			},
+			expectErrorContains: "must specify a write key",
+		},
+		{
+			args: []string{
+				"--event-backends=honeycomb",
+				"--honeycomb.dataset=foo",
+				"--honeycomb.write-key=foo",
+			},
+		},
+		{
+			args: []string{
+				"--event-backends=honeycomb",
+				"--honeycomb.dataset=foo",
+				"--honeycomb.write-key=foo",
+				"--honeycomb.api-host=http://foo.example.com",
+				"--honeycomb.sample-rate=5",
+			},
+		},
+		{
+			args: []string{
+				"--event-backends=honeycomb",
+				"--honeycomb.dataset=foo",
+			},
+			expectErrorContains: "must specify a write key",
+		},
+		{
+			args: []string{
+				"--event-backends=honeycomb",
+				"--honeycomb.write-key=foo",
+			},
+			expectErrorContains: "must specify a dataset",
+		},
+		{
+			args: []string{
+				"--event-backends=honeycomb",
+				"--honeycomb.dataset=foo",
+				"--honeycomb.write-key=foo",
+				"--honeycomb.api-host=foo",
+			},
+			expectErrorContains: "must specify a valid api-host",
+		},
+		{
+			args: []string{
+				"--event-backends=honeycomb",
+				"--honeycomb.dataset=foo",
+				"--honeycomb.write-key=foo",
+				"--honeycomb.sample-rate=0",
+			},
+			expectErrorContains: "sample rate must be greater than zero",
+		},
+		// console
+		{
+			args: []string{
+				"--event-backends=console",
+			},
+		},
 		// node, source, unique-source, and tags
 		{
 			args: []string{

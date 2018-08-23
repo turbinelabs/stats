@@ -79,6 +79,12 @@ func (ms multiStats) Timing(stat string, value time.Duration, tags ...Tag) {
 	}
 }
 
+func (ms multiStats) Event(stat string, fields ...Field) {
+	for _, s := range ms {
+		s.Event(stat, fields...)
+	}
+}
+
 func (ms multiStats) AddTags(tags ...Tag) {
 	for _, s := range ms {
 		s.AddTags(tags...)
@@ -137,6 +143,13 @@ func (hs *rollUpStats) Timing(stat string, value time.Duration, tags ...Tag) {
 		hs.parent.Timing(stat, value, tags...)
 	}
 	hs.self.Timing(stat, value, tags...)
+}
+
+func (hs *rollUpStats) Event(stat string, fields ...Field) {
+	if hs.parent != nil {
+		hs.parent.Event(stat, fields...)
+	}
+	hs.self.Event(stat, fields...)
 }
 
 func (hs *rollUpStats) AddTags(tags ...Tag) {

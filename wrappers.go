@@ -30,6 +30,7 @@ func (n *noop) Gauge(_ string, _ float64, _ ...Tag)        {}
 func (n *noop) Count(_ string, _ float64, _ ...Tag)        {}
 func (n *noop) Histogram(_ string, _ float64, _ ...Tag)    {}
 func (n *noop) Timing(_ string, _ time.Duration, _ ...Tag) {}
+func (n *noop) Event(_ string, _ ...Field)                 {}
 func (n *noop) AddTags(_ ...Tag)                           {}
 func (n *noop) Scope(_ string, _ ...string) Stats          { return n }
 func (n *noop) Close() error                               { return nil }
@@ -104,6 +105,7 @@ func (r *recorder) Gauge(m string, v float64, t ...Tag)        { r.recV("gauge",
 func (r *recorder) Count(m string, v float64, t ...Tag)        { r.recV("count", m, v, t) }
 func (r *recorder) Histogram(m string, v float64, t ...Tag)    { r.recV("histogram", m, v, t) }
 func (r *recorder) Timing(m string, d time.Duration, t ...Tag) { r.recT("timing", m, d, t) }
+func (r *recorder) Event(m string, f ...Field)                 {}
 func (r *recorder) AddTags(t ...Tag)                           { r.tags = append(r.tags, t...) }
 func (r *recorder) Close() error                               { close(r.ch); return nil }
 

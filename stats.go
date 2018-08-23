@@ -49,6 +49,10 @@ type Stats interface {
 	// Timing measures the elapsed time.
 	Timing(stat string, value time.Duration, tags ...Tag)
 
+	// Event is used to record a named event, with a structured set of fields.
+	// Not supported by all backends
+	Event(stat string, fields ...Field)
+
 	// AddTag adds a tag to the request client, this tag will be sent with all
 	// subsequent stats queries, for backends that support tags.
 	AddTags(tags ...Tag)
@@ -123,6 +127,9 @@ func (xs *xStats) Timing(stat string, value time.Duration, tags ...Tag) {
 		tags = statusCodeClassifier(tags)
 	}
 	xs.xstater.Timing(xs.cleaner.cleanStatName(stat), value, xs.cleaner.tagsToStrings(tags)...)
+}
+
+func (xs *xStats) Event(stat string, fields ...Field) {
 }
 
 func (xs *xStats) AddTags(tags ...Tag) {
