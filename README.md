@@ -24,7 +24,7 @@ backends, along with a means to configure it from command line flags.
 
 ## Requirements
 
-- Go 1.10.1 or later (previous versions may work, but we don't build or test against them)
+- Go 1.10.3 or later (previous versions may work, but we don't build or test against them)
 
 ## Dependencies
 
