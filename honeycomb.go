@@ -22,6 +22,7 @@ import (
 	"github.com/honeycombio/libhoney-go"
 
 	tbnflag "github.com/turbinelabs/nonstdlib/flag"
+	"github.com/turbinelabs/nonstdlib/log/console"
 )
 
 type honeycombFromFlags struct {
@@ -134,9 +135,9 @@ func (hs *honeySender) Event(stat string, fields ...Field) {
 	}
 	err := evt.Send()
 	if err != nil {
-		fmt.Printf("error sending event: %v\n", err)
+		console.Error().Printf("error sending event: %v\n", err)
 	} else {
-		fmt.Printf("sent event")
+		console.Debug().Println("sent event")
 	}
 }
 
